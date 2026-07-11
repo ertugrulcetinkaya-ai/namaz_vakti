@@ -1,0 +1,14 @@
+.gradle/
+.gradle-user-home/
+.idea/
+.DS_Store
+local.properties
+build/
+app/build/
+*.apk
+*.aab
+*.jks
+*.keystore
+review_bundles/
+gradle/wrapper/*.jar
+!gradle/wrapper/gradle-wrapper.jar

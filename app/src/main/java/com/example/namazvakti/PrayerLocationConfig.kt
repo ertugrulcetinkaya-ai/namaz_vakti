@@ -1,0 +1,103 @@
+package com.example.namazvakti
+
+object PrayerLocationConfig {
+    data class CityOption(
+        val city: String,
+        val country: String,
+        val displayCity: String
+    )
+
+    val defaultCity = CityOption(
+        city = "Ankara",
+        country = "Turkey",
+        displayCity = "ANKARA"
+    )
+
+    val cityOptions = listOf(
+        CityOption("Adana", "Turkey", "ADANA"),
+        CityOption("Adiyaman", "Turkey", "ADIYAMAN"),
+        CityOption("Afyonkarahisar", "Turkey", "AFYONKARAHİSAR"),
+        CityOption("Agri", "Turkey", "AĞRI"),
+        CityOption("Aksaray", "Turkey", "AKSARAY"),
+        CityOption("Amasya", "Turkey", "AMASYA"),
+        defaultCity,
+        CityOption("Antalya", "Turkey", "ANTALYA"),
+        CityOption("Ardahan", "Turkey", "ARDAHAN"),
+        CityOption("Artvin", "Turkey", "ARTVİN"),
+        CityOption("Aydin", "Turkey", "AYDIN"),
+        CityOption("Balikesir", "Turkey", "BALIKESİR"),
+        CityOption("Bartin", "Turkey", "BARTIN"),
+        CityOption("Batman", "Turkey", "BATMAN"),
+        CityOption("Bayburt", "Turkey", "BAYBURT"),
+        CityOption("Bilecik", "Turkey", "BİLECİK"),
+        CityOption("Bingol", "Turkey", "BİNGÖL"),
+        CityOption("Bitlis", "Turkey", "BİTLİS"),
+        CityOption("Bolu", "Turkey", "BOLU"),
+        CityOption("Burdur", "Turkey", "BURDUR"),
+        CityOption("Bursa", "Turkey", "BURSA"),
+        CityOption("Canakkale", "Turkey", "ÇANAKKALE"),
+        CityOption("Cankiri", "Turkey", "ÇANKIRI"),
+        CityOption("Corum", "Turkey", "ÇORUM"),
+        CityOption("Denizli", "Turkey", "DENİZLİ"),
+        CityOption("Diyarbakir", "Turkey", "DİYARBAKIR"),
+        CityOption("Duzce", "Turkey", "DÜZCE"),
+        CityOption("Edirne", "Turkey", "EDİRNE"),
+        CityOption("Elazig", "Turkey", "ELAZIĞ"),
+        CityOption("Erzincan", "Turkey", "ERZİNCAN"),
+        CityOption("Erzurum", "Turkey", "ERZURUM"),
+        CityOption("Eskisehir", "Turkey", "ESKİŞEHİR"),
+        CityOption("Gaziantep", "Turkey", "GAZİANTEP"),
+        CityOption("Giresun", "Turkey", "GİRESUN"),
+        CityOption("Gumushane", "Turkey", "GÜMÜŞHANE"),
+        CityOption("Hakkari", "Turkey", "HAKKARİ"),
+        CityOption("Hatay", "Turkey", "HATAY"),
+        CityOption("Igdir", "Turkey", "IĞDIR"),
+        CityOption("Isparta", "Turkey", "ISPARTA"),
+        CityOption("Istanbul", "Turkey", "İSTANBUL"),
+        CityOption("Izmir", "Turkey", "İZMİR"),
+        CityOption("Kahramanmaras", "Turkey", "KAHRAMANMARAŞ"),
+        CityOption("Karabuk", "Turkey", "KARABÜK"),
+        CityOption("Karaman", "Turkey", "KARAMAN"),
+        CityOption("Kars", "Turkey", "KARS"),
+        CityOption("Kastamonu", "Turkey", "KASTAMONU"),
+        CityOption("Kayseri", "Turkey", "KAYSERİ"),
+        CityOption("Kirikkale", "Turkey", "KIRIKKALE"),
+        CityOption("Kirklareli", "Turkey", "KIRKLARELİ"),
+        CityOption("Kirsehir", "Turkey", "KIRŞEHİR"),
+        CityOption("Kilis", "Turkey", "KİLİS"),
+        CityOption("Kocaeli", "Turkey", "KOCAELİ"),
+        CityOption("Konya", "Turkey", "KONYA"),
+        CityOption("Kutahya", "Turkey", "KÜTAHYA"),
+        CityOption("Malatya", "Turkey", "MALATYA"),
+        CityOption("Manisa", "Turkey", "MANİSA"),
+        CityOption("Mardin", "Turkey", "MARDİN"),
+        CityOption("Mersin", "Turkey", "MERSİN"),
+        CityOption("Mugla", "Turkey", "MUĞLA"),
+        CityOption("Mus", "Turkey", "MUŞ"),
+        CityOption("Nevsehir", "Turkey", "NEVŞEHİR"),
+        CityOption("Nigde", "Turkey", "NİĞDE"),
+        CityOption("Ordu", "Turkey", "ORDU"),
+        CityOption("Osmaniye", "Turkey", "OSMANİYE"),
+        CityOption("Rize", "Turkey", "RİZE"),
+        CityOption("Sakarya", "Turkey", "SAKARYA"),
+        CityOption("Samsun", "Turkey", "SAMSUN"),
+        CityOption("Siirt", "Turkey", "SİİRT"),
+        CityOption("Sinop", "Turkey", "SİNOP"),
+        CityOption("Sivas", "Turkey", "SİVAS"),
+        CityOption("Sanliurfa", "Turkey", "ŞANLIURFA"),
+        CityOption("Sirnak", "Turkey", "ŞIRNAK"),
+        CityOption("Tekirdag", "Turkey", "TEKİRDAĞ"),
+        CityOption("Tokat", "Turkey", "TOKAT"),
+        CityOption("Trabzon", "Turkey", "TRABZON"),
+        CityOption("Tunceli", "Turkey", "TUNCELİ"),
+        CityOption("Usak", "Turkey", "UŞAK"),
+        CityOption("Van", "Turkey", "VAN"),
+        CityOption("Yalova", "Turkey", "YALOVA"),
+        CityOption("Yozgat", "Turkey", "YOZGAT"),
+        CityOption("Zonguldak", "Turkey", "ZONGULDAK")
+    )
+
+    fun optionForCityAndCountry(city: String, country: String): CityOption {
+        return cityOptions.firstOrNull { it.city == city && it.country == country } ?: defaultCity
+    }
+}
