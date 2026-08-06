@@ -34,12 +34,31 @@ class PrayerTimesApiTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(successBody()))
         server.start()
         try {
-            PrayerTimesApi(baseUrl = server.url("/v1/")).fetchToday("Ankara", "Turkey")
+            PrayerTimesApi(baseUrl = server.url("/v1/")).fetchToday(
+                "Ankara", "Turkey", PrayerCalculationSettings()
+            )
             val request = server.takeRequest()
             assertEquals("Ankara", request.requestUrl?.queryParameter("city"))
             assertEquals("Turkey", request.requestUrl?.queryParameter("country"))
             assertEquals("13", request.requestUrl?.queryParameter("method"))
             assertEquals("1", request.requestUrl?.queryParameter("school"))
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
+    fun sendsProvidedCalculationSettings() {
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setResponseCode(200).setBody(successBody()))
+        server.start()
+        try {
+            PrayerTimesApi(baseUrl = server.url("/v1/")).fetchToday(
+                "Ankara", "Turkey", PrayerCalculationSettings(method = 3, school = 0)
+            )
+            val request = server.takeRequest()
+            assertEquals("3", request.requestUrl?.queryParameter("method"))
+            assertEquals("0", request.requestUrl?.queryParameter("school"))
         } finally {
             server.shutdown()
         }

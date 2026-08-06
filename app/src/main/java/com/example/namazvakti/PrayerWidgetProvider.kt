@@ -162,12 +162,7 @@ object PrayerWidgetScheduler {
         val currentCache = cache ?: PrayerTimesStore(appContext).readCache() ?: return
         val zone = currentCache.timezone
         val now = PrayerTimeProvider().now().withZoneSameInstant(zone)
-        val boundary = currentCache.prayerTimes.nextPrayerBoundary(now.toLocalTime())
-        val target = if (boundary != null) {
-            ZonedDateTime.of(now.toLocalDate(), boundary.time, zone)
-        } else {
-            ZonedDateTime.of(now.toLocalDate().plusDays(1), currentCache.prayerTimes.fajr, zone)
-        }.let { if (it.isAfter(now)) it else it.plusDays(1) }
+        val target = PrayerBoundaryCalculator.calculateNextBoundary(currentCache, now)
         val computedDelay = Duration.between(now, target).plusSeconds(45)
         val delay = if (computedDelay < Duration.ofMinutes(1)) Duration.ofMinutes(1) else computedDelay
 

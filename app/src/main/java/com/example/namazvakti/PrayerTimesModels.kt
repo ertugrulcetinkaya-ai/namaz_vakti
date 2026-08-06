@@ -9,7 +9,8 @@ import java.time.format.DateTimeFormatter
 data class PrayerLocation(
     val city: String,
     val country: String,
-    val displayCity: String = city.uppercase()
+    val displayCity: String = city.uppercase(),
+    val timezone: ZoneId = PrayerTimeProvider.DEFAULT_ZONE
 )
 
 data class PrayerCalculationSettings(
@@ -31,6 +32,7 @@ data class PrayerTimes(
     val isha: LocalTime
 ) {
     fun nextPrayerBoundary(now: LocalTime): PrayerBoundarySchedule? = when {
+        now < fajr -> PrayerBoundarySchedule("İmsak", fajr)
         now < sunrise -> PrayerBoundarySchedule("Güneş", sunrise)
         now < dhuhr -> PrayerBoundarySchedule("Öğle", dhuhr)
         now < asr -> PrayerBoundarySchedule("İkindi", asr)

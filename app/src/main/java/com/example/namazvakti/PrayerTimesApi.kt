@@ -17,8 +17,11 @@ data class PrayerTimesResponse(
 
 data class PrayerTimesData(
     val timings: PrayerTimings? = null,
-    val date: PrayerDate? = null
+    val date: PrayerDate? = null,
+    val meta: PrayerMeta? = null
 )
+
+data class PrayerMeta(val timezone: String? = null)
 
 data class PrayerDate(val hijri: HijriDate? = null)
 
@@ -50,12 +53,15 @@ class PrayerTimesApi(
         .callTimeout(20, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .build(),
-    private val settings: PrayerCalculationSettings = PrayerCalculationSettings(),
     private val baseUrl: okhttp3.HttpUrl = "https://api.aladhan.com/v1/".toHttpUrl()
 ) {
     private val gson = Gson()
 
-    fun fetchToday(city: String, country: String): PrayerTimesApiResult {
+    fun fetchToday(
+        city: String,
+        country: String,
+        settings: PrayerCalculationSettings
+    ): PrayerTimesApiResult {
         val url = baseUrl
             .newBuilder()
             .addPathSegment("timingsByCity")
@@ -104,7 +110,8 @@ class PrayerTimesApi(
                 maghrib = values.getValue("Maghrib"),
                 isha = values.getValue("Isha")
             ),
-            hijriText = data.date?.hijri?.toDisplayText()
+            hijriText = data.date?.hijri?.toDisplayText(),
+            timezone = data.meta?.timezone
         )
     }
 
@@ -122,7 +129,8 @@ class PrayerTimesApiException(message: String, cause: Throwable? = null) : Runti
 
 data class PrayerTimesApiResult(
     val prayerTimes: PrayerTimes,
-    val hijriText: String?
+    val hijriText: String?,
+    val timezone: String?
 )
 
 private fun HijriDate.toDisplayText(): String? {

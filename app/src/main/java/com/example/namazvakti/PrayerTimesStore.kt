@@ -28,11 +28,12 @@ class PrayerTimesStore(private val context: Context) : PrayerPreferences {
     private val legacyWidgetHijriKey = stringPreferencesKey("cached_widget_hijri_text")
     private val cityKey = stringPreferencesKey("selected_city")
     private val countryKey = stringPreferencesKey("selected_country")
-    private val gson = Gson()
+    private val locationTimezoneKey = stringPreferencesKey("selected_timezone")
+    private val codec = CachedPrayerDayCodec()
 
     override suspend fun saveCache(cache: CachedPrayerDay) {
         context.dataStore.edit { prefs ->
-            prefs[cacheKey] = gson.toJson(cache.toDto())
+            prefs[cacheKey] = codec.encode(cache)
             prefs.remove(legacyWidgetTextKey)
             prefs.remove(legacyWidgetDateKey)
             prefs.remove(legacyWidgetHijriKey)
@@ -43,6 +44,7 @@ class PrayerTimesStore(private val context: Context) : PrayerPreferences {
         context.dataStore.edit { prefs ->
             prefs[cityKey] = location.city
             prefs[countryKey] = location.country
+            prefs[locationTimezoneKey] = location.timezone.id
         }
     }
 
@@ -60,14 +62,30 @@ class PrayerTimesStore(private val context: Context) : PrayerPreferences {
         val city = prefs[cityKey] ?: PrayerLocationConfig.defaultCity.city
         val country = prefs[countryKey] ?: PrayerLocationConfig.defaultCity.country
         val displayCity = PrayerLocationConfig.optionForCityAndCountry(city, country).displayCity
-        return PrayerLocation(city, country, displayCity)
+        val timezone = prefs[locationTimezoneKey]?.let { runCatching { ZoneId.of(it) }.getOrNull() }
+            ?: PrayerTimeProvider.DEFAULT_ZONE
+        return PrayerLocation(city, country, displayCity, timezone)
     }
 
-    override suspend fun readCache(): CachedPrayerDay? = context.dataStore.data.first()[cacheKey]
-        ?.let { json -> runCatching { gson.fromJson(json, CachedPrayerDayDto::class.java).toDomain() }.getOrNull() }
+    override suspend fun readCache(): CachedPrayerDay? {
+        val json = context.dataStore.data.first()[cacheKey] ?: return null
+        val cache = codec.decode(json)
+        if (cache == null) {
+            context.dataStore.edit { it.remove(cacheKey) }
+        }
+        return cache
+    }
 }
 
-private data class CachedPrayerDayDto(
+internal class CachedPrayerDayCodec(private val gson: Gson = Gson()) {
+    fun encode(cache: CachedPrayerDay): String = gson.toJson(cache.toDto())
+
+    fun decode(json: String): CachedPrayerDay? = runCatching {
+        gson.fromJson(json, CachedPrayerDayDto::class.java).toDomain()
+    }.getOrNull()
+}
+
+internal data class CachedPrayerDayDto(
     val date: String? = null,
     val city: String? = null,
     val country: String? = null,
@@ -85,7 +103,9 @@ private data class CachedPrayerDayDto(
     val fetchedAtEpochMillis: Long? = null
 ) {
     fun toDomain(): CachedPrayerDay {
-        val location = PrayerLocation(city.orEmpty(), country.orEmpty(), displayCity.orEmpty())
+        val location = PrayerLocation(
+            city.orEmpty(), country.orEmpty(), displayCity.orEmpty(), ZoneId.of(timezone.orEmpty())
+        )
         return CachedPrayerDay(
             date = LocalDate.parse(date),
             location = location,

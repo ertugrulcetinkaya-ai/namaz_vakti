@@ -2,7 +2,7 @@ package com.example.namazvakti
 
 import android.util.Log
 import java.io.IOException
-import java.time.Instant
+import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
 
 class PrayerTimesRepository(
@@ -16,13 +16,13 @@ class PrayerTimesRepository(
             Log.d(TAG, "API request started")
             val location = store.readLocation()
             Log.d(TAG, "selected city=${location.city} country=${location.country}")
-            val result = api.fetchToday(location.city, location.country)
+            val result = api.fetchToday(location.city, location.country, settings)
             Log.d(TAG, "API response success")
             val hijriText = result.hijriText
             val cache = CachedPrayerDay(
                 date = timeProvider.today(),
                 location = location,
-                timezone = timeProvider.now().zone,
+                timezone = result.timezone?.let { runCatching { ZoneId.of(it) }.getOrNull() } ?: location.timezone,
                 settings = settings,
                 prayerTimes = result.prayerTimes,
                 hijriText = hijriText,
