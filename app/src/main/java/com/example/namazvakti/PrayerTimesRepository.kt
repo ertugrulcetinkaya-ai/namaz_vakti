@@ -8,7 +8,7 @@ class PrayerTimesRepository(
     private val api: PrayerTimesApi = PrayerTimesApi(),
     private val store: PrayerTimesStore
 ) {
-    fun refreshAndCache(): PrayerWidgetCache {
+    fun refreshAndCache(): RefreshResult {
         return try {
             Log.d(TAG, "API request started")
             val city = store.getSelectedCity()
@@ -27,15 +27,11 @@ class PrayerTimesRepository(
             Log.d(TAG, "cache write success start")
             store.save(cache)
             Log.d(TAG, "cache write success")
-            cache
+            RefreshResult.Success(cache)
         } catch (t: Throwable) {
-            Log.d(TAG, "API response failure=${t.javaClass.simpleName}: ${t.message}")
+            Log.e(TAG, "API response failure=${t.javaClass.simpleName}: ${t.message}")
             val cached = runCatching { store.read() }.getOrNull()
-            cached ?: PrayerWidgetCache(
-                date = LocalDate.now(ZoneId.of("Europe/Istanbul")).toString(),
-                widgetText = "Vakitler alınamadı",
-                hijriText = null
-            )
+            if (cached != null) RefreshResult.StaleCache(cached, t) else RefreshResult.Failure(t)
         }
     }
 
@@ -54,4 +50,10 @@ class PrayerTimesRepository(
     private companion object {
         const val TAG = "NamazWidget"
     }
+}
+
+sealed interface RefreshResult {
+    data class Success(val cache: PrayerWidgetCache) : RefreshResult
+    data class StaleCache(val cache: PrayerWidgetCache, val cause: Throwable) : RefreshResult
+    data class Failure(val cause: Throwable) : RefreshResult
 }

@@ -24,6 +24,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.concurrent.TimeUnit
 import androidx.work.workDataOf
+import androidx.work.BackoffPolicy
 
 class PrayerWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(
@@ -184,6 +185,7 @@ object PrayerWidgetScheduler {
         if (needsRefresh) {
             val oneTime = OneTimeWorkRequestBuilder<PrayerWidgetWorker>()
                 .setInputData(workDataOf(PrayerWidgetWorker.INPUT_FETCH to true))
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
                 .setConstraints(
                     Constraints.Builder()
                         .setRequiredNetworkType(NetworkType.CONNECTED)
