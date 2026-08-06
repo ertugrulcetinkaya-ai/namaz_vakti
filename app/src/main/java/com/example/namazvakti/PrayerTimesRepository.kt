@@ -1,14 +1,16 @@
 package com.example.namazvakti
 
 import android.util.Log
+import java.io.IOException
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlinx.coroutines.CancellationException
 
 class PrayerTimesRepository(
     private val api: PrayerTimesApi = PrayerTimesApi(),
     private val store: PrayerTimesStore
 ) {
-    fun refreshAndCache(): PrayerWidgetCache {
+    fun refreshAndCache(): RefreshResult {
         return try {
             Log.d(TAG, "API request started")
             val city = store.getSelectedCity()
@@ -27,16 +29,20 @@ class PrayerTimesRepository(
             Log.d(TAG, "cache write success start")
             store.save(cache)
             Log.d(TAG, "cache write success")
-            cache
-        } catch (t: Throwable) {
-            Log.d(TAG, "API response failure=${t.javaClass.simpleName}: ${t.message}")
-            val cached = runCatching { store.read() }.getOrNull()
-            cached ?: PrayerWidgetCache(
-                date = LocalDate.now(ZoneId.of("Europe/Istanbul")).toString(),
-                widgetText = "Vakitler alınamadı",
-                hijriText = null
-            )
+            RefreshResult.Success(cache)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: IOException) {
+            return failedRefresh(t)
+        } catch (t: PrayerTimesApiException) {
+            return failedRefresh(t)
         }
+    }
+
+    private fun failedRefresh(t: Exception): RefreshResult {
+        Log.e(TAG, "API response failure=${t.javaClass.simpleName}: ${t.message}")
+        val cached = runCatching { store.read() }.getOrNull()
+        return if (cached != null) RefreshResult.StaleCache(cached, t) else RefreshResult.Failure(t)
     }
 
     fun currentCachedText(): String? = store.getCachedWidgetText()
@@ -54,4 +60,10 @@ class PrayerTimesRepository(
     private companion object {
         const val TAG = "NamazWidget"
     }
+}
+
+sealed interface RefreshResult {
+    data class Success(val cache: PrayerWidgetCache) : RefreshResult
+    data class StaleCache(val cache: PrayerWidgetCache, val cause: Throwable) : RefreshResult
+    data class Failure(val cause: Throwable) : RefreshResult
 }

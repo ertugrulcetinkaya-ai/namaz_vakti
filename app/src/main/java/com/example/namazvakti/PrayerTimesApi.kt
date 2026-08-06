@@ -4,18 +4,28 @@ import com.google.gson.Gson
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import java.util.concurrent.TimeUnit
 
 class PrayerTimesApi(
-    private val client: OkHttpClient = OkHttpClient()
+    private val client: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
+        .callTimeout(20, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
+        .build(),
+    private val settings: PrayerCalculationSettings = PrayerCalculationSettings(),
+    private val baseUrl: okhttp3.HttpUrl = "https://api.aladhan.com/v1/".toHttpUrl()
 ) {
     private val gson = Gson()
 
     fun fetchToday(city: String, country: String): PrayerTimesApiResult {
-        val url = "https://api.aladhan.com/v1/timingsByCity"
-            .toHttpUrl()
+        val url = baseUrl
             .newBuilder()
+            .addPathSegment("timingsByCity")
             .addQueryParameter("city", city)
             .addQueryParameter("country", country)
+            .addQueryParameter("method", settings.method.toString())
+            .addQueryParameter("school", settings.school.toString())
             .build()
 
         val request = Request.Builder()
@@ -24,26 +34,55 @@ class PrayerTimesApi(
             .build()
 
         client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) error("HTTP ${response.code}")
+            if (!response.isSuccessful) {
+                throw PrayerTimesApiException("HTTP ${response.code}")
+            }
             val body = response.body?.string().orEmpty()
-            val parsed = gson.fromJson(body, PrayerTimesResponse::class.java)
-            val timings = parsed.data.timings
-            return PrayerTimesApiResult(
-                prayerTimes = PrayerTimes(
-                fajr = normalize(timings.fajr),
-                sunrise = normalize(timings.sunrise),
-                dhuhr = normalize(timings.dhuhr),
-                asr = normalize(timings.asr),
-                maghrib = normalize(timings.maghrib),
-                isha = normalize(timings.isha)
-                ),
-                hijriText = parsed.data.date.hijri.toDisplayText()
-            )
+            return parseResponse(body)
         }
     }
 
-    private fun normalize(value: String): String = value.substringBefore(" ")
+    internal fun parseResponse(body: String): PrayerTimesApiResult {
+        val parsed = runCatching { gson.fromJson(body, PrayerTimesResponse::class.java) }
+            .getOrElse { throw PrayerTimesApiException("Invalid API response", it) }
+        if (parsed.code !in 200..299 || parsed.status != "OK") {
+            throw PrayerTimesApiException(parsed.message ?: parsed.status ?: "API request failed")
+        }
+        val data = parsed.data ?: throw PrayerTimesApiException("API response has no data")
+        val timings = data.timings ?: throw PrayerTimesApiException("API response has no timings")
+        val values = listOf(
+            "Fajr" to timings.fajr,
+            "Sunrise" to timings.sunrise,
+            "Dhuhr" to timings.dhuhr,
+            "Asr" to timings.asr,
+            "Maghrib" to timings.maghrib,
+            "Isha" to timings.isha
+        ).associate { (name, value) -> name to parseTime(value) }
+        return PrayerTimesApiResult(
+            prayerTimes = PrayerTimes(
+                fajr = values.getValue("Fajr"),
+                sunrise = values.getValue("Sunrise"),
+                dhuhr = values.getValue("Dhuhr"),
+                asr = values.getValue("Asr"),
+                maghrib = values.getValue("Maghrib"),
+                isha = values.getValue("Isha")
+            ),
+            hijriText = data.date?.hijri?.toDisplayText()
+        )
+    }
+
+    private fun parseTime(value: String?): String {
+        val normalized = value?.substringBefore(" ")?.trim().orEmpty()
+        if (normalized.isBlank()) {
+            throw PrayerTimesApiException("API response has incomplete prayer timings")
+        }
+        return runCatching { java.time.LocalTime.parse(normalized) }
+            .getOrElse { throw PrayerTimesApiException("Invalid prayer time: $normalized", it) }
+            .toString()
+    }
 }
+
+class PrayerTimesApiException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
 
 data class PrayerTimesApiResult(
     val prayerTimes: PrayerTimes,
@@ -51,11 +90,11 @@ data class PrayerTimesApiResult(
 )
 
 private fun HijriDate.toDisplayText(): String? {
-    val dayValue = day.trim()
+    val dayValue = day?.trim().orEmpty()
     if (dayValue.isBlank()) return null
 
-    val monthText = hijriMonthName(number = month.number, en = month.en, ar = month.ar)
-    val yearValue = year.trim()
+    val monthText = hijriMonthName(number = month?.number, en = month?.en, ar = month?.ar)
+    val yearValue = year?.trim().orEmpty()
     if (monthText.isBlank() || yearValue.isBlank()) return null
 
     return "$dayValue $monthText $yearValue"

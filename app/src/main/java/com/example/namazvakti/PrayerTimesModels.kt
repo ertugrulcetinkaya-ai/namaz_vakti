@@ -6,22 +6,25 @@ import java.time.LocalTime
 import java.time.ZoneId
 
 data class PrayerTimesResponse(
-    val data: PrayerTimesData
+    val code: Int? = null,
+    val status: String? = null,
+    val data: PrayerTimesData? = null,
+    val message: String? = null
 )
 
 data class PrayerTimesData(
-    val timings: PrayerTimings,
-    val date: PrayerDate
+    val timings: PrayerTimings? = null,
+    val date: PrayerDate? = null
 )
 
 data class PrayerDate(
-    val hijri: HijriDate
+    val hijri: HijriDate? = null
 )
 
 data class HijriDate(
-    val day: String,
-    val month: HijriMonth,
-    val year: String
+    val day: String? = null,
+    val month: HijriMonth? = null,
+    val year: String? = null
 )
 
 data class HijriMonth(
@@ -31,12 +34,12 @@ data class HijriMonth(
 )
 
 data class PrayerTimings(
-    @SerializedName("Fajr") val fajr: String,
-    @SerializedName("Sunrise") val sunrise: String,
-    @SerializedName("Dhuhr") val dhuhr: String,
-    @SerializedName("Asr") val asr: String,
-    @SerializedName("Maghrib") val maghrib: String,
-    @SerializedName("Isha") val isha: String
+    @SerializedName("Fajr") val fajr: String? = null,
+    @SerializedName("Sunrise") val sunrise: String? = null,
+    @SerializedName("Dhuhr") val dhuhr: String? = null,
+    @SerializedName("Asr") val asr: String? = null,
+    @SerializedName("Maghrib") val maghrib: String? = null,
+    @SerializedName("Isha") val isha: String? = null
 )
 
 data class PrayerTimes(
@@ -51,7 +54,6 @@ data class PrayerTimes(
         val times = prayerBoundaries()
         if (times.size != 6) return null
 
-        val fajr = times[0]
         val sunrise = times[1]
         val dhuhr = times[2]
         val asr = times[3]
@@ -113,6 +115,17 @@ data class PrayerTimes(
 
     private fun prayerBoundaries(): List<LocalTime> = listOf(fajr, sunrise, dhuhr, asr, maghrib, isha)
         .mapNotNull { it.toLocalTimeOrNull() }
+}
+
+data class PrayerCalculationSettings(
+    val method: Int = DEFAULT_METHOD,
+    val school: Int = DEFAULT_SCHOOL
+) {
+    companion object {
+        // AlAdhan method 13 is the Turkey calculation method; school 1 is Hanafi.
+        const val DEFAULT_METHOD = 13
+        const val DEFAULT_SCHOOL = 1
+    }
 }
 
 data class PrayerDisplayItem(

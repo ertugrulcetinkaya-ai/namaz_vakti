@@ -24,6 +24,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.concurrent.TimeUnit
 import androidx.work.workDataOf
+import androidx.work.BackoffPolicy
 
 class PrayerWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(
@@ -105,12 +106,10 @@ class PrayerWidgetProvider : AppWidgetProvider() {
             val widgetText = when {
                 cachedText.isNullOrBlank() -> {
                     Log.d(TAG, "fallback text used=$FALLBACK_TEXT")
-                    PrayerWidgetScheduler.enqueueRefresh(context)
                     FALLBACK_TEXT
                 }
                 cachedDate.isNullOrBlank() || cachedDate < today -> {
-                    Log.d(TAG, "cache date missing or stale; enqueue refresh")
-                    PrayerWidgetScheduler.enqueueRefresh(context)
+                    Log.d(TAG, "cache date missing or stale; rendering cached value")
                     cachedText
                 }
                 else -> cachedText
@@ -184,6 +183,7 @@ object PrayerWidgetScheduler {
         if (needsRefresh) {
             val oneTime = OneTimeWorkRequestBuilder<PrayerWidgetWorker>()
                 .setInputData(workDataOf(PrayerWidgetWorker.INPUT_FETCH to true))
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
                 .setConstraints(
                     Constraints.Builder()
                         .setRequiredNetworkType(NetworkType.CONNECTED)

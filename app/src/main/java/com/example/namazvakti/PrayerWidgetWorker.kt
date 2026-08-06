@@ -30,11 +30,18 @@ class PrayerWidgetWorker(
             if (!fetch && cacheStale) {
                 Log.d(TAG, "fetch=false upgraded to fetch because cache is stale")
             }
-            val refreshed = repository.refreshAndCache()
-            Log.d(TAG, "refreshed date=${refreshed.date}")
-            Log.d(TAG, "formatted widget text value=${refreshed.widgetText}")
-            Log.d(TAG, "formatted hijri text value=${refreshed.hijriText}")
-            refreshed
+            when (val refreshed = repository.refreshAndCache()) {
+                is RefreshResult.Success -> refreshed.cache
+                is RefreshResult.StaleCache -> {
+                    Log.w(TAG, "using stale cache; scheduling retry", refreshed.cause)
+                    renderWidgets(applicationContext)
+                    return Result.retry()
+                }
+                is RefreshResult.Failure -> {
+                    Log.w(TAG, "refresh failed; scheduling retry", refreshed.cause)
+                    return Result.retry()
+                }
+            }
         } else {
             Log.d(TAG, "rerender-only worker using cached widget state")
             cached ?: PrayerWidgetCache(
@@ -54,6 +61,14 @@ class PrayerWidgetWorker(
         PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(applicationContext, cache)
         Log.d(TAG, "rendered widget date=${cache.date}")
         return Result.success()
+    }
+
+    private fun renderWidgets(context: Context) {
+        val manager = AppWidgetManager.getInstance(context)
+        val component = ComponentName(context, PrayerWidgetProvider::class.java)
+        manager.getAppWidgetIds(component).forEach { id ->
+            PrayerWidgetProvider.updateWidget(context, manager, id)
+        }
     }
 
     companion object {
