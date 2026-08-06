@@ -1,172 +1,122 @@
 package com.example.namazvakti
 
-import com.google.gson.annotations.SerializedName
-import android.util.Log
+import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
-data class PrayerTimesResponse(
-    val code: Int? = null,
-    val status: String? = null,
-    val data: PrayerTimesData? = null,
-    val message: String? = null
+data class PrayerLocation(
+    val city: String,
+    val country: String,
+    val displayCity: String = city.uppercase(),
+    val timezone: ZoneId = PrayerTimeProvider.DEFAULT_ZONE
 )
-
-data class PrayerTimesData(
-    val timings: PrayerTimings? = null,
-    val date: PrayerDate? = null
-)
-
-data class PrayerDate(
-    val hijri: HijriDate? = null
-)
-
-data class HijriDate(
-    val day: String? = null,
-    val month: HijriMonth? = null,
-    val year: String? = null
-)
-
-data class HijriMonth(
-    val number: Int? = null,
-    val en: String? = null,
-    val ar: String? = null
-)
-
-data class PrayerTimings(
-    @SerializedName("Fajr") val fajr: String? = null,
-    @SerializedName("Sunrise") val sunrise: String? = null,
-    @SerializedName("Dhuhr") val dhuhr: String? = null,
-    @SerializedName("Asr") val asr: String? = null,
-    @SerializedName("Maghrib") val maghrib: String? = null,
-    @SerializedName("Isha") val isha: String? = null
-)
-
-data class PrayerTimes(
-    val fajr: String,
-    val sunrise: String,
-    val dhuhr: String,
-    val asr: String,
-    val maghrib: String,
-    val isha: String
-) {
-    fun nextPrayerBoundary(now: LocalTime = LocalTime.now(ZoneId.of("Europe/Istanbul"))): PrayerBoundarySchedule? {
-        val times = prayerBoundaries()
-        if (times.size != 6) return null
-
-        val sunrise = times[1]
-        val dhuhr = times[2]
-        val asr = times[3]
-        val maghrib = times[4]
-        val isha = times[5]
-        return when {
-            now < sunrise -> PrayerBoundarySchedule("Güneş", sunrise)
-            now < dhuhr -> PrayerBoundarySchedule("Öğle", dhuhr)
-            now < asr -> PrayerBoundarySchedule("İkindi", asr)
-            now < maghrib -> PrayerBoundarySchedule("Akşam", maghrib)
-            now < isha -> PrayerBoundarySchedule("Yatsı", isha)
-            else -> null
-        }
-    }
-
-    fun toWidgetText(): String =
-        "İmsak $fajr • Güneş $sunrise • Öğle $dhuhr • İkindi $asr • Akşam $maghrib • Yatsı $isha"
-
-    fun toHighlightedDisplayItems(): List<PrayerDisplayItem> {
-        val items = prayerDisplayItems()
-        val activeIndex = currentPrayerIndex()
-        return items.mapIndexed { index, item ->
-            if (index == activeIndex) {
-                item.copy(value = "▶ ${item.value}", highlighted = true)
-            } else {
-                item
-            }
-        }
-    }
-
-    fun prayerDisplayItems(): List<PrayerDisplayItem> = listOf(
-        PrayerDisplayItem(R.id.prayer_widget_item_1, "İmsak $fajr"),
-        PrayerDisplayItem(R.id.prayer_widget_item_2, "Güneş $sunrise"),
-        PrayerDisplayItem(R.id.prayer_widget_item_3, "Öğle $dhuhr"),
-        PrayerDisplayItem(R.id.prayer_widget_item_4, "İkindi $asr"),
-        PrayerDisplayItem(R.id.prayer_widget_item_5, "Akşam $maghrib"),
-        PrayerDisplayItem(R.id.prayer_widget_item_6, "Yatsı $isha")
-    )
-
-    private fun currentPrayerIndex(): Int {
-        val times = prayerBoundaries()
-        if (times.size != 6) return -1
-
-        val now = LocalTime.now(ZoneId.of("Europe/Istanbul"))
-        Log.d(
-            "NamazWidget",
-            "now=$now imsak=${times[0]} gunes=${times[1]} ogle=${times[2]} ikindi=${times[3]} aksam=${times[4]} yatsi=${times[5]}"
-        )
-        return when {
-            now >= times[0] && now < times[1] -> 0
-            now >= times[1] && now < times[2] -> 1
-            now >= times[2] && now < times[3] -> 2
-            now >= times[3] && now < times[4] -> 3
-            now >= times[4] && now < times[5] -> 4
-            now >= times[5] || now < times[0] -> 5
-            else -> -1
-        }
-    }
-
-    private fun prayerBoundaries(): List<LocalTime> = listOf(fajr, sunrise, dhuhr, asr, maghrib, isha)
-        .mapNotNull { it.toLocalTimeOrNull() }
-}
 
 data class PrayerCalculationSettings(
     val method: Int = DEFAULT_METHOD,
     val school: Int = DEFAULT_SCHOOL
 ) {
     companion object {
-        // AlAdhan method 13 is the Turkey calculation method; school 1 is Hanafi.
         const val DEFAULT_METHOD = 13
         const val DEFAULT_SCHOOL = 1
     }
 }
 
-data class PrayerDisplayItem(
-    val viewId: Int,
-    val value: CharSequence,
-    val highlighted: Boolean = false
-)
+data class PrayerTimes(
+    val fajr: LocalTime,
+    val sunrise: LocalTime,
+    val dhuhr: LocalTime,
+    val asr: LocalTime,
+    val maghrib: LocalTime,
+    val isha: LocalTime
+) {
+    fun nextPrayerBoundary(now: LocalTime): PrayerBoundarySchedule? = when {
+        now < fajr -> PrayerBoundarySchedule("İmsak", fajr)
+        now < sunrise -> PrayerBoundarySchedule("Güneş", sunrise)
+        now < dhuhr -> PrayerBoundarySchedule("Öğle", dhuhr)
+        now < asr -> PrayerBoundarySchedule("İkindi", asr)
+        now < maghrib -> PrayerBoundarySchedule("Akşam", maghrib)
+        now < isha -> PrayerBoundarySchedule("Yatsı", isha)
+        else -> null
+    }
 
-data class PrayerWidgetCache(
-    val date: String,
-    val widgetText: String,
-    val hijriText: String? = null
-)
+    fun toWidgetText(): String = displayItems().joinToString(" • ") { "${it.label} ${it.time.format(TIME_FORMATTER)}" }
+
+    fun toHighlightedDisplayItems(now: LocalTime): List<PrayerDisplayItem> {
+        val items = displayItems()
+        val activeIndex = currentPrayerIndex(now)
+        return items.mapIndexed { index, item -> item.copy(highlighted = index == activeIndex) }
+    }
+
+    private fun displayItems(): List<PrayerDisplayItem> = listOf(
+        PrayerDisplayItem("İmsak", fajr),
+        PrayerDisplayItem("Güneş", sunrise),
+        PrayerDisplayItem("Öğle", dhuhr),
+        PrayerDisplayItem("İkindi", asr),
+        PrayerDisplayItem("Akşam", maghrib),
+        PrayerDisplayItem("Yatsı", isha)
+    )
+
+    private fun currentPrayerIndex(now: LocalTime): Int = when {
+        now >= fajr && now < sunrise -> 0
+        now >= sunrise && now < dhuhr -> 1
+        now >= dhuhr && now < asr -> 2
+        now >= asr && now < maghrib -> 3
+        now >= maghrib && now < isha -> 4
+        else -> 5
+    }
+
+    companion object {
+        val TIME_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+    }
+}
+
+data class PrayerDisplayItem(
+    val label: String,
+    val time: LocalTime,
+    val highlighted: Boolean = false
+) {
+    fun render(): String = "${if (highlighted) "▶ " else ""}$label ${time.format(PrayerTimes.TIME_FORMATTER)}"
+}
+
+data class CachedPrayerDay(
+    val date: LocalDate,
+    val location: PrayerLocation,
+    val timezone: ZoneId,
+    val settings: PrayerCalculationSettings,
+    val prayerTimes: PrayerTimes,
+    val hijriText: String?,
+    val fetchedAt: Instant
+) {
+    fun matches(
+        date: LocalDate,
+        location: PrayerLocation,
+        settings: PrayerCalculationSettings
+    ): Boolean = this.date == date && this.location == location && this.settings == settings
+}
 
 data class PrayerBoundarySchedule(
     val name: String,
     val time: LocalTime
 )
 
-private fun String.toLocalTimeOrNull(): LocalTime? = runCatching {
-    val normalized = trim().substringBefore(" ")
-    LocalTime.parse(normalized)
-}.getOrNull()
-
 fun parsePrayerTimesText(text: String): PrayerTimes? {
-    val parts = text
-        .trim()
-        .split(" • ")
-        .map { it.trim() }
-        .filter { it.isNotEmpty() }
+    val parts = text.trim().split(" • ").map { it.trim() }.filter { it.isNotEmpty() }
+    if (parts.size != 6) return null
 
-    if (parts.size != 6) {
-        return null
+    val values = parts.map { part ->
+        part.substringAfter(' ', "").substringBefore(" ").let { raw ->
+            runCatching { LocalTime.parse(raw) }.getOrNull()
+        }
     }
-
+    if (values.any { it == null }) return null
     return PrayerTimes(
-        fajr = parts[0].substringAfter(' ', parts[0]),
-        sunrise = parts[1].substringAfter(' ', parts[1]),
-        dhuhr = parts[2].substringAfter(' ', parts[2]),
-        asr = parts[3].substringAfter(' ', parts[3]),
-        maghrib = parts[4].substringAfter(' ', parts[4]),
-        isha = parts[5].substringAfter(' ', parts[5])
+        fajr = values[0]!!,
+        sunrise = values[1]!!,
+        dhuhr = values[2]!!,
+        asr = values[3]!!,
+        maghrib = values[4]!!,
+        isha = values[5]!!
     )
 }

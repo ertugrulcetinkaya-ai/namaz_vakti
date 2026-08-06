@@ -6,8 +6,6 @@ import android.content.Context
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import java.time.LocalDate
-import java.time.ZoneId
 
 class PrayerWidgetWorker(
     context: Context,
@@ -16,13 +14,14 @@ class PrayerWidgetWorker(
     override suspend fun doWork(): Result {
         val fetch = inputData.getBoolean(INPUT_FETCH, true)
         val repository = PrayerTimesRepository(store = PrayerTimesStore(applicationContext))
-        val today = LocalDate.now(ZoneId.of("Europe/Istanbul")).toString()
+        val timeProvider = PrayerTimeProvider()
+        val today = timeProvider.today()
+        val location = repository.selectedLocation()
         val cached = repository.cachedWidget()
-        val cachedDate = cached?.date
-        val cacheStale = cachedDate.isNullOrBlank() || cachedDate < today
+        val cacheStale = cached == null || !cached.matches(today, location, PrayerCalculationSettings())
 
         Log.d(TAG, "worker mode fetch=$fetch")
-        Log.d(TAG, "cachedDate=$cachedDate")
+        Log.d(TAG, "cachedDate=${cached?.date}")
         Log.d(TAG, "today=$today")
         Log.d(TAG, "cache stale=$cacheStale")
 
@@ -44,30 +43,22 @@ class PrayerWidgetWorker(
             }
         } else {
             Log.d(TAG, "rerender-only worker using cached widget state")
-            cached ?: PrayerWidgetCache(
-                date = today,
-                widgetText = "Vakitler alınamadı",
-                hijriText = null
-            )
+            cached
         }
-        val appWidgetManager = AppWidgetManager.getInstance(applicationContext)
-        val componentName = ComponentName(applicationContext, PrayerWidgetProvider::class.java)
-        val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
-        Log.d(TAG, "boundary rerender worker started fetch=$fetch")
-        Log.d(TAG, "RemoteViews updateAll/updateAppWidget called count=${appWidgetIds.size}")
-        for (appWidgetId in appWidgetIds) {
-            PrayerWidgetProvider.updateWidget(applicationContext, appWidgetManager, appWidgetId)
-        }
-        PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(applicationContext, cache)
-        Log.d(TAG, "rendered widget date=${cache.date}")
+        renderWidgets(applicationContext)
+        if (cache != null) PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(applicationContext, cache)
+        Log.d(TAG, "rendered widget date=${cache?.date}")
         return Result.success()
     }
 
-    private fun renderWidgets(context: Context) {
-        val manager = AppWidgetManager.getInstance(context)
-        val component = ComponentName(context, PrayerWidgetProvider::class.java)
-        manager.getAppWidgetIds(component).forEach { id ->
-            PrayerWidgetProvider.updateWidget(context, manager, id)
+    private suspend fun renderWidgets(context: Context) {
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        val componentName = ComponentName(context, PrayerWidgetProvider::class.java)
+        val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+        Log.d(TAG, "boundary rerender worker started")
+        Log.d(TAG, "RemoteViews updateAll/updateAppWidget called count=${appWidgetIds.size}")
+        for (appWidgetId in appWidgetIds) {
+            PrayerWidgetProvider.updateWidget(context, appWidgetManager, appWidgetId)
         }
     }
 
