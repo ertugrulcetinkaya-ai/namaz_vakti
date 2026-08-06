@@ -16,4 +16,4 @@ jobs:
           java-version: "17"
           cache: gradle
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew lint test assembleDebug
+      - run: ./gradlew lint test assembleDebug assembleAndroidTest

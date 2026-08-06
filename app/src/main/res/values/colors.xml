@@ -1,4 +1,5 @@
 <resources>
+    <color name="launcher_background">#12372A</color>
     <color name="widget_text">#FFFFFFFF</color>
     <color name="widget_active_text">#FFB8F397</color>
     <color name="screen_text">#FF202124</color>
