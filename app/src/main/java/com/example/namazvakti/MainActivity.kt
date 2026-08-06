@@ -29,7 +29,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        store = PrayerTimesStore(this)
+        store = (application as NamazVaktiApp).container.store
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
