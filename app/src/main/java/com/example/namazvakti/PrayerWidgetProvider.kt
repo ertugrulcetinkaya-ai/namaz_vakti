@@ -106,12 +106,10 @@ class PrayerWidgetProvider : AppWidgetProvider() {
             val widgetText = when {
                 cachedText.isNullOrBlank() -> {
                     Log.d(TAG, "fallback text used=$FALLBACK_TEXT")
-                    PrayerWidgetScheduler.enqueueRefresh(context)
                     FALLBACK_TEXT
                 }
                 cachedDate.isNullOrBlank() || cachedDate < today -> {
-                    Log.d(TAG, "cache date missing or stale; enqueue refresh")
-                    PrayerWidgetScheduler.enqueueRefresh(context)
+                    Log.d(TAG, "cache date missing or stale; rendering cached value")
                     cachedText
                 }
                 else -> cachedText

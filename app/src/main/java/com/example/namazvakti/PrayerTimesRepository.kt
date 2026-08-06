@@ -1,8 +1,10 @@
 package com.example.namazvakti
 
 import android.util.Log
+import java.io.IOException
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlinx.coroutines.CancellationException
 
 class PrayerTimesRepository(
     private val api: PrayerTimesApi = PrayerTimesApi(),
@@ -28,11 +30,19 @@ class PrayerTimesRepository(
             store.save(cache)
             Log.d(TAG, "cache write success")
             RefreshResult.Success(cache)
-        } catch (t: Throwable) {
-            Log.e(TAG, "API response failure=${t.javaClass.simpleName}: ${t.message}")
-            val cached = runCatching { store.read() }.getOrNull()
-            if (cached != null) RefreshResult.StaleCache(cached, t) else RefreshResult.Failure(t)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: IOException) {
+            return failedRefresh(t)
+        } catch (t: PrayerTimesApiException) {
+            return failedRefresh(t)
         }
+    }
+
+    private fun failedRefresh(t: Exception): RefreshResult {
+        Log.e(TAG, "API response failure=${t.javaClass.simpleName}: ${t.message}")
+        val cached = runCatching { store.read() }.getOrNull()
+        return if (cached != null) RefreshResult.StaleCache(cached, t) else RefreshResult.Failure(t)
     }
 
     fun currentCachedText(): String? = store.getCachedWidgetText()
