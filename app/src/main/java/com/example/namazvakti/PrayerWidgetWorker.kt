@@ -12,13 +12,17 @@ class PrayerWidgetWorker(
     params: WorkerParameters
 ) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
+        if (!PrayerWidgetScheduler.hasWidgets(applicationContext)) {
+            PrayerWidgetScheduler.cancelAll(applicationContext)
+            return Result.success()
+        }
         val fetch = inputData.getBoolean(INPUT_FETCH, true)
-        val repository = PrayerTimesRepository(store = PrayerTimesStore(applicationContext))
-        val timeProvider = PrayerTimeProvider()
-        val today = timeProvider.today()
+        val container = applicationContext.appContainer()
+        val repository = container.repository
+        val today = container.timeProvider.today()
         val location = repository.selectedLocation()
         val cached = repository.cachedWidget()
-        val cacheStale = cached == null || !cached.matches(today, location, PrayerCalculationSettings())
+        val cacheStale = cached == null || !cached.matches(today, location, container.settings)
 
         Log.d(TAG, "worker mode fetch=$fetch")
         Log.d(TAG, "cachedDate=${cached?.date}")
