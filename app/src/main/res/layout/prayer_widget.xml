@@ -6,10 +6,10 @@
     android:background="@drawable/widget_background"
     android:gravity="center"
     android:orientation="vertical"
-    android:paddingLeft="8dp"
-    android:paddingRight="8dp"
-    android:paddingTop="6dp"
-    android:paddingBottom="6dp">
+    android:paddingLeft="@dimen/widget_padding_horizontal"
+    android:paddingRight="@dimen/widget_padding_horizontal"
+    android:paddingTop="@dimen/widget_padding_vertical"
+    android:paddingBottom="@dimen/widget_padding_vertical">
 
     <TextView
         android:id="@+id/prayer_widget_city"
@@ -19,9 +19,9 @@
         android:includeFontPadding="false"
         android:ellipsize="end"
         android:maxLines="1"
-        android:text="ANKARA"
-        android:textColor="#FFFFFFFF"
-        android:textSize="22sp"
+        android:text="@string/app_name"
+        android:textColor="@color/widget_text"
+        android:textSize="@dimen/widget_city_text_size"
         android:textStyle="bold" />
 
     <LinearLayout
@@ -39,8 +39,8 @@
             android:includeFontPadding="false"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textColor="#FFFFFFFF"
-            android:textSize="20sp"
+            android:textColor="@color/widget_text"
+            android:textSize="@dimen/widget_prayer_text_size"
             android:textStyle="bold" />
 
         <TextView
@@ -52,8 +52,8 @@
             android:includeFontPadding="false"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textColor="#FFFFFFFF"
-            android:textSize="20sp"
+            android:textColor="@color/widget_text"
+            android:textSize="@dimen/widget_prayer_text_size"
             android:textStyle="bold" />
 
         <TextView
@@ -65,8 +65,8 @@
             android:includeFontPadding="false"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textColor="#FFFFFFFF"
-            android:textSize="20sp"
+            android:textColor="@color/widget_text"
+            android:textSize="@dimen/widget_prayer_text_size"
             android:textStyle="bold" />
     </LinearLayout>
 
@@ -85,8 +85,8 @@
             android:includeFontPadding="false"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textColor="#FFFFFFFF"
-            android:textSize="20sp"
+            android:textColor="@color/widget_text"
+            android:textSize="@dimen/widget_prayer_text_size"
             android:textStyle="bold" />
 
         <TextView
@@ -98,8 +98,8 @@
             android:includeFontPadding="false"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textColor="#FFFFFFFF"
-            android:textSize="20sp"
+            android:textColor="@color/widget_text"
+            android:textSize="@dimen/widget_prayer_text_size"
             android:textStyle="bold" />
 
         <TextView
@@ -111,8 +111,8 @@
             android:includeFontPadding="false"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textColor="#FFFFFFFF"
-            android:textSize="20sp"
+            android:textColor="@color/widget_text"
+            android:textSize="@dimen/widget_prayer_text_size"
             android:textStyle="bold" />
     </LinearLayout>
 </LinearLayout>

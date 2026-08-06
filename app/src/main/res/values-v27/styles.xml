@@ -4,5 +4,6 @@
         <item name="android:fontFamily">sans</item>
         <item name="android:colorAccent">@color/widget_active_text</item>
         <item name="android:navigationBarColor">@android:color/white</item>
+        <item name="android:windowLightNavigationBar">true</item>
     </style>
 </resources>

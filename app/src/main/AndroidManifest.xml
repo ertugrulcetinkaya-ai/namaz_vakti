@@ -5,7 +5,7 @@
     <application
         android:name=".NamazVaktiApp"
         android:allowBackup="true"
-        android:label="Namaz Vakti"
+        android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.NamazVakti">
         <activity
