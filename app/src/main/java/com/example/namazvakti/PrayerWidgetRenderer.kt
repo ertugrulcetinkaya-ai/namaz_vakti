@@ -11,7 +11,8 @@ class PrayerWidgetRenderer {
         context: Context,
         cache: CachedPrayerDay?,
         location: PrayerLocation,
-        now: ZonedDateTime
+        now: ZonedDateTime,
+        isStale: Boolean
     ): RemoteViews {
         val views = RemoteViews(context.packageName, R.layout.prayer_widget)
         val localNow = cache?.let { now.withZoneSameInstant(it.timezone) } ?: now
@@ -24,16 +25,22 @@ class PrayerWidgetRenderer {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
         )
-        val staleSuffix = if (cache != null && !cache.matches(localNow.toLocalDate(), location, PrayerCalculationSettings())) {
+        val staleSuffix = if (isStale) {
             context.getString(R.string.widget_stale_suffix)
         } else ""
         views.setTextViewText(
             R.id.prayer_widget_city,
             buildTopRowText(location.displayCity, cache?.hijriText) + staleSuffix
         )
+        val activeItem = itemsForDescription(cache, localNow)
         views.setContentDescription(
             R.id.prayer_widget_root,
-            context.getString(R.string.widget_content_description, location.displayCity)
+            context.getString(
+                R.string.widget_content_description,
+                location.displayCity,
+                if (isStale) context.getString(R.string.stale_data) else context.getString(R.string.refresh_success),
+                activeItem ?: context.getString(R.string.prayer_times_unavailable)
+            )
         )
 
         val items = cache?.prayerTimes?.toHighlightedDisplayItems(localNow.toLocalTime())
@@ -58,6 +65,11 @@ class PrayerWidgetRenderer {
         val cleanedHijri = hijriText?.trim().orEmpty()
         return if (cleanedHijri.isBlank()) cityText else "$cityText • $cleanedHijri"
     }
+
+    private fun itemsForDescription(cache: CachedPrayerDay?, now: ZonedDateTime): String? =
+        cache?.prayerTimes?.toHighlightedDisplayItems(now.toLocalTime())
+            ?.firstOrNull { it.highlighted }
+            ?.render()
 
     private companion object {
         val ITEM_IDS = listOf(

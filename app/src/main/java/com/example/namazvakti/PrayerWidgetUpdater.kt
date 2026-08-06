@@ -4,8 +4,12 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
 
-object PrayerWidgetUpdater {
-    suspend fun updateAll(context: Context) {
+interface PrayerWidgetUpdatePort {
+    suspend fun updateAll(context: Context)
+}
+
+object PrayerWidgetUpdater : PrayerWidgetUpdatePort {
+    override suspend fun updateAll(context: Context) {
         val appContext = context.applicationContext
         val manager = AppWidgetManager.getInstance(appContext)
         val component = ComponentName(appContext, PrayerWidgetProvider::class.java)

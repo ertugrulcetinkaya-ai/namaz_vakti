@@ -11,6 +11,6 @@
     <string name="stale_data">Eski veri gösteriliyor</string>
     <string name="prayer_times_unavailable">Vakitler alınamadı</string>
     <string name="widget_stale_suffix"> • Eski veri</string>
-    <string name="widget_content_description">%1$s için namaz vakitleri</string>
+    <string name="widget_content_description">%1$s için namaz vakitleri. Durum: %2$s. Aktif vakit: %3$s.</string>
     <string name="no_city_results">Şehir bulunamadı</string>
 </resources>

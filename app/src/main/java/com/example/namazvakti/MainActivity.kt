@@ -15,6 +15,8 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.setPadding
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.Lifecycle
 import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
@@ -78,7 +80,9 @@ class MainActivity : AppCompatActivity() {
         setContentView(root)
 
         lifecycleScope.launch {
-            viewModel.state.collect { renderState(it) }
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.state.collect { renderState(it) }
+            }
         }
     }
 
@@ -90,11 +94,13 @@ class MainActivity : AppCompatActivity() {
             }
             is PrayerUiState.Ready -> {
                 val base = getString(R.string.current_city, state.location.displayCity)
-                status.text = when (state.message) {
-                    "refreshing" -> "$base — ${getString(R.string.refreshing)}"
-                    "success" -> "$base — ${getString(R.string.refresh_success)}"
-                    "error" -> "$base — ${getString(R.string.stale_data)}"
-                    else -> if (state.stale) "$base — ${getString(R.string.stale_data)}" else base
+                status.text = when (state.operation) {
+                    OperationState.Refreshing -> "$base — ${getString(R.string.refreshing)}"
+                    OperationState.Refreshed -> "$base — ${getString(R.string.refresh_success)}"
+                    OperationState.RefreshFailed -> "$base — ${getString(R.string.stale_data)}"
+                    OperationState.Idle -> if (state.freshness == Freshness.Stale) {
+                        "$base — ${getString(R.string.stale_data)}"
+                    } else base
                 }
                 refreshButton.isEnabled = true
                 val index = allCities.indexOfFirst { it.displayCity == state.location.displayCity }
