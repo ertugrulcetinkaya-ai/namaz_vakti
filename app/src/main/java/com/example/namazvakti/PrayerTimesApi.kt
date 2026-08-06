@@ -5,6 +5,43 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import java.util.concurrent.TimeUnit
+import java.time.LocalTime
+import com.google.gson.annotations.SerializedName
+
+data class PrayerTimesResponse(
+    val code: Int? = null,
+    val status: String? = null,
+    val data: PrayerTimesData? = null,
+    val message: String? = null
+)
+
+data class PrayerTimesData(
+    val timings: PrayerTimings? = null,
+    val date: PrayerDate? = null
+)
+
+data class PrayerDate(val hijri: HijriDate? = null)
+
+data class HijriDate(
+    val day: String? = null,
+    val month: HijriMonth? = null,
+    val year: String? = null
+)
+
+data class HijriMonth(
+    val number: Int? = null,
+    val en: String? = null,
+    val ar: String? = null
+)
+
+data class PrayerTimings(
+    @SerializedName("Fajr") val fajr: String? = null,
+    @SerializedName("Sunrise") val sunrise: String? = null,
+    @SerializedName("Dhuhr") val dhuhr: String? = null,
+    @SerializedName("Asr") val asr: String? = null,
+    @SerializedName("Maghrib") val maghrib: String? = null,
+    @SerializedName("Isha") val isha: String? = null
+)
 
 class PrayerTimesApi(
     private val client: OkHttpClient = OkHttpClient.Builder()
@@ -71,14 +108,13 @@ class PrayerTimesApi(
         )
     }
 
-    private fun parseTime(value: String?): String {
+    private fun parseTime(value: String?): LocalTime {
         val normalized = value?.substringBefore(" ")?.trim().orEmpty()
         if (normalized.isBlank()) {
             throw PrayerTimesApiException("API response has incomplete prayer timings")
         }
-        return runCatching { java.time.LocalTime.parse(normalized) }
+        return runCatching { LocalTime.parse(normalized) }
             .getOrElse { throw PrayerTimesApiException("Invalid prayer time: $normalized", it) }
-            .toString()
     }
 }
 

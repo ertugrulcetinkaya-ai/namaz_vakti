@@ -57,8 +57,10 @@ class MainActivity : AppCompatActivity() {
             setOnClickListener {
                 Log.d(this@MainActivity.tag, "manual refresh tapped city=${status.text.toString()}")
                 status.text = "Yenileme başlatıldı"
-                PrayerWidgetScheduler.enqueueRefresh(this@MainActivity, force = true)
-                Log.d(this@MainActivity.tag, "manual refresh worker enqueued force=true")
+                lifecycleScope.launch {
+                    PrayerWidgetScheduler.enqueueRefresh(this@MainActivity, force = true)
+                    Log.d(this@MainActivity.tag, "manual refresh worker enqueued force=true")
+                }
             }
         }
 
@@ -76,10 +78,8 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             val currentSelection = withContext(Dispatchers.IO) {
-                PrayerLocationConfig.optionForCityAndCountry(
-                    store.getSelectedCity(),
-                    store.getSelectedCountry()
-                )
+                val location = store.readLocation()
+                PrayerLocationConfig.optionForCityAndCountry(location.city, location.country)
             }
             val currentIndex = allCities.indexOfFirst {
                 it.displayCity == currentSelection.displayCity
@@ -95,8 +95,8 @@ class MainActivity : AppCompatActivity() {
             lifecycleScope.launch {
                 withContext(Dispatchers.IO) {
                     Log.d(this@MainActivity.tag, "saving selected city=${chosen.city}")
-                    store.saveSelection(chosen.city, chosen.country)
-                    store.clearWidgetCache()
+                    store.saveLocation(PrayerLocation(chosen.city, chosen.country, chosen.displayCity))
+                    store.clearCache()
                     Log.d(this@MainActivity.tag, "cache cleared for city change")
                 }
                 status.text = "Current city: ${chosen.displayCity}"

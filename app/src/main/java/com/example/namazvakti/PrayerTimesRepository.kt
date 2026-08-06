@@ -2,32 +2,34 @@ package com.example.namazvakti
 
 import android.util.Log
 import java.io.IOException
-import java.time.LocalDate
-import java.time.ZoneId
+import java.time.Instant
 import kotlinx.coroutines.CancellationException
 
 class PrayerTimesRepository(
     private val api: PrayerTimesApi = PrayerTimesApi(),
-    private val store: PrayerTimesStore
+    private val store: PrayerPreferences,
+    private val settings: PrayerCalculationSettings = PrayerCalculationSettings(),
+    private val timeProvider: PrayerTimeProvider = PrayerTimeProvider()
 ) {
-    fun refreshAndCache(): RefreshResult {
+    suspend fun refreshAndCache(): RefreshResult {
         return try {
             Log.d(TAG, "API request started")
-            val city = store.getSelectedCity()
-            val country = store.getSelectedCountry()
-            Log.d(TAG, "selected city=$city country=$country")
-            val result = api.fetchToday(city, country)
+            val location = store.readLocation()
+            Log.d(TAG, "selected city=${location.city} country=${location.country}")
+            val result = api.fetchToday(location.city, location.country)
             Log.d(TAG, "API response success")
-            val widgetText = result.prayerTimes.toWidgetText()
             val hijriText = result.hijriText
-            val today = LocalDate.now(ZoneId.of("Europe/Istanbul")).toString()
-            val cache = PrayerWidgetCache(
-                date = today,
-                widgetText = widgetText,
-                hijriText = hijriText
+            val cache = CachedPrayerDay(
+                date = timeProvider.today(),
+                location = location,
+                timezone = timeProvider.now().zone,
+                settings = settings,
+                prayerTimes = result.prayerTimes,
+                hijriText = hijriText,
+                fetchedAt = timeProvider.now().toInstant()
             )
             Log.d(TAG, "cache write success start")
-            store.save(cache)
+            store.saveCache(cache)
             Log.d(TAG, "cache write success")
             RefreshResult.Success(cache)
         } catch (e: CancellationException) {
@@ -39,23 +41,15 @@ class PrayerTimesRepository(
         }
     }
 
-    private fun failedRefresh(t: Exception): RefreshResult {
+    private suspend fun failedRefresh(t: Exception): RefreshResult {
         Log.e(TAG, "API response failure=${t.javaClass.simpleName}: ${t.message}")
-        val cached = runCatching { store.read() }.getOrNull()
+        val cached = runCatching { store.readCache() }.getOrNull()
         return if (cached != null) RefreshResult.StaleCache(cached, t) else RefreshResult.Failure(t)
     }
 
-    fun currentCachedText(): String? = store.getCachedWidgetText()
+    suspend fun selectedLocation(): PrayerLocation = store.readLocation()
 
-    fun currentCachedDate(): String? = store.getCachedWidgetDate()
-
-    fun selectedCity(): PrayerLocationConfig.CityOption {
-        val city = store.getSelectedCity()
-        val country = store.getSelectedCountry()
-        return PrayerLocationConfig.optionForCityAndCountry(city, country)
-    }
-
-    fun cachedWidget(): PrayerWidgetCache? = runCatching { store.read() }.getOrNull()
+    suspend fun cachedWidget(): CachedPrayerDay? = runCatching { store.readCache() }.getOrNull()
 
     private companion object {
         const val TAG = "NamazWidget"
@@ -63,7 +57,7 @@ class PrayerTimesRepository(
 }
 
 sealed interface RefreshResult {
-    data class Success(val cache: PrayerWidgetCache) : RefreshResult
-    data class StaleCache(val cache: PrayerWidgetCache, val cause: Throwable) : RefreshResult
+    data class Success(val cache: CachedPrayerDay) : RefreshResult
+    data class StaleCache(val cache: CachedPrayerDay, val cause: Throwable) : RefreshResult
     data class Failure(val cause: Throwable) : RefreshResult
 }

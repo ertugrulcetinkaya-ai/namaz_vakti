@@ -14,7 +14,7 @@ class PrayerTimesApiTest {
             """{"code":200,"status":"OK","data":{"timings":{"Fajr":"04:12 (TRT)","Sunrise":"05:49","Dhuhr":"13:08","Asr":"17:02","Maghrib":"20:21","Isha":"22:01"},"date":{"hijri":{"day":"12","month":{"number":9,"en":"Ramadan"},"year":"1447"}}}}"""
         )
 
-        assertEquals("04:12", result.prayerTimes.fajr)
+        assertEquals("04:12", result.prayerTimes.fajr.toString())
         assertEquals("12 Ramazan 1447", result.hijriText)
     }
 
