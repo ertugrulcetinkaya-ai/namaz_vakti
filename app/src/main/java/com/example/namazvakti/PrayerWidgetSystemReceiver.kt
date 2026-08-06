@@ -14,11 +14,12 @@ class PrayerWidgetSystemReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val appContext = context.applicationContext
-                PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(appContext)
-                PrayerWidgetScheduler.enqueueRefresh(
-                    appContext,
-                    force = intent.action != Intent.ACTION_BOOT_COMPLETED
-                )
+                if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
+                    PrayerWidgetScheduler.enqueueRefresh(appContext, force = false)
+                    PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(appContext)
+                } else {
+                    PrayerWidgetScheduler.enqueueRefresh(appContext, force = true)
+                }
             } finally {
                 pendingResult.finish()
             }

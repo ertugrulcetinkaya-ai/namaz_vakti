@@ -26,7 +26,8 @@ class PrayerWidgetRenderer {
         )
         views.setTextViewText(R.id.prayer_widget_city, buildTopRowText(location.displayCity, cache?.hijriText))
 
-        val items = cache?.prayerTimes?.toHighlightedDisplayItems(now.toLocalTime())
+        val localNow = cache?.let { now.withZoneSameInstant(it.timezone) } ?: now
+        val items = cache?.prayerTimes?.toHighlightedDisplayItems(localNow.toLocalTime())
         if (items == null) {
             views.setTextViewText(ITEM_IDS.first(), FALLBACK_TEXT)
             ITEM_IDS.drop(1).forEach { views.setTextViewText(it, "") }
