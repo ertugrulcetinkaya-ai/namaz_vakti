@@ -19,6 +19,11 @@ import kotlin.coroutines.ContinuationInterceptor
 @OptIn(ExperimentalCoroutinesApi::class)
 class PrayerViewModelTest {
     @Test
+    fun androidViewModelFactoryConstructorIsAvailable() {
+        PrayerViewModel::class.java.getConstructor(Application::class.java)
+    }
+
+    @Test
     fun loadWithoutCacheReportsStaleReadyState() = runTest {
         val store = FakeStore()
         val viewModel = viewModel(store, FakeRepository(RefreshResult.Failure(Exception())), CoroutineScope(StandardTestDispatcher(testScheduler)))
