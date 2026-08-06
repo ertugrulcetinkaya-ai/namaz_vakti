@@ -50,7 +50,12 @@ class PrayerWidgetProvider : AppWidgetProvider() {
             val container = appContext.appContainer()
             val cache = container.store.readCache()
             val location = container.store.readLocation()
-            val views = renderer.render(appContext, cache, location, container.timeProvider.now())
+            val now = container.timeProvider.now()
+            val localNow = cache?.let { now.withZoneSameInstant(it.timezone) } ?: now
+            val isStale = cache != null && !cache.matches(
+                localNow.toLocalDate(), location, container.settings
+            )
+            val views = renderer.render(appContext, cache, location, now, isStale)
             manager.updateAppWidget(appWidgetId, views)
             Log.d(TAG, "rendered widget id=$appWidgetId cacheDate=${cache?.date}")
         }

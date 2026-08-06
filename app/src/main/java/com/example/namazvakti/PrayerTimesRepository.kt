@@ -5,13 +5,17 @@ import java.io.IOException
 import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
 
+interface PrayerRefreshRepository {
+    suspend fun refreshAndCache(): RefreshResult
+}
+
 class PrayerTimesRepository(
     private val api: PrayerTimesApi = PrayerTimesApi(),
     private val store: PrayerPreferences,
     private val settings: PrayerCalculationSettings = PrayerCalculationSettings(),
     private val timeProvider: PrayerTimeProvider = PrayerTimeProvider()
-) {
-    suspend fun refreshAndCache(): RefreshResult {
+) : PrayerRefreshRepository {
+    override suspend fun refreshAndCache(): RefreshResult {
         return try {
             Log.d(TAG, "API request started")
             val location = store.readLocation()

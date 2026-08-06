@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">Namaz Vakti</string>
+    <string name="select_city">Şehir seçin</string>
+    <string name="current_city">Seçili şehir: %1$s</string>
+    <string name="search_city">Şehir ara</string>
+    <string name="refresh_prayer_times">Vakitleri yenile</string>
+    <string name="refresh_started">Yenileme başlatıldı</string>
+    <string name="refreshing">Vakitler yenileniyor…</string>
+    <string name="refresh_success">Vakitler güncellendi</string>
+    <string name="refresh_error">Vakitler güncellenemedi</string>
+    <string name="stale_data">Eski veri gösteriliyor</string>
+    <string name="prayer_times_unavailable">Vakitler alınamadı</string>
+    <string name="widget_stale_suffix"> • Eski veri</string>
+    <string name="widget_content_description">%1$s için namaz vakitleri. Durum: %2$s. Aktif vakit: %3$s.</string>
+    <string name="no_city_results">Şehir bulunamadı</string>
+</resources>

@@ -1,0 +1,8 @@
+<resources>
+    <dimen name="screen_padding">24dp</dimen>
+    <dimen name="city_row_padding">16dp</dimen>
+    <dimen name="widget_padding_horizontal">8dp</dimen>
+    <dimen name="widget_padding_vertical">6dp</dimen>
+    <dimen name="widget_city_text_size">18sp</dimen>
+    <dimen name="widget_prayer_text_size">16sp</dimen>
+</resources>
