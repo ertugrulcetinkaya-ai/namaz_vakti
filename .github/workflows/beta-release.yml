@@ -1,0 +1,62 @@
+name: Beta Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: Beta version name
+        required: true
+        default: 0.1.0-beta.1
+      version_code:
+        description: Monotonically increasing Android version code
+        required: true
+        default: "100"
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build-beta:
+    runs-on: ubuntu-latest
+    env:
+      VERSION_NAME: ${{ inputs.version_name || github.ref_name }}
+      VERSION_CODE: ${{ inputs.version_code || github.run_number }}
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Normalize tag version name
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        run: echo "VERSION_NAME=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Prepare optional release signing
+        if: ${{ env.ANDROID_KEYSTORE_BASE64 != '' && env.ANDROID_KEYSTORE_PASSWORD != '' && env.ANDROID_KEY_ALIAS != '' && env.ANDROID_KEY_PASSWORD != '' }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+
+      - name: Verify and build beta artifacts
+        run: ./gradlew lint test assembleDebug assembleAndroidTest assembleRelease bundleRelease
+
+      - name: Upload beta APK and AAB files
+        uses: actions/upload-artifact@v4
+        with:
+          name: namaz-vakti-${{ env.VERSION_NAME }}
+          if-no-files-found: error
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/androidTest/debug/*.apk
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/bundle/release/*.aab
