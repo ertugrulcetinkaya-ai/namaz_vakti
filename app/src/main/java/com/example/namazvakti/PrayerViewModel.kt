@@ -26,7 +26,7 @@ private class WorkManagerPrayerRefreshScheduler : PrayerRefreshScheduler {
         PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(context)
 }
 
-class PrayerViewModel(
+class PrayerViewModel @JvmOverloads constructor(
     application: Application,
     private val store: PrayerPreferences = (application as NamazVaktiApp).container.store,
     private val repository: PrayerRefreshRepository = (application as NamazVaktiApp).container.repository,
