@@ -41,7 +41,7 @@ class PrayerTimesApiTest {
             assertEquals("Ankara", request.requestUrl?.queryParameter("city"))
             assertEquals("Turkey", request.requestUrl?.queryParameter("country"))
             assertEquals("13", request.requestUrl?.queryParameter("method"))
-            assertEquals("1", request.requestUrl?.queryParameter("school"))
+            assertEquals("0", request.requestUrl?.queryParameter("school"))
         } finally {
             server.shutdown()
         }
@@ -54,11 +54,14 @@ class PrayerTimesApiTest {
         server.start()
         try {
             PrayerTimesApi(baseUrl = server.url("/v1/")).fetchToday(
-                "Ankara", "Turkey", PrayerCalculationSettings(method = 3, school = 0)
+                "Ankara", "Turkey", PrayerCalculationSettings(
+                    method = 3,
+                    school = PrayerCalculationSettings.SCHOOL_HANAFI
+                )
             )
             val request = server.takeRequest()
             assertEquals("3", request.requestUrl?.queryParameter("method"))
-            assertEquals("0", request.requestUrl?.queryParameter("school"))
+            assertEquals("1", request.requestUrl?.queryParameter("school"))
         } finally {
             server.shutdown()
         }

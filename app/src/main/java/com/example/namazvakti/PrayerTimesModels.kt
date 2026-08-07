@@ -19,7 +19,9 @@ data class PrayerCalculationSettings(
 ) {
     companion object {
         const val DEFAULT_METHOD = 13
-        const val DEFAULT_SCHOOL = 1
+        const val SCHOOL_SHAFI = 0
+        const val SCHOOL_HANAFI = 1
+        const val DEFAULT_SCHOOL = SCHOOL_SHAFI
     }
 }
 

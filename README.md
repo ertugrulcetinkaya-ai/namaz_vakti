@@ -5,6 +5,7 @@ Namaz Vakti, Türkiye'deki şehirler için günlük namaz vakitlerini gösteren 
 ## Özellikler
 
 - Şehir seçimi ve Türkçe karakterlerden bağımsız arama
+- İkindi vakti için varsayılan Şafii/standart hesaplama (`school=0`)
 - Yapılandırılmış, timezone duyarlı namaz vakti cache'i
 - Güncellik ve hata durumlarını gösteren uygulama arayüzü
 - Aktif vakti vurgulayan, stale veriyi belirten ana ekran widget'ı

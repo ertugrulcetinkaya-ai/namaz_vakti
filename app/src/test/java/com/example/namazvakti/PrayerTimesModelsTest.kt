@@ -12,6 +12,14 @@ import java.time.ZonedDateTime
 
 class PrayerTimesModelsTest {
     @Test
+    fun defaultsToShafiSchoolForAsrCalculation() {
+        assertEquals(
+            PrayerCalculationSettings.SCHOOL_SHAFI,
+            PrayerCalculationSettings().school
+        )
+    }
+
+    @Test
     fun parsesWidgetTextOnlyWhenAllSixValuesExist() {
         val times = parsePrayerTimesText("İmsak 04:12 • Güneş 05:49 • Öğle 13:08 • İkindi 17:02 • Akşam 20:21 • Yatsı 22:01")
 
