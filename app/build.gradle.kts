@@ -55,7 +55,9 @@ android {
     lint {
         warningsAsErrors = true
         // Versions are intentionally capped at the newest AGP 8 / API 36-compatible line.
-        disable += setOf("GradleDependency", "NewerVersionAvailable")
+        // OldTargetApi is environment-sensitive: newer runners may know a preview API
+        // beyond compileSdk, even though this project intentionally targets API 36.
+        disable += setOf("GradleDependency", "NewerVersionAvailable", "OldTargetApi")
     }
 
     compileOptions {
