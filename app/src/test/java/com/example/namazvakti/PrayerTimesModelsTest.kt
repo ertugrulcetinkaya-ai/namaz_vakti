@@ -54,7 +54,7 @@ class PrayerTimesModelsTest {
     }
 
     @Test
-    fun schedulerBoundaryTargetsTodayOrTomorrowCorrectly() {
+    fun schedulerBoundaryTargetsTodayCorrectly() {
         val cache = sampleCache()
         val zone = PrayerTimeProvider.DEFAULT_ZONE
 
@@ -70,10 +70,35 @@ class PrayerTimesModelsTest {
                 cache, ZonedDateTime.of(2026, 8, 6, 4, 12, 0, 0, zone)
             ).toLocalDateTime()
         )
+    }
+
+    @Test
+    fun schedulerUsesTomorrowCacheForTheNextFajr() {
+        val cache = sampleCache()
+        val tomorrow = sampleCache(
+            date = LocalDate.of(2026, 8, 7),
+            times = sampleTimes().copy(fajr = LocalTime.of(4, 10))
+        )
+
         assertEquals(
-            LocalDate.of(2026, 8, 7).atTime(4, 12),
+            LocalDate.of(2026, 8, 7).atTime(4, 10),
             PrayerBoundaryCalculator.calculateNextBoundary(
-                cache, ZonedDateTime.of(2026, 8, 6, 22, 30, 0, 0, zone)
+                cache,
+                ZonedDateTime.of(2026, 8, 6, 22, 30, 0, 0, PrayerTimeProvider.DEFAULT_ZONE),
+                tomorrow
+            ).toLocalDateTime()
+        )
+    }
+
+    @Test
+    fun schedulerFallsBackToAfterMidnightWhenTomorrowCacheIsMissing() {
+        assertEquals(
+            LocalDate.of(2026, 8, 7).atTime(0, 1),
+            PrayerBoundaryCalculator.calculateNextBoundary(
+                sampleCache(),
+                ZonedDateTime.of(
+                    2026, 8, 6, 22, 30, 0, 0, PrayerTimeProvider.DEFAULT_ZONE
+                )
             ).toLocalDateTime()
         )
     }
@@ -93,12 +118,15 @@ class PrayerTimesModelsTest {
         LocalTime.of(17, 2), LocalTime.of(20, 21), LocalTime.of(22, 1)
     )
 
-    private fun sampleCache() = CachedPrayerDay(
-        date = LocalDate.of(2026, 8, 6),
+    private fun sampleCache(
+        date: LocalDate = LocalDate.of(2026, 8, 6),
+        times: PrayerTimes = sampleTimes()
+    ) = CachedPrayerDay(
+        date = date,
         location = PrayerLocation("Ankara", "Turkey", "ANKARA"),
         timezone = PrayerTimeProvider.DEFAULT_ZONE,
         settings = PrayerCalculationSettings(),
-        prayerTimes = sampleTimes(),
+        prayerTimes = times,
         hijriText = null,
         fetchedAt = Instant.parse("2026-08-06T00:00:00Z")
     )

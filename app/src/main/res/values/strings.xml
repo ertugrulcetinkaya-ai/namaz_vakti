@@ -4,13 +4,17 @@
     <string name="current_city">Seçili şehir: %1$s</string>
     <string name="search_city">Şehir ara</string>
     <string name="refresh_prayer_times">Vakitleri yenile</string>
-    <string name="refresh_started">Yenileme başlatıldı</string>
+    <string name="precise_widget_updates_disabled">Widget’ın vakit değişiminde gecikmeden yenilenmesi için alarm erişimini etkinleştirin.</string>
+    <string name="enable_precise_widget_updates">Dakik widget güncellemesini etkinleştir</string>
     <string name="refreshing">Vakitler yenileniyor…</string>
     <string name="refresh_success">Vakitler güncellendi</string>
     <string name="refresh_error">Vakitler güncellenemedi</string>
     <string name="stale_data">Eski veri gösteriliyor</string>
+    <string name="offline_data">Çevrimdışı veri kullanılıyor</string>
+    <string name="cache_metadata">Kaynak: %1$s • Yöntem: %2$d/%3$s • Son güncelleme: %4$s</string>
+    <string name="school_standard">Standart</string>
+    <string name="school_hanafi">Hanefi</string>
     <string name="prayer_times_unavailable">Vakitler alınamadı</string>
     <string name="widget_stale_suffix"> • Eski veri</string>
     <string name="widget_content_description">%1$s için namaz vakitleri. Durum: %2$s. Aktif vakit: %3$s.</string>
-    <string name="no_city_results">Şehir bulunamadı</string>
 </resources>

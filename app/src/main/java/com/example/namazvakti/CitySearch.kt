@@ -2,7 +2,7 @@ package com.example.namazvakti
 
 import java.util.Locale
 
-fun String.citySearchKey(): String = lowercase(Locale("tr", "TR"))
+fun String.citySearchKey(): String = lowercase(Locale.forLanguageTag("tr-TR"))
     .replace("ı", "i")
     .replace("ğ", "g")
     .replace("ü", "u")

@@ -6,7 +6,9 @@ Namaz Vakti, Türkiye'deki şehirler için günlük namaz vakitlerini gösteren 
 
 - Şehir seçimi ve Türkçe karakterlerden bağımsız arama
 - İkindi vakti için varsayılan Şafii/standart hesaplama (`school=0`)
-- Yapılandırılmış, timezone duyarlı namaz vakti cache'i
+- Room üzerinde 30 günlük, timezone duyarlı ve çevrimdışı namaz vakti takvimi
+- Ayın son yedi gününde sonraki ayı otomatik önceden indirme
+- Veri kaynağı, hesaplama yöntemi ve son güncelleme bilgisini gösterme
 - Güncellik ve hata durumlarını gösteren uygulama arayüzü
 - Aktif vakti vurgulayan, stale veriyi belirten ana ekran widget'ı
 - Vakit sınırlarında ve sistem saati değişikliklerinde otomatik widget güncellemesi
@@ -14,9 +16,11 @@ Namaz Vakti, Türkiye'deki şehirler için günlük namaz vakitlerini gösteren 
 
 ## Mimari
 
-- `PrayerTimesApi` uzak API isteğini ve yanıt ayrıştırmasını yönetir.
-- `PrayerTimesRepository` API sonucu ile yerel cache'i koordine eder.
-- `PrayerTimesStore` DataStore üzerinden konum ve yapılandırılmış cache saklar.
+- `PrayerTimesRemoteDataSource` veri katmanının ağ sözleşmesidir; `PrayerTimesApi` iptal edilebilir OkHttp isteğini ve yanıt ayrıştırmasını yönetir.
+- `PrayerTimesRepository` aylık API sonucunu doğrular, bugünün kaydını seçer ve sonraki ay ön-getirmesini koordine eder.
+- `PrayerTimesStore` konumu DataStore'da, günlük vakitleri Room'da `konum + tarih + yöntem + mezhep` anahtarıyla saklar.
+- Eski tek günlük DataStore cache'i ilk kullanımda otomatik olarak Room'a taşınır.
+- `PrayerCachePolicy` timezone duyarlı cache güncelliğinin tek karar noktasıdır.
 - `PrayerViewModel` uygulama ekranının typed UI state'ini üretir.
 - `PrayerWidgetRenderer` yalnızca `RemoteViews` oluşturur.
 - `PrayerWidgetScheduler` benzersiz WorkManager işlerini ve sonraki vakit sınırını planlar.
@@ -25,8 +29,10 @@ Namaz Vakti, Türkiye'deki şehirler için günlük namaz vakitlerini gösteren 
 ## Gereksinimler
 
 - JDK 17
-- Android SDK 34
+- Android SDK 36
 - Android 8.0 veya üzeri cihaz/emülatör (`minSdk 26`)
+
+Derleme zinciri AGP 8.13.2, Gradle 8.14.5 ve Kotlin 2.3.21 kullanır. Gradle build cache ve configuration cache yerel ve CI derlemelerinde etkindir.
 
 ## Derleme ve kurulum
 
@@ -56,6 +62,8 @@ Widget `RemoteViews` testlerini bağlı cihazda çalıştırmak için:
 ```
 
 Instrumentation testleri fresh, stale ve cache bulunmayan widget durumlarını kontrol eder. Render smoke testi ise gerçek `RemoteViews` ağacını inflate eder, ölçer ve bitmap üzerine çizerek görünümün cihazda oluşturulabildiğini doğrular.
+
+Unit testler ayrıca cache şema dönüşümünü, API timezone'una göre tarih üretimini, coroutine iptalini ve eşzamanlı kullanıcı işlemlerinde son seçimin kazanmasını doğrular.
 
 ## Beta sürüm üretimi
 

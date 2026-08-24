@@ -7,12 +7,11 @@ import android.util.Log
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkManager
-import java.time.Duration
 
 object PrayerWidgetScheduler {
     private const val API_REFRESH_WORK_NAME = "prayer_times_refresh_api"
     private const val ONE_TIME_WORK_NAME = "prayer_times_refresh_now"
-    private const val NEXT_BOUNDARY_WORK_NAME = "prayer_widget_next_boundary_rerender"
+    private const val LEGACY_BOUNDARY_WORK_NAME = "prayer_widget_next_boundary_rerender"
     private const val TAG = "NamazWidget"
     private val requestFactory = PrayerWorkRequestFactory()
 
@@ -25,12 +24,11 @@ object PrayerWidgetScheduler {
         val container = appContext.appContainer()
         val location = container.store.readLocation()
         val cached = container.store.readCache()
-        val needsRefresh = force || cached == null || !cached.matches(
-            container.timeProvider.today(), location, container.settings
+        val needsRefresh = force || !container.cachePolicy.isFresh(
+            cached, location, container.settings, container.timeProvider.now()
         )
         val workManager = WorkManager.getInstance(appContext)
         if (needsRefresh) {
-            if (force) workManager.cancelUniqueWork(NEXT_BOUNDARY_WORK_NAME)
             workManager.enqueueUniqueWork(
                 ONE_TIME_WORK_NAME,
                 if (force) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP,
@@ -52,24 +50,36 @@ object PrayerWidgetScheduler {
             return
         }
         val container = appContext.appContainer()
-        val currentCache = cache ?: container.store.readCache() ?: return
-        val now = container.timeProvider.now().withZoneSameInstant(currentCache.timezone)
-        val target = PrayerBoundaryCalculator.calculateNextBoundary(currentCache, now)
-        val delay = Duration.between(now, target).plusSeconds(45).let {
-            if (it < Duration.ofMinutes(1)) Duration.ofMinutes(1) else it
+        val location = container.store.readLocation()
+        val now = container.timeProvider.now().withZoneSameInstant(location.timezone)
+        val today = now.toLocalDate()
+        val currentCache = cache?.takeIf { it.matches(today, location, container.settings) }
+            ?: container.store.readCache(today, location, container.settings)
+        if (currentCache == null) {
+            PrayerBoundaryAlarm.cancel(appContext)
+            return
         }
-        WorkManager.getInstance(appContext).enqueueUniqueWork(
-            NEXT_BOUNDARY_WORK_NAME,
-            ExistingWorkPolicy.REPLACE,
-            requestFactory.boundaryRerender(delay)
+        val tomorrow = today.plusDays(1)
+        val nextDayCache = if (currentCache.prayerTimes.nextPrayerBoundary(now.toLocalTime()) == null) {
+            container.store.readCache(tomorrow, location, container.settings)
+        } else {
+            null
+        }
+        val target = PrayerBoundaryCalculator.calculateNextBoundary(
+            currentCache,
+            now,
+            nextDayCache
         )
-        Log.d(TAG, "next boundary scheduled at=$target")
+        WorkManager.getInstance(appContext).cancelUniqueWork(LEGACY_BOUNDARY_WORK_NAME)
+        PrayerBoundaryAlarm.schedule(appContext, target)
+        Log.d(TAG, "next prayer boundary scheduled at=$target")
     }
 
     fun cancelAll(context: Context) {
         val manager = WorkManager.getInstance(context.applicationContext)
-        listOf(ONE_TIME_WORK_NAME, API_REFRESH_WORK_NAME, NEXT_BOUNDARY_WORK_NAME)
+        listOf(ONE_TIME_WORK_NAME, API_REFRESH_WORK_NAME, LEGACY_BOUNDARY_WORK_NAME)
             .forEach(manager::cancelUniqueWork)
+        PrayerBoundaryAlarm.cancel(context.applicationContext)
     }
 
     fun hasWidgets(context: Context): Boolean {

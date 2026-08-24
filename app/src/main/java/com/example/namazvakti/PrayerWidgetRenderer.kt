@@ -6,13 +6,15 @@ import android.content.Intent
 import android.widget.RemoteViews
 import java.time.ZonedDateTime
 
+enum class PrayerWidgetDataState { Fresh, Stale, Unavailable }
+
 class PrayerWidgetRenderer {
     fun render(
         context: Context,
         cache: CachedPrayerDay?,
         location: PrayerLocation,
         now: ZonedDateTime,
-        isStale: Boolean
+        dataState: PrayerWidgetDataState
     ): RemoteViews {
         val views = RemoteViews(context.packageName, R.layout.prayer_widget)
         val localNow = cache?.let { now.withZoneSameInstant(it.timezone) } ?: now
@@ -25,7 +27,7 @@ class PrayerWidgetRenderer {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
         )
-        val staleSuffix = if (isStale) {
+        val staleSuffix = if (dataState == PrayerWidgetDataState.Stale) {
             context.getString(R.string.widget_stale_suffix)
         } else ""
         views.setTextViewText(
@@ -38,7 +40,11 @@ class PrayerWidgetRenderer {
             context.getString(
                 R.string.widget_content_description,
                 location.displayCity,
-                if (isStale) context.getString(R.string.stale_data) else context.getString(R.string.refresh_success),
+                when (dataState) {
+                    PrayerWidgetDataState.Fresh -> context.getString(R.string.refresh_success)
+                    PrayerWidgetDataState.Stale -> context.getString(R.string.stale_data)
+                    PrayerWidgetDataState.Unavailable -> context.getString(R.string.prayer_times_unavailable)
+                },
                 activeItem ?: context.getString(R.string.prayer_times_unavailable)
             )
         )

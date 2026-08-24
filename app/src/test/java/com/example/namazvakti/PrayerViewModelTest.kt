@@ -4,10 +4,12 @@ import android.app.Application
 import android.content.Context
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.runCurrent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -46,6 +48,8 @@ class PrayerViewModelTest {
         val state = viewModel.state.value as PrayerUiState.Ready
         assertEquals(Freshness.Fresh, state.freshness)
         assertEquals(OperationState.Refreshed, state.operation)
+        assertEquals(cache, state.cache)
+        assertEquals(RefreshOrigin.NETWORK, state.refreshOrigin)
     }
 
     @Test
@@ -78,11 +82,31 @@ class PrayerViewModelTest {
 
         val state = viewModel.state.value as PrayerUiState.Ready
         assertEquals(newLocation, store.location)
+        assertEquals(0, store.clearCalls)
         assertEquals(OperationState.Refreshed, state.operation)
         assertEquals(Freshness.Fresh, state.freshness)
     }
 
-    private fun viewModel(store: FakeStore, repository: FakeRepository, scope: CoroutineScope) = PrayerViewModel(
+    @Test
+    fun selectingCityCancelsAnOlderRefreshSoLatestSelectionWins() = runTest {
+        val store = FakeStore()
+        val selected = PrayerLocationConfig.cityOptions.first { it.city == "Istanbul" }
+        val newLocation = PrayerLocation(selected.city, selected.country, selected.displayCity)
+        val repository = CancelThenSucceedRepository { sampleCache(newLocation) }
+        val viewModel = viewModel(store, repository, CoroutineScope(StandardTestDispatcher(testScheduler)))
+        advanceUntilIdle()
+
+        viewModel.refresh()
+        runCurrent()
+        viewModel.selectCity(selected)
+        advanceUntilIdle()
+
+        assertTrue(repository.firstRefreshCancelled)
+        assertEquals(newLocation, store.location)
+        assertEquals(newLocation, (viewModel.state.value as PrayerUiState.Ready).location)
+    }
+
+    private fun viewModel(store: FakeStore, repository: PrayerRefreshRepository, scope: CoroutineScope) = PrayerViewModel(
         Application(), store, repository, FakeScheduler(), FakeWidgetUpdater(),
         PrayerTimeProvider(), PrayerCalculationSettings(), scope,
         scope.coroutineContext[ContinuationInterceptor] as CoroutineDispatcher
@@ -99,15 +123,39 @@ class PrayerViewModelTest {
     private class FakeStore : PrayerPreferences {
         var location = PrayerLocation("Ankara", "Turkey", "ANKARA")
         var cache: CachedPrayerDay? = null
+        var clearCalls = 0
         override suspend fun readCache() = cache
         override suspend fun saveCache(cache: CachedPrayerDay) { this.cache = cache }
         override suspend fun readLocation() = location
         override suspend fun saveLocation(location: PrayerLocation) { this.location = location }
-        override suspend fun clearCache() { cache = null }
+        override suspend fun clearCache() {
+            clearCalls += 1
+            cache = null
+        }
     }
 
     private class FakeRepository(private val result: RefreshResult) : PrayerRefreshRepository {
         override suspend fun refreshAndCache() = result
+    }
+
+    private class CancelThenSucceedRepository(
+        private val cache: () -> CachedPrayerDay
+    ) : PrayerRefreshRepository {
+        private var callCount = 0
+        var firstRefreshCancelled = false
+            private set
+
+        override suspend fun refreshAndCache(): RefreshResult {
+            callCount += 1
+            if (callCount == 1) {
+                try {
+                    awaitCancellation()
+                } finally {
+                    firstRefreshCancelled = true
+                }
+            }
+            return RefreshResult.Success(cache())
+        }
     }
 
     private class FakeScheduler : PrayerRefreshScheduler {

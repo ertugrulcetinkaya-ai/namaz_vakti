@@ -3,14 +3,23 @@ package com.example.namazvakti
 import java.time.ZonedDateTime
 
 object PrayerBoundaryCalculator {
-    fun calculateNextBoundary(cache: CachedPrayerDay, now: ZonedDateTime): ZonedDateTime {
+    fun calculateNextBoundary(
+        cache: CachedPrayerDay,
+        now: ZonedDateTime,
+        nextDayCache: CachedPrayerDay? = null
+    ): ZonedDateTime {
         val localNow = now.withZoneSameInstant(cache.timezone)
+        require(cache.date == localNow.toLocalDate()) { "Cache must belong to the current local date" }
         val boundary = cache.prayerTimes.nextPrayerBoundary(localNow.toLocalTime())
-        val target = if (boundary != null) {
+        return if (boundary != null) {
             localNow.toLocalDate().atTime(boundary.time).atZone(cache.timezone)
         } else {
-            localNow.toLocalDate().plusDays(1).atTime(cache.prayerTimes.fajr).atZone(cache.timezone)
+            val tomorrow = localNow.toLocalDate().plusDays(1)
+            if (nextDayCache?.date == tomorrow) {
+                tomorrow.atTime(nextDayCache.prayerTimes.fajr).atZone(nextDayCache.timezone)
+            } else {
+                tomorrow.atStartOfDay(cache.timezone).plusMinutes(1)
+            }
         }
-        return if (target.isAfter(localNow)) target else target.plusDays(1)
     }
 }

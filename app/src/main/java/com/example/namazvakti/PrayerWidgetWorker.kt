@@ -6,12 +6,22 @@ import android.content.Context
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import kotlinx.coroutines.CancellationException
 
 class PrayerWidgetWorker(
     context: Context,
     params: WorkerParameters
 ) : CoroutineWorker(context, params) {
-    override suspend fun doWork(): Result {
+    override suspend fun doWork(): Result = try {
+        performWork()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.e(TAG, "widget work failed unexpectedly", e)
+        Result.retry()
+    }
+
+    private suspend fun performWork(): Result {
         if (!PrayerWidgetScheduler.hasWidgets(applicationContext)) {
             PrayerWidgetScheduler.cancelAll(applicationContext)
             return Result.success()
@@ -19,14 +29,14 @@ class PrayerWidgetWorker(
         val fetch = inputData.getBoolean(INPUT_FETCH, true)
         val container = applicationContext.appContainer()
         val repository = container.repository
-        val today = container.timeProvider.today()
         val location = repository.selectedLocation()
         val cached = repository.cachedWidget()
-        val cacheStale = cached == null || !cached.matches(today, location, container.settings)
+        val cacheStale = !container.cachePolicy.isFresh(
+            cached, location, container.settings, container.timeProvider.now()
+        )
 
         Log.d(TAG, "worker mode fetch=$fetch")
         Log.d(TAG, "cachedDate=${cached?.date}")
-        Log.d(TAG, "today=$today")
         Log.d(TAG, "cache stale=$cacheStale")
 
         val cache = if (fetch || cacheStale) {

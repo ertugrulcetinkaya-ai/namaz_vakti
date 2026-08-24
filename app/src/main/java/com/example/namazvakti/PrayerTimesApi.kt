@@ -1,17 +1,32 @@
 package com.example.namazvakti
 
 import com.google.gson.Gson
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import java.util.concurrent.TimeUnit
 import java.time.LocalTime
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.ResolverStyle
 import com.google.gson.annotations.SerializedName
+import java.io.IOException
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 data class PrayerTimesResponse(
     val code: Int? = null,
     val status: String? = null,
     val data: PrayerTimesData? = null,
+    val message: String? = null
+)
+
+data class PrayerTimesCalendarResponse(
+    val code: Int? = null,
+    val status: String? = null,
+    val data: List<PrayerTimesData>? = null,
     val message: String? = null
 )
 
@@ -23,7 +38,12 @@ data class PrayerTimesData(
 
 data class PrayerMeta(val timezone: String? = null)
 
-data class PrayerDate(val hijri: HijriDate? = null)
+data class PrayerDate(
+    val hijri: HijriDate? = null,
+    val gregorian: GregorianDate? = null
+)
+
+data class GregorianDate(val date: String? = null)
 
 data class HijriDate(
     val day: String? = null,
@@ -46,6 +66,22 @@ data class PrayerTimings(
     @SerializedName("Isha") val isha: String? = null
 )
 
+interface PrayerTimesRemoteDataSource {
+    suspend fun fetchToday(
+        city: String,
+        country: String,
+        settings: PrayerCalculationSettings
+    ): PrayerTimesApiResult
+
+    suspend fun fetchMonth(
+        city: String,
+        country: String,
+        year: Int,
+        month: Int,
+        settings: PrayerCalculationSettings
+    ): PrayerTimesCalendarResult
+}
+
 class PrayerTimesApi(
     private val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
@@ -54,10 +90,10 @@ class PrayerTimesApi(
         .retryOnConnectionFailure(true)
         .build(),
     private val baseUrl: okhttp3.HttpUrl = "https://api.aladhan.com/v1/".toHttpUrl()
-) {
+) : PrayerTimesRemoteDataSource {
     private val gson = Gson()
 
-    fun fetchToday(
+    override suspend fun fetchToday(
         city: String,
         country: String,
         settings: PrayerCalculationSettings
@@ -76,13 +112,49 @@ class PrayerTimesApi(
             .get()
             .build()
 
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                throw PrayerTimesApiException("HTTP ${response.code}")
+        return parseResponse(execute(request))
+    }
+
+    override suspend fun fetchMonth(
+        city: String,
+        country: String,
+        year: Int,
+        month: Int,
+        settings: PrayerCalculationSettings
+    ): PrayerTimesCalendarResult {
+        require(month in 1..12) { "Month must be between 1 and 12" }
+        val url = baseUrl
+            .newBuilder()
+            .addPathSegment("calendarByCity")
+            .addPathSegment(year.toString())
+            .addPathSegment(month.toString())
+            .addQueryParameter("city", city)
+            .addQueryParameter("country", country)
+            .addQueryParameter("method", settings.method.toString())
+            .addQueryParameter("school", settings.school.toString())
+            .build()
+        val request = Request.Builder().url(url).get().build()
+        return parseCalendarResponse(execute(request))
+    }
+
+    private suspend fun execute(request: Request): String = suspendCancellableCoroutine { continuation ->
+        val call = client.newCall(request)
+        continuation.invokeOnCancellation { call.cancel() }
+        call.enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                continuation.resumeWith(Result.failure(e))
             }
-            val body = response.body?.string().orEmpty()
-            return parseResponse(body)
-        }
+
+            override fun onResponse(call: Call, response: Response) {
+                val result = runCatching {
+                    response.use {
+                        if (!it.isSuccessful) throw PrayerTimesApiException("HTTP ${it.code}")
+                        it.body.string()
+                    }
+                }
+                continuation.resumeWith(result)
+            }
+        })
     }
 
     internal fun parseResponse(body: String): PrayerTimesApiResult {
@@ -92,7 +164,30 @@ class PrayerTimesApi(
             throw PrayerTimesApiException(parsed.message ?: parsed.status ?: "API request failed")
         }
         val data = parsed.data ?: throw PrayerTimesApiException("API response has no data")
-        val timings = data.timings ?: throw PrayerTimesApiException("API response has no timings")
+        return data.toApiResult()
+    }
+
+    internal fun parseCalendarResponse(body: String): PrayerTimesCalendarResult {
+        val parsed = runCatching { gson.fromJson(body, PrayerTimesCalendarResponse::class.java) }
+            .getOrElse { throw PrayerTimesApiException("Invalid API response", it) }
+        if (parsed.code !in 200..299 || parsed.status != "OK") {
+            throw PrayerTimesApiException(parsed.message ?: parsed.status ?: "API request failed")
+        }
+        val days = parsed.data?.map { data ->
+            val rawDate = data.date?.gregorian?.date?.trim().orEmpty()
+            val date = runCatching { LocalDate.parse(rawDate, CALENDAR_DATE_FORMATTER) }
+                .getOrElse { throw PrayerTimesApiException("Invalid calendar date: $rawDate", it) }
+            PrayerTimesApiDayResult(date, data.toApiResult())
+        }.orEmpty()
+        if (days.isEmpty()) throw PrayerTimesApiException("API response has no calendar days")
+        if (days.map { it.date }.distinct().size != days.size) {
+            throw PrayerTimesApiException("API response has duplicate calendar dates")
+        }
+        return PrayerTimesCalendarResult(days.sortedBy(PrayerTimesApiDayResult::date))
+    }
+
+    private fun PrayerTimesData.toApiResult(): PrayerTimesApiResult {
+        val timings = timings ?: throw PrayerTimesApiException("API response has no timings")
         val values = listOf(
             "Fajr" to timings.fajr,
             "Sunrise" to timings.sunrise,
@@ -110,8 +205,8 @@ class PrayerTimesApi(
                 maghrib = values.getValue("Maghrib"),
                 isha = values.getValue("Isha")
             ),
-            hijriText = data.date?.hijri?.toDisplayText(),
-            timezone = data.meta?.timezone
+            hijriText = date?.hijri?.toDisplayText(),
+            timezone = meta?.timezone
         )
     }
 
@@ -123,6 +218,12 @@ class PrayerTimesApi(
         return runCatching { LocalTime.parse(normalized) }
             .getOrElse { throw PrayerTimesApiException("Invalid prayer time: $normalized", it) }
     }
+
+    private companion object {
+        val CALENDAR_DATE_FORMATTER: DateTimeFormatter = DateTimeFormatter
+            .ofPattern("dd-MM-uuuu")
+            .withResolverStyle(ResolverStyle.STRICT)
+    }
 }
 
 class PrayerTimesApiException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
@@ -132,6 +233,13 @@ data class PrayerTimesApiResult(
     val hijriText: String?,
     val timezone: String?
 )
+
+data class PrayerTimesApiDayResult(
+    val date: LocalDate,
+    val result: PrayerTimesApiResult
+)
+
+data class PrayerTimesCalendarResult(val days: List<PrayerTimesApiDayResult>)
 
 private fun HijriDate.toDisplayText(): String? {
     val dayValue = day?.trim().orEmpty()

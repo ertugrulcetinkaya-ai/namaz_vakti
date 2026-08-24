@@ -28,7 +28,7 @@ class PrayerWidgetRendererInstrumentedTest {
 
     @Test
     fun freshCacheRendersCityPrayerTimesAndActivePrayer() {
-        val root = render(cache(), isStale = false)
+        val root = render(cache(), PrayerWidgetDataState.Fresh)
 
         assertEquals("İSTANBUL • 22 Safer 1448", root.text(R.id.prayer_widget_city))
         assertEquals("▶ Öğle 13:08", root.text(R.id.prayer_widget_item_3))
@@ -38,7 +38,7 @@ class PrayerWidgetRendererInstrumentedTest {
 
     @Test
     fun staleCacheIsVisibleInTitleAndAccessibilityDescription() {
-        val root = render(cache(), isStale = true)
+        val root = render(cache(), PrayerWidgetDataState.Stale)
 
         assertTrue(root.text(R.id.prayer_widget_city).endsWith("Eski veri"))
         assertTrue(root.contentDescription.contains("Eski veri gösteriliyor"))
@@ -46,17 +46,18 @@ class PrayerWidgetRendererInstrumentedTest {
 
     @Test
     fun missingCacheRendersUnavailableState() {
-        val root = render(cache = null, isStale = false)
+        val root = render(cache = null, PrayerWidgetDataState.Unavailable)
 
         assertEquals("İSTANBUL", root.text(R.id.prayer_widget_city))
         assertEquals("Vakitler alınamadı", root.text(R.id.prayer_widget_item_1))
         assertEquals("", root.text(R.id.prayer_widget_item_2))
         assertTrue(root.contentDescription.contains("Vakitler alınamadı"))
+        assertFalse(root.contentDescription.contains("Vakitler güncellendi"))
     }
 
     @Test
     fun remoteViewsInflatesMeasuresAndDrawsToBitmap() {
-        val root = render(cache(), isStale = false)
+        val root = render(cache(), PrayerWidgetDataState.Fresh)
         val width = 900
         val height = 320
         root.measure(
@@ -73,8 +74,8 @@ class PrayerWidgetRendererInstrumentedTest {
         assertTrue(bitmapHasVisiblePixels(bitmap))
     }
 
-    private fun render(cache: CachedPrayerDay?, isStale: Boolean): View =
-        renderer.render(context, cache, location, now, isStale)
+    private fun render(cache: CachedPrayerDay?, dataState: PrayerWidgetDataState): View =
+        renderer.render(context, cache, location, now, dataState)
             .apply(context, FrameLayout(context))
 
     private fun View.text(id: Int): String = findViewById<TextView>(id).text.toString()

@@ -98,6 +98,7 @@ object PrayerLocationConfig {
     )
 
     fun optionForCityAndCountry(city: String, country: String): CityOption {
-        return cityOptions.firstOrNull { it.city == city && it.country == country } ?: defaultCity
+        return cityOptions.firstOrNull { it.city == city && it.country == country }
+            ?: CityOption(city = city, country = country, displayCity = city.uppercase())
     }
 }

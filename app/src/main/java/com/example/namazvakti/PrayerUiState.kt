@@ -5,7 +5,9 @@ sealed interface PrayerUiState {
     data class Ready(
         val location: PrayerLocation,
         val freshness: Freshness,
-        val operation: OperationState = OperationState.Idle
+        val operation: OperationState = OperationState.Idle,
+        val cache: CachedPrayerDay? = null,
+        val refreshOrigin: RefreshOrigin? = null
     ) : PrayerUiState
     data class Error(val location: PrayerLocation?) : PrayerUiState
 }

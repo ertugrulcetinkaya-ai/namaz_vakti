@@ -17,6 +17,8 @@ class PrayerWidgetProvider : AppWidgetProvider() {
                 ids.forEach { updateWidget(appContext, manager, it) }
                 PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(appContext)
                 PrayerWidgetScheduler.enqueueRefresh(appContext)
+            } catch (e: Exception) {
+                Log.e(TAG, "widget update failed", e)
             } finally {
                 pendingResult.finish()
             }
@@ -30,6 +32,8 @@ class PrayerWidgetProvider : AppWidgetProvider() {
             try {
                 PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(context.applicationContext)
                 PrayerWidgetScheduler.enqueueRefresh(context.applicationContext)
+            } catch (e: Exception) {
+                Log.e(TAG, "widget enable setup failed", e)
             } finally {
                 pendingResult.finish()
             }
@@ -51,11 +55,13 @@ class PrayerWidgetProvider : AppWidgetProvider() {
             val cache = container.store.readCache()
             val location = container.store.readLocation()
             val now = container.timeProvider.now()
-            val localNow = cache?.let { now.withZoneSameInstant(it.timezone) } ?: now
-            val isStale = cache != null && !cache.matches(
-                localNow.toLocalDate(), location, container.settings
-            )
-            val views = renderer.render(appContext, cache, location, now, isStale)
+            val dataState = when {
+                cache == null -> PrayerWidgetDataState.Unavailable
+                container.cachePolicy.isFresh(cache, location, container.settings, now) ->
+                    PrayerWidgetDataState.Fresh
+                else -> PrayerWidgetDataState.Stale
+            }
+            val views = renderer.render(appContext, cache, location, now, dataState)
             manager.updateAppWidget(appWidgetId, views)
             Log.d(TAG, "rendered widget id=$appWidgetId cacheDate=${cache?.date}")
         }

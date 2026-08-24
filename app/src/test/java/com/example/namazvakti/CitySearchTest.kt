@@ -17,4 +17,12 @@ class CitySearchTest {
         assertTrue("İZMİR".citySearchKey().contains("izmir".citySearchKey()))
         assertTrue("AĞRI".citySearchKey().contains("agri".citySearchKey()))
     }
+
+    @Test
+    fun unknownPersistedCityKeepsItsOwnDisplayName() {
+        val option = PrayerLocationConfig.optionForCityAndCountry("Baku", "Azerbaijan")
+
+        assertEquals("Baku", option.city)
+        assertEquals("BAKU", option.displayCity)
+    }
 }

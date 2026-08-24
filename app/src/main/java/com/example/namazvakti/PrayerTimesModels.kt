@@ -89,13 +89,22 @@ data class CachedPrayerDay(
     val settings: PrayerCalculationSettings,
     val prayerTimes: PrayerTimes,
     val hijriText: String?,
-    val fetchedAt: Instant
+    val fetchedAt: Instant,
+    val source: PrayerDataSource = PrayerDataSource.ALADHAN
 ) {
     fun matches(
         date: LocalDate,
         location: PrayerLocation,
         settings: PrayerCalculationSettings
-    ): Boolean = this.date == date && this.location == location && this.settings == settings
+    ): Boolean = this.date == date &&
+        this.location.city == location.city &&
+        this.location.country == location.country &&
+        this.settings == settings
+}
+
+enum class PrayerDataSource(val displayName: String) {
+    ALADHAN("AlAdhan"),
+    LEGACY_CACHE("Eski yerel önbellek")
 }
 
 data class PrayerBoundarySchedule(

@@ -9,7 +9,9 @@ class NamazVaktiApp : Application() {
 class AppContainer(application: Application) {
     val settings = PrayerCalculationSettings()
     val timeProvider = PrayerTimeProvider()
-    val store = PrayerTimesStore(application)
+    val cachePolicy = PrayerCachePolicy()
+    val database = PrayerTimesDatabase.create(application)
+    val store = PrayerTimesStore(application, database.prayerDayDao(), timeProvider, settings)
     val api = PrayerTimesApi()
     val repository = PrayerTimesRepository(api, store, settings, timeProvider)
 }
