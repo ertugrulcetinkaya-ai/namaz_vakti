@@ -11,9 +11,10 @@ import com.example.namazvakti.domain.model.PrayerLocationConfig
 import com.example.namazvakti.domain.model.PrayerStorageException
 import com.example.namazvakti.domain.model.PrayerTimeProvider
 import com.example.namazvakti.domain.model.PrayerTimes
-import com.example.namazvakti.domain.policy.PrayerCacheRetentionPolicy
 import com.example.namazvakti.domain.model.StorageFailureKind
+import com.example.namazvakti.domain.policy.PrayerCacheRetentionPolicy
 import com.google.gson.Gson
+import com.google.gson.annotations.SerializedName
 import android.database.sqlite.SQLiteDatabaseCorruptException
 import android.database.sqlite.SQLiteDatabaseLockedException
 import android.database.sqlite.SQLiteDiskIOException
@@ -48,7 +49,6 @@ interface PrayerPreferences {
         location: PrayerLocation,
         settings: PrayerCalculationSettings
     ): Boolean = false
-    suspend fun housekeep() = Unit
     suspend fun readLocation(): PrayerLocation
     suspend fun saveLocation(location: PrayerLocation)
     suspend fun clearCache()
@@ -156,11 +156,6 @@ class PrayerTimesStore(
         }
     }
 
-    override suspend fun housekeep() = storageOperation {
-        migrateLegacyCache()
-        pruneIfDue(readLocation())
-    }
-
     private suspend fun pruneIfDue(location: PrayerLocation) {
         val today = timeProvider.today(location.timezone)
         if (lastRetentionDate == today) return
@@ -229,23 +224,23 @@ internal class CachedPrayerDayCodec(private val gson: Gson = Gson()) {
 }
 
 internal data class CachedPrayerDayDto(
-    val schemaVersion: Int? = null,
-    val date: String? = null,
-    val city: String? = null,
-    val country: String? = null,
-    val displayCity: String? = null,
-    val locationTimezone: String? = null,
-    val timezone: String? = null,
-    val method: Int? = null,
-    val school: Int? = null,
-    val fajr: String? = null,
-    val sunrise: String? = null,
-    val dhuhr: String? = null,
-    val asr: String? = null,
-    val maghrib: String? = null,
-    val isha: String? = null,
-    val hijriText: String? = null,
-    val fetchedAtEpochMillis: Long? = null
+    @field:SerializedName("schemaVersion") val schemaVersion: Int? = null,
+    @field:SerializedName("date") val date: String? = null,
+    @field:SerializedName("city") val city: String? = null,
+    @field:SerializedName("country") val country: String? = null,
+    @field:SerializedName("displayCity") val displayCity: String? = null,
+    @field:SerializedName("locationTimezone") val locationTimezone: String? = null,
+    @field:SerializedName("timezone") val timezone: String? = null,
+    @field:SerializedName("method") val method: Int? = null,
+    @field:SerializedName("school") val school: Int? = null,
+    @field:SerializedName("fajr") val fajr: String? = null,
+    @field:SerializedName("sunrise") val sunrise: String? = null,
+    @field:SerializedName("dhuhr") val dhuhr: String? = null,
+    @field:SerializedName("asr") val asr: String? = null,
+    @field:SerializedName("maghrib") val maghrib: String? = null,
+    @field:SerializedName("isha") val isha: String? = null,
+    @field:SerializedName("hijriText") val hijriText: String? = null,
+    @field:SerializedName("fetchedAtEpochMillis") val fetchedAtEpochMillis: Long? = null
 ) {
     fun toDomain(): CachedPrayerDay {
         require(schemaVersion == null || schemaVersion == CACHE_SCHEMA_VERSION) {

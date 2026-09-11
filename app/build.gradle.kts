@@ -29,6 +29,7 @@ android {
         versionCode = betaVersionCode
         versionName = betaVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testBuildType = "minified"
     }
 
     signingConfigs {
@@ -43,6 +44,17 @@ android {
     }
 
     buildTypes {
+        create("minified") {
+            isDebuggable = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            signingConfig = signingConfigs.getByName("debug")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+                "proguard-minified-test-rules.pro"
+            )
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
@@ -90,6 +102,13 @@ kotlin {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
         allWarningsAsErrors.set(true)
     }
+}
+
+// AndroidX Test 1.7.0 uses SuspendToFutureAdapter, while WorkManager 2.11.2
+// requests the older compatible-futures line. Keep the runtime aligned so the
+// minified instrumentation APK is closed under R8's class analysis as well.
+configurations.configureEach {
+    resolutionStrategy.force("androidx.concurrent:concurrent-futures-ktx:1.2.0")
 }
 
 room {

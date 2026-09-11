@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -26,6 +27,8 @@ class PrayerWidgetAlarmReceiver : BroadcastReceiver() {
                     snapshot = snapshot
                 )
                 PrayerWidgetScheduler.enqueueRefresh(appContext, snapshot = snapshot)
+            } catch (exception: CancellationException) {
+                throw exception
             } catch (exception: Exception) {
                 Log.e(TAG, "boundary alarm widget update failed", exception)
             } finally {

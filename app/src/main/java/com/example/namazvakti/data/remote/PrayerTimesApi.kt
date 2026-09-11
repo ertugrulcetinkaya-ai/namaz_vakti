@@ -20,46 +20,50 @@ import java.io.IOException
 import kotlinx.coroutines.suspendCancellableCoroutine
 
 data class PrayerTimesCalendarResponse(
-    val code: Int? = null,
-    val status: String? = null,
-    val data: List<PrayerTimesData>? = null,
-    val message: String? = null
+    @field:SerializedName("code") val code: Int? = null,
+    @field:SerializedName("status") val status: String? = null,
+    @field:SerializedName("data") val data: List<PrayerTimesData>? = null,
+    @field:SerializedName("message") val message: String? = null
 )
 
 data class PrayerTimesData(
-    val timings: PrayerTimings? = null,
-    val date: PrayerDate? = null,
-    val meta: PrayerMeta? = null
+    @field:SerializedName("timings") val timings: PrayerTimings? = null,
+    @field:SerializedName("date") val date: PrayerDate? = null,
+    @field:SerializedName("meta") val meta: PrayerMeta? = null
 )
 
-data class PrayerMeta(val timezone: String? = null)
+data class PrayerMeta(
+    @field:SerializedName("timezone") val timezone: String? = null
+)
 
 data class PrayerDate(
-    val hijri: HijriDate? = null,
-    val gregorian: GregorianDate? = null
+    @field:SerializedName("hijri") val hijri: HijriDate? = null,
+    @field:SerializedName("gregorian") val gregorian: GregorianDate? = null
 )
 
-data class GregorianDate(val date: String? = null)
+data class GregorianDate(
+    @field:SerializedName("date") val date: String? = null
+)
 
 data class HijriDate(
-    val day: String? = null,
-    val month: HijriMonth? = null,
-    val year: String? = null
+    @field:SerializedName("day") val day: String? = null,
+    @field:SerializedName("month") val month: HijriMonth? = null,
+    @field:SerializedName("year") val year: String? = null
 )
 
 data class HijriMonth(
-    val number: Int? = null,
-    val en: String? = null,
-    val ar: String? = null
+    @field:SerializedName("number") val number: Int? = null,
+    @field:SerializedName("en") val en: String? = null,
+    @field:SerializedName("ar") val ar: String? = null
 )
 
 data class PrayerTimings(
-    @SerializedName("Fajr") val fajr: String? = null,
-    @SerializedName("Sunrise") val sunrise: String? = null,
-    @SerializedName("Dhuhr") val dhuhr: String? = null,
-    @SerializedName("Asr") val asr: String? = null,
-    @SerializedName("Maghrib") val maghrib: String? = null,
-    @SerializedName("Isha") val isha: String? = null
+    @field:SerializedName("Fajr") val fajr: String? = null,
+    @field:SerializedName("Sunrise") val sunrise: String? = null,
+    @field:SerializedName("Dhuhr") val dhuhr: String? = null,
+    @field:SerializedName("Asr") val asr: String? = null,
+    @field:SerializedName("Maghrib") val maghrib: String? = null,
+    @field:SerializedName("Isha") val isha: String? = null
 )
 
 interface PrayerTimesRemoteDataSource {

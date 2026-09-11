@@ -7,6 +7,7 @@ import android.util.Log
 import com.example.namazvakti.widget.alarm.PrayerWidgetScheduler
 import com.example.namazvakti.widget.renderer.PrayerWidgetRenderer
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -23,6 +24,8 @@ class PrayerWidgetProvider : AppWidgetProvider() {
                     snapshot = snapshot
                 )
                 PrayerWidgetScheduler.enqueueRefresh(appContext, snapshot = snapshot)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "widget update failed", e)
             } finally {
@@ -38,6 +41,8 @@ class PrayerWidgetProvider : AppWidgetProvider() {
             try {
                 PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(context.applicationContext)
                 PrayerWidgetScheduler.enqueueRefresh(context.applicationContext)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "widget enable setup failed", e)
             } finally {

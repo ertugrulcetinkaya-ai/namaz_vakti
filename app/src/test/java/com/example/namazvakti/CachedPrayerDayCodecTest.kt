@@ -38,6 +38,34 @@ class CachedPrayerDayCodecTest {
     }
 
     @Test
+    fun legacyUnminifiedFieldNamesRemainDecodable() {
+        val original = sampleCache()
+        val legacyJson = """
+            {
+              "schemaVersion": 1,
+              "date": "${original.date}",
+              "city": "${original.location.city}",
+              "country": "${original.location.country}",
+              "displayCity": "${original.location.displayCity}",
+              "locationTimezone": "${original.location.timezone}",
+              "timezone": "${original.timezone}",
+              "method": ${original.settings.method},
+              "school": ${original.settings.school},
+              "fajr": "${original.prayerTimes.fajr}",
+              "sunrise": "${original.prayerTimes.sunrise}",
+              "dhuhr": "${original.prayerTimes.dhuhr}",
+              "asr": "${original.prayerTimes.asr}",
+              "maghrib": "${original.prayerTimes.maghrib}",
+              "isha": "${original.prayerTimes.isha}",
+              "hijriText": null,
+              "fetchedAtEpochMillis": ${original.fetchedAt.toEpochMilli()}
+            }
+        """.trimIndent()
+
+        assertEquals(original, codec.decode(legacyJson))
+    }
+
+    @Test
     fun corruptJsonAndInvalidFieldsReturnNull() {
         assertNull(codec.decode("not-json"))
         assertNull(codec.decode("""{"date":"2026-08-06","timezone":"Not/AZone"}"""))

@@ -52,25 +52,25 @@ adb shell am start -n com.example.namazvakti/.ui.main.MainActivity
 
 ## Test ve doğrulama
 
-Unit test, lint, debug APK ve Android test APK'sını birlikte doğrulamak için:
+Unit test, lint, debug/minified/release APK'larını ve minified Android test APK'sını birlikte doğrulamak için:
 
 ```bash
-./gradlew --dependency-verification=strict lint test assembleDebug assembleAndroidTest
+./gradlew --dependency-verification=strict lint test assembleDebug assembleMinified assembleMinifiedAndroidTest assembleRelease
 ```
 
 Widget `RemoteViews` testlerini bağlı cihazda çalıştırmak için:
 
 ```bash
-./gradlew connectedDebugAndroidTest
+./gradlew connectedMinifiedAndroidTest
 ```
 
 Gradle Managed Device emulator'ında CI ile aynı instrumented testleri çalıştırmak için:
 
 ```bash
-./gradlew --dependency-verification=strict pixel2api35DebugAndroidTest -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect
+./gradlew --dependency-verification=strict pixel2api35MinifiedAndroidTest -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect
 ```
 
-Instrumentation testleri fresh, stale ve cache bulunmayan widget durumlarını kontrol eder. Render smoke testi ise gerçek `RemoteViews` ağacını inflate eder, ölçer ve bitmap üzerine çizerek görünümün cihazda oluşturulabildiğini doğrular.
+Managed-device testleri debug keystore ile imzalanan, R8/resource shrinking etkin `minified` varyantında çalışır. Böylece legacy Gson cache migration'ı ve widget reflection yolları küçültülmüş runtime üzerinde de doğrulanır. Instrumentation testleri fresh, stale ve cache bulunmayan widget durumlarını kontrol eder. Render smoke testi ise gerçek `RemoteViews` ağacını inflate eder, ölçer ve bitmap üzerine çizerek görünümün cihazda oluşturulabildiğini doğrular.
 
 Unit testler ayrıca cache şema dönüşümünü, retention penceresini, API timezone'una göre tarih üretimini, coroutine iptalini ve eşzamanlı kullanıcı işlemlerinde son seçimin kazanmasını doğrular.
 
@@ -79,6 +79,13 @@ Release küçültme değerlendirmesinde unsigned release APK, R8 ve resource shr
 Bu nedenle release build'inde `isMinifyEnabled` ve `isShrinkResources` açıktır; Gson DTO'ları,
 Room entity'si ve WorkManager worker'ı için gerekli keep kuralları `app/proguard-rules.pro`
 dosyasındadır.
+Minified instrumented test APK'sı için test runner ve reflection destek kuralları ayrıca
+`app/proguard-minified-test-rules.pro` dosyasındadır; production release bu test-only
+kurallarını kullanmaz.
+
+Legacy DataStore JSON alanları `@SerializedName` ile sabitlenmiştir; eski, küçültülmemiş
+sürümlerden gelen cache kayıtlarının migration sırasında R8 nedeniyle kaybolmaması için
+hem JVM hem de minified instrumented regression testleri vardır.
 
 ## Beta sürüm üretimi
 
