@@ -10,13 +10,13 @@ import com.example.namazvakti.domain.model.CachedPrayerDay
 import com.example.namazvakti.domain.model.DefaultPrayerEventLogger
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.PrayerDataSource
-import com.example.namazvakti.domain.model.PrayerError
 import com.example.namazvakti.domain.model.PrayerEventLogger
 import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.PrayerTimeProvider
 import com.example.namazvakti.domain.model.PrayerTimesApiException
 import com.example.namazvakti.domain.model.RefreshResult
 import com.example.namazvakti.domain.model.RefreshOrigin
+import com.example.namazvakti.domain.model.classifyPrayerStorageError
 import com.example.namazvakti.domain.model.classifyPrayerError
 import com.example.namazvakti.domain.model.code
 import com.example.namazvakti.domain.port.PrayerRefreshRepository
@@ -37,7 +37,7 @@ class PrayerTimesRepository(
         } catch (e: CancellationException) {
             throw e
         } catch (t: Exception) {
-            return RefreshResult.Failure(t, PrayerError.Storage)
+            return RefreshResult.Failure(t, classifyPrayerStorageError(t))
         }
         val today = timeProvider.today(location.timezone)
         return try {
@@ -117,11 +117,22 @@ class PrayerTimesRepository(
         today: java.time.LocalDate
     ): RefreshResult {
         val error = classifyPrayerError(cause)
-        val todayCache = readCacheOrNull(today, location, settings)
-        if (todayCache != null) return RefreshResult.Success(todayCache, RefreshOrigin.LOCAL_CACHE)
-        val olderCache = readCacheOrNull()
-        return if (olderCache != null) {
-            RefreshResult.StaleCache(olderCache, cause, error)
+        val todayRead = readCache(today, location, settings)
+        if (todayRead.cache != null) {
+            return RefreshResult.Success(todayRead.cache, RefreshOrigin.LOCAL_CACHE)
+        }
+        val olderRead = readCache()
+        val fallbackFailure = todayRead.failure ?: olderRead.failure
+        if (fallbackFailure != null) {
+            val fallbackError = classifyPrayerStorageError(fallbackFailure)
+            eventLogger.warning(
+                "event=fallback_cache_read_failure primary_error=${error.code} " +
+                    "fallback_error=${fallbackError.code}",
+                fallbackFailure
+            )
+        }
+        return if (olderRead.cache != null) {
+            RefreshResult.StaleCache(olderRead.cache, cause, error)
         } else {
             RefreshResult.Failure(cause, error)
         }
@@ -132,27 +143,32 @@ class PrayerTimesRepository(
     suspend fun cachedWidget(): CachedPrayerDay? {
         val location = store.readLocation()
         val today = timeProvider.today(location.timezone)
-        return readCacheOrNull(today, location, settings) ?: readCacheOrNull()
+        return readCache(today, location, settings).cache ?: readCache().cache
     }
 
-    private suspend fun readCacheOrNull(
+    private data class CacheRead(
+        val cache: CachedPrayerDay?,
+        val failure: Throwable? = null
+    )
+
+    private suspend fun readCache(
         date: java.time.LocalDate,
         location: PrayerLocation,
         settings: PrayerCalculationSettings
-    ): CachedPrayerDay? = try {
-        store.readCache(date, location, settings)
+    ): CacheRead = try {
+        CacheRead(store.readCache(date, location, settings))
     } catch (e: CancellationException) {
         throw e
-    } catch (_: Exception) {
-        null
+    } catch (e: Exception) {
+        CacheRead(cache = null, failure = e)
     }
 
-    private suspend fun readCacheOrNull(): CachedPrayerDay? = try {
-        store.readCache()
+    private suspend fun readCache(): CacheRead = try {
+        CacheRead(store.readCache())
     } catch (e: CancellationException) {
         throw e
-    } catch (_: Exception) {
-        null
+    } catch (e: Exception) {
+        CacheRead(cache = null, failure = e)
     }
 
     private companion object {

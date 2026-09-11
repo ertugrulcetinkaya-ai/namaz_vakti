@@ -1,17 +1,22 @@
 package com.example.namazvakti
 
-import com.example.namazvakti.app.*
-import com.example.namazvakti.data.local.*
-import com.example.namazvakti.data.remote.*
-import com.example.namazvakti.data.repository.*
-import com.example.namazvakti.domain.model.*
-import com.example.namazvakti.domain.policy.*
-import com.example.namazvakti.domain.port.*
-import com.example.namazvakti.ui.main.*
-import com.example.namazvakti.widget.*
-import com.example.namazvakti.widget.alarm.*
-import com.example.namazvakti.widget.renderer.*
-import com.example.namazvakti.widget.worker.*
+import com.example.namazvakti.data.local.PrayerPreferences
+import com.example.namazvakti.data.remote.PrayerTimesApiDayResult
+import com.example.namazvakti.data.remote.PrayerTimesApiResult
+import com.example.namazvakti.data.remote.PrayerTimesCalendarResult
+import com.example.namazvakti.data.remote.PrayerTimesRemoteDataSource
+import com.example.namazvakti.data.repository.PrayerTimesRepository
+import com.example.namazvakti.domain.model.CachedPrayerDay
+import com.example.namazvakti.domain.model.DefaultPrayerEventLogger
+import com.example.namazvakti.domain.model.PrayerCalculationSettings
+import com.example.namazvakti.domain.model.PrayerLocation
+import com.example.namazvakti.domain.model.PrayerEventLogger
+import com.example.namazvakti.domain.model.PrayerStorageException
+import com.example.namazvakti.domain.model.PrayerTimeProvider
+import com.example.namazvakti.domain.model.PrayerTimes
+import com.example.namazvakti.domain.model.RefreshOrigin
+import com.example.namazvakti.domain.model.RefreshResult
+import com.example.namazvakti.domain.model.StorageFailureKind
 import java.io.IOException
 import java.time.Clock
 import java.time.Instant
@@ -80,6 +85,39 @@ class PrayerTimesRepositoryTest {
         assertSame(existing, result.cache)
         assertSame(failure, result.cause)
         assertEquals(1, store.days.size)
+    }
+
+    @Test
+    fun fallbackCacheReadFailureIsLoggedWithoutExposingLocationData() = runTest {
+        val today = LocalDate.of(2026, 8, 6)
+        val logger = RecordingLogger()
+        val storageFailure = PrayerStorageException(
+            StorageFailureKind.UNKNOWN,
+            "cache read failed"
+        )
+        val store = FakeStore(
+            location,
+            settings,
+            today,
+            readCacheFailure = storageFailure
+        )
+        val repository = repository(
+            api = FakeApi { _, _ -> throw IOException("offline") },
+            store = store,
+            eventLogger = logger
+        )
+
+        val result = repository.refreshAndCache()
+
+        assertTrue(result is RefreshResult.Failure)
+        assertEquals(
+            listOf(
+                "event=fallback_cache_read_failure " +
+                    "primary_error=network fallback_error=storage"
+            ),
+            logger.events
+        )
+        assertTrue(logger.events.none { it.contains("Ankara") || it.contains("Turkey") })
     }
 
     @Test
@@ -234,7 +272,7 @@ class PrayerTimesRepositoryTest {
         private val settings: PrayerCalculationSettings,
         private val today: LocalDate,
         initial: List<CachedPrayerDay> = emptyList(),
-        private val readCacheFailure: CancellationException? = null
+        private val readCacheFailure: Throwable? = null
     ) : PrayerPreferences {
         val days = initial.associateByTo(mutableMapOf(), CachedPrayerDay::date)
 

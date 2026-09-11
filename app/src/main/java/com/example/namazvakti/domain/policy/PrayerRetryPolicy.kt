@@ -15,7 +15,12 @@ class PrayerRetryPolicy(private val maxAttempts: Int = DEFAULT_MAX_ATTEMPTS) {
 
     fun decide(error: PrayerError, runAttemptCount: Int): PrayerWorkDecision {
         require(runAttemptCount >= 0) { "Run attempt count must not be negative" }
-        return if (error.isRetryable && runAttemptCount < maxAttempts - 1) {
+        val allowedAttempts = if (error == PrayerError.TransientStorage) {
+            minOf(maxAttempts, MAX_TRANSIENT_STORAGE_ATTEMPTS)
+        } else {
+            maxAttempts
+        }
+        return if (error.isRetryable && runAttemptCount < allowedAttempts - 1) {
             PrayerWorkDecision.Retry
         } else {
             PrayerWorkDecision.Failure
@@ -24,5 +29,6 @@ class PrayerRetryPolicy(private val maxAttempts: Int = DEFAULT_MAX_ATTEMPTS) {
 
     private companion object {
         const val DEFAULT_MAX_ATTEMPTS = 3
+        const val MAX_TRANSIENT_STORAGE_ATTEMPTS = 2
     }
 }

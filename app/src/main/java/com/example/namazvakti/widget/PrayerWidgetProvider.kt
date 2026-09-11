@@ -18,8 +18,11 @@ class PrayerWidgetProvider : AppWidgetProvider() {
                 val appContext = context.applicationContext
                 val snapshot = PrayerWidgetSnapshotLoader.load(appContext)
                 updateWidgets(appContext, manager, ids, snapshot)
-                PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(appContext)
-                PrayerWidgetScheduler.enqueueRefresh(appContext)
+                PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(
+                    appContext,
+                    snapshot = snapshot
+                )
+                PrayerWidgetScheduler.enqueueRefresh(appContext, snapshot = snapshot)
             } catch (e: Exception) {
                 Log.e(TAG, "widget update failed", e)
             } finally {

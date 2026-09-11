@@ -1,20 +1,11 @@
 package com.example.namazvakti
 
-import com.example.namazvakti.app.*
-import com.example.namazvakti.data.local.*
-import com.example.namazvakti.data.remote.*
-import com.example.namazvakti.data.repository.*
-import com.example.namazvakti.domain.model.*
-import com.example.namazvakti.domain.policy.*
-import com.example.namazvakti.domain.port.*
-import com.example.namazvakti.ui.main.*
-import com.example.namazvakti.widget.*
-import com.example.namazvakti.widget.alarm.*
-import com.example.namazvakti.widget.renderer.*
-import com.example.namazvakti.widget.worker.*
+import com.example.namazvakti.widget.worker.PrayerWidgetWorker
+import com.example.namazvakti.widget.worker.PrayerWorkRequestFactory
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import androidx.work.NetworkType
 import java.util.concurrent.TimeUnit
 
 class PrayerWorkRequestFactoryTest {
@@ -33,5 +24,15 @@ class PrayerWorkRequestFactoryTest {
         val immediate = factory.immediateRefresh()
 
         assertTrue(immediate.workSpec.input.getBoolean(PrayerWidgetWorker.INPUT_FETCH, false))
+        assertEquals(NetworkType.CONNECTED, immediate.workSpec.constraints.requiredNetworkType)
+        assertEquals(TimeUnit.SECONDS.toMillis(30), immediate.workSpec.backoffDelayDuration)
+    }
+
+    @Test
+    fun dailySafetyRefreshUsesTheSameBoundedRetryBackoff() {
+        val periodic = factory.dailySafetyRefresh()
+
+        assertEquals(NetworkType.CONNECTED, periodic.workSpec.constraints.requiredNetworkType)
+        assertEquals(TimeUnit.SECONDS.toMillis(30), periodic.workSpec.backoffDelayDuration)
     }
 }

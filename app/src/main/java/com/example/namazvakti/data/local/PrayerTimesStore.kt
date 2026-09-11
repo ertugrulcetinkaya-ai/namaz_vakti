@@ -8,10 +8,17 @@ import com.example.namazvakti.domain.model.CachedPrayerDay
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.PrayerLocationConfig
+import com.example.namazvakti.domain.model.PrayerStorageException
 import com.example.namazvakti.domain.model.PrayerTimeProvider
 import com.example.namazvakti.domain.model.PrayerTimes
 import com.example.namazvakti.domain.policy.PrayerCacheRetentionPolicy
+import com.example.namazvakti.domain.model.StorageFailureKind
 import com.google.gson.Gson
+import android.database.sqlite.SQLiteDatabaseCorruptException
+import android.database.sqlite.SQLiteDatabaseLockedException
+import android.database.sqlite.SQLiteDiskIOException
+import android.database.sqlite.SQLiteFullException
+import android.database.sqlite.SQLiteTableLockedException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -20,6 +27,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
+import kotlinx.coroutines.CancellationException
 
 private val Context.dataStore by preferencesDataStore(name = "prayer_times_store")
 
@@ -40,6 +48,7 @@ interface PrayerPreferences {
         location: PrayerLocation,
         settings: PrayerCalculationSettings
     ): Boolean = false
+    suspend fun housekeep() = Unit
     suspend fun readLocation(): PrayerLocation
     suspend fun saveLocation(location: PrayerLocation)
     suspend fun clearCache()
@@ -64,28 +73,29 @@ class PrayerTimesStore(
     @Volatile private var migrationComplete = false
     @Volatile private var lastRetentionDate: LocalDate? = null
 
-    override suspend fun saveCache(cache: CachedPrayerDay) {
+    override suspend fun saveCache(cache: CachedPrayerDay) = storageOperation {
         migrateLegacyCache()
         prayerDayDao.upsertAll(listOf(cache.toEntity()))
         pruneIfDue(cache.location)
     }
 
-    override suspend fun saveCaches(caches: List<CachedPrayerDay>) {
-        if (caches.isEmpty()) return
+    override suspend fun saveCaches(caches: List<CachedPrayerDay>) = storageOperation {
+        if (caches.isEmpty()) return@storageOperation
         migrateLegacyCache()
         prayerDayDao.upsertAll(caches.map(CachedPrayerDay::toEntity))
         pruneIfDue(caches.first().location)
     }
 
-    override suspend fun saveLocation(location: PrayerLocation) {
+    override suspend fun saveLocation(location: PrayerLocation) = storageOperation {
         context.dataStore.edit { prefs ->
             prefs[cityKey] = location.city
             prefs[countryKey] = location.country
             prefs[locationTimezoneKey] = location.timezone.id
         }
+        Unit
     }
 
-    override suspend fun clearCache() {
+    override suspend fun clearCache() = storageOperation {
         migrateLegacyCache()
         prayerDayDao.clearAll()
         context.dataStore.edit { prefs ->
@@ -94,24 +104,24 @@ class PrayerTimesStore(
             prefs.remove(legacyWidgetDateKey)
             prefs.remove(legacyWidgetHijriKey)
         }
+        Unit
     }
 
-    override suspend fun readLocation(): PrayerLocation {
+    override suspend fun readLocation(): PrayerLocation = storageOperation {
         val prefs = context.dataStore.data.first()
         val city = prefs[cityKey] ?: PrayerLocationConfig.defaultCity.city
         val country = prefs[countryKey] ?: PrayerLocationConfig.defaultCity.country
         val displayCity = PrayerLocationConfig.optionForCityAndCountry(city, country).displayCity
         val timezone = prefs[locationTimezoneKey]?.let { runCatching { ZoneId.of(it) }.getOrNull() }
             ?: PrayerTimeProvider.DEFAULT_ZONE
-        return PrayerLocation(city, country, displayCity, timezone)
+        PrayerLocation(city, country, displayCity, timezone)
     }
 
-    override suspend fun readCache(): CachedPrayerDay? {
+    override suspend fun readCache(): CachedPrayerDay? = storageOperation {
         migrateLegacyCache()
         val location = readLocation()
-        pruneIfDue(location)
         val today = timeProvider.today(location.timezone)
-        return prayerDayDao.find(
+        prayerDayDao.find(
             today.toString(), location.city, location.country, settings.method, settings.school
         )?.toDomain() ?: prayerDayDao.latestOnOrBefore(
             today.toString(), location.city, location.country, settings.method, settings.school
@@ -122,10 +132,9 @@ class PrayerTimesStore(
         date: LocalDate,
         location: PrayerLocation,
         settings: PrayerCalculationSettings
-    ): CachedPrayerDay? {
+    ): CachedPrayerDay? = storageOperation {
         migrateLegacyCache()
-        pruneIfDue(location)
-        return prayerDayDao.find(
+        prayerDayDao.find(
             date.toString(), location.city, location.country, settings.method, settings.school
         )?.toDomain()
     }
@@ -137,13 +146,19 @@ class PrayerTimesStore(
         settings: PrayerCalculationSettings
     ): Boolean {
         require(!endDate.isBefore(startDate)) { "End date must not be before start date" }
+        return storageOperation {
+            migrateLegacyCache()
+            val expectedDays = ChronoUnit.DAYS.between(startDate, endDate).toInt() + 1
+            prayerDayDao.countBetween(
+                startDate.toString(), endDate.toString(), location.city, location.country,
+                settings.method, settings.school
+            ) == expectedDays
+        }
+    }
+
+    override suspend fun housekeep() = storageOperation {
         migrateLegacyCache()
-        pruneIfDue(location)
-        val expectedDays = ChronoUnit.DAYS.between(startDate, endDate).toInt() + 1
-        return prayerDayDao.countBetween(
-            startDate.toString(), endDate.toString(), location.city, location.country,
-            settings.method, settings.school
-        ) == expectedDays
+        pruneIfDue(readLocation())
     }
 
     private suspend fun pruneIfDue(location: PrayerLocation) {
@@ -172,6 +187,35 @@ class PrayerTimesStore(
                 it.remove(legacyWidgetHijriKey)
             }
             migrationComplete = true
+        }
+    }
+
+    private suspend fun <T> storageOperation(block: suspend () -> T): T = try {
+        block()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: PrayerStorageException) {
+        throw e
+    } catch (e: Exception) {
+        throw PrayerStorageException(
+            kind = storageFailureKind(e),
+            message = "Prayer storage operation failed",
+            cause = e
+        )
+    }
+
+    private fun storageFailureKind(cause: Throwable): StorageFailureKind {
+        val chain = generateSequence(cause) { it.cause }.toList()
+        return when {
+            chain.any {
+                it is SQLiteDatabaseLockedException || it is SQLiteTableLockedException
+            } -> StorageFailureKind.TRANSIENT
+            chain.any {
+                it is SQLiteDatabaseCorruptException ||
+                    it is SQLiteDiskIOException ||
+                    it is SQLiteFullException
+            } -> StorageFailureKind.PERMANENT
+            else -> StorageFailureKind.UNKNOWN
         }
     }
 }

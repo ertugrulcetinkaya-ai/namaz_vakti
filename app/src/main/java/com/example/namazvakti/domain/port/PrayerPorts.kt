@@ -1,6 +1,5 @@
 package com.example.namazvakti.domain.port
 
-import android.content.Context
 import com.example.namazvakti.domain.model.RefreshResult
 
 interface PrayerRefreshRepository {
@@ -8,10 +7,10 @@ interface PrayerRefreshRepository {
 }
 
 interface PrayerRefreshScheduler {
-    suspend fun enqueueRefresh(context: Context, force: Boolean)
-    suspend fun scheduleBoundary(context: Context)
+    suspend fun enqueueRefresh(force: Boolean)
+    suspend fun scheduleBoundary()
 }
 
 interface PrayerWidgetUpdatePort {
-    suspend fun updateAll(context: Context)
+    suspend fun updateAll()
 }

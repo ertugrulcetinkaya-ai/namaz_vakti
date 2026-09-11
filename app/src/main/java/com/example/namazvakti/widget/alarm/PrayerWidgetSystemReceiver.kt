@@ -16,9 +16,16 @@ class PrayerWidgetSystemReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val appContext = context.applicationContext
-                PrayerWidgetUpdater.updateAll(appContext)
-                PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(appContext)
-                PrayerWidgetScheduler.enqueueRefresh(appContext, force = false)
+                val snapshot = PrayerWidgetUpdater.updateAllAndReturnSnapshot(appContext)
+                PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(
+                    appContext,
+                    snapshot = snapshot
+                )
+                PrayerWidgetScheduler.enqueueRefresh(
+                    appContext,
+                    force = false,
+                    snapshot = snapshot
+                )
             } catch (e: Exception) {
                 Log.e(TAG, "system-triggered widget refresh failed", e)
             } finally {

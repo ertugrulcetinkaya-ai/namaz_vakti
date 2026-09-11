@@ -11,6 +11,7 @@ import com.example.namazvakti.app.appContainer
 import com.example.namazvakti.domain.model.CachedPrayerDay
 import com.example.namazvakti.domain.policy.PrayerBoundaryCalculator
 import com.example.namazvakti.widget.PrayerWidgetProvider
+import com.example.namazvakti.widget.PrayerWidgetSnapshot
 import com.example.namazvakti.widget.worker.PrayerWorkRequestFactory
 
 object PrayerWidgetScheduler {
@@ -20,17 +21,24 @@ object PrayerWidgetScheduler {
     private const val TAG = "NamazWidget"
     private val requestFactory = PrayerWorkRequestFactory()
 
-    suspend fun enqueueRefresh(context: Context, force: Boolean = false) {
+    suspend fun enqueueRefresh(
+        context: Context,
+        force: Boolean = false,
+        snapshot: PrayerWidgetSnapshot? = null
+    ) {
         val appContext = context.applicationContext
         if (!hasWidgets(appContext)) {
             cancelAll(appContext)
             return
         }
         val container = appContext.appContainer()
-        val location = container.store.readLocation()
-        val cached = container.store.readCache()
+        val location = snapshot?.location ?: container.store.readLocation()
+        val cached = if (snapshot != null) snapshot.cache else container.store.readCache()
         val needsRefresh = force || !container.cachePolicy.isFresh(
-            cached, location, container.settings, container.timeProvider.now()
+            cached,
+            location,
+            container.settings,
+            snapshot?.now ?: container.timeProvider.now()
         )
         val workManager = WorkManager.getInstance(appContext)
         if (needsRefresh) {
@@ -48,18 +56,29 @@ object PrayerWidgetScheduler {
         )
     }
 
-    suspend fun scheduleNextPrayerBoundaryRerender(context: Context, cache: CachedPrayerDay? = null) {
+    suspend fun scheduleNextPrayerBoundaryRerender(
+        context: Context,
+        cache: CachedPrayerDay? = null,
+        snapshot: PrayerWidgetSnapshot? = null
+    ) {
         val appContext = context.applicationContext
         if (!hasWidgets(appContext)) {
             cancelAll(appContext)
             return
         }
         val container = appContext.appContainer()
-        val location = container.store.readLocation()
-        val now = container.timeProvider.now().withZoneSameInstant(location.timezone)
+        val location = snapshot?.location ?: container.store.readLocation()
+        val now = (snapshot?.now ?: container.timeProvider.now())
+            .withZoneSameInstant(location.timezone)
         val today = now.toLocalDate()
-        val currentCache = cache?.takeIf { it.matches(today, location, container.settings) }
-            ?: container.store.readCache(today, location, container.settings)
+        val snapshotCache = snapshot?.cache
+        val currentCache = (cache ?: snapshotCache)
+            ?.takeIf { it.matches(today, location, container.settings) }
+            ?: if (snapshot == null && cache == null) {
+                container.store.readCache(today, location, container.settings)
+            } else {
+                null
+            }
         if (currentCache == null) {
             PrayerBoundaryAlarm.cancel(appContext)
             return

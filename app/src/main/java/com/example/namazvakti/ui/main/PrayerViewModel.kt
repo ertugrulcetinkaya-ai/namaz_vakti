@@ -4,18 +4,18 @@ import android.app.Application
 import com.example.namazvakti.app.NamazVaktiApp
 import com.example.namazvakti.data.local.PrayerPreferences
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
-import com.example.namazvakti.domain.model.PrayerError
 import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.PrayerLocationConfig
 import com.example.namazvakti.domain.model.PrayerTimeProvider
 import com.example.namazvakti.domain.model.RefreshResult
 import com.example.namazvakti.domain.model.classifyPrayerError
+import com.example.namazvakti.domain.model.classifyPrayerStorageError
 import com.example.namazvakti.domain.policy.PrayerCachePolicy
 import com.example.namazvakti.domain.port.PrayerRefreshRepository
 import com.example.namazvakti.domain.port.PrayerRefreshScheduler
 import com.example.namazvakti.domain.port.PrayerWidgetUpdatePort
-import com.example.namazvakti.widget.PrayerWidgetUpdater
-import com.example.namazvakti.widget.alarm.PrayerWidgetScheduler
+import com.example.namazvakti.widget.PrayerWidgetUpdateAdapter
+import com.example.namazvakti.widget.alarm.PrayerRefreshSchedulerAdapter
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
@@ -29,20 +29,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private class DefaultPrayerRefreshScheduler : PrayerRefreshScheduler {
-    override suspend fun enqueueRefresh(context: android.content.Context, force: Boolean) =
-        PrayerWidgetScheduler.enqueueRefresh(context, force)
-
-    override suspend fun scheduleBoundary(context: android.content.Context) =
-        PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(context)
-}
-
 class PrayerViewModel @JvmOverloads constructor(
     application: Application,
     private val store: PrayerPreferences = (application as NamazVaktiApp).container.store,
     private val repository: PrayerRefreshRepository = (application as NamazVaktiApp).container.repository,
-    private val scheduler: PrayerRefreshScheduler = DefaultPrayerRefreshScheduler(),
-    private val widgetUpdater: PrayerWidgetUpdatePort = PrayerWidgetUpdater,
+    private val scheduler: PrayerRefreshScheduler = PrayerRefreshSchedulerAdapter(application),
+    private val widgetUpdater: PrayerWidgetUpdatePort = PrayerWidgetUpdateAdapter(application),
     private val timeProvider: PrayerTimeProvider = (application as NamazVaktiApp).container.timeProvider,
     private val settings: PrayerCalculationSettings = (application as NamazVaktiApp).container.settings,
     private val testScope: CoroutineScope? = null,
@@ -73,8 +65,8 @@ class PrayerViewModel @JvmOverloads constructor(
             )
         } catch (e: CancellationException) {
             throw e
-        } catch (_: Exception) {
-            _state.value = PrayerUiState.Error(null, PrayerError.Storage)
+        } catch (e: Exception) {
+            _state.value = PrayerUiState.Error(null, classifyPrayerStorageError(e))
         }
     }
 
@@ -89,8 +81,8 @@ class PrayerViewModel @JvmOverloads constructor(
             refreshInternal()
         } catch (e: CancellationException) {
             throw e
-        } catch (_: Exception) {
-            _state.value = PrayerUiState.Error(null, PrayerError.Storage)
+        } catch (e: Exception) {
+            _state.value = PrayerUiState.Error(null, classifyPrayerStorageError(e))
         }
     }
 
@@ -106,11 +98,8 @@ class PrayerViewModel @JvmOverloads constructor(
             withContext(ioDispatcher) { store.readLocation() to store.readCache() }
         } catch (e: CancellationException) {
             throw e
-        } catch (_: Exception) {
-            null
-        }
-        if (snapshot == null) {
-            _state.value = PrayerUiState.Error(null, PrayerError.Storage)
+        } catch (e: Exception) {
+            _state.value = PrayerUiState.Error(null, classifyPrayerStorageError(e))
             return
         }
         val (location, cache) = snapshot
@@ -123,8 +112,8 @@ class PrayerViewModel @JvmOverloads constructor(
         try {
             when (val result = withContext(ioDispatcher) { repository.refreshAndCache() }) {
                 is RefreshResult.Success -> {
-                    widgetUpdater.updateAll(getApplication())
-                    scheduler.scheduleBoundary(getApplication())
+                    widgetUpdater.updateAll()
+                    scheduler.scheduleBoundary()
                     _state.value = PrayerUiState.Ready(
                         result.cache.location,
                         Freshness.Fresh,

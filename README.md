@@ -74,6 +74,12 @@ Instrumentation testleri fresh, stale ve cache bulunmayan widget durumlarını k
 
 Unit testler ayrıca cache şema dönüşümünü, retention penceresini, API timezone'una göre tarih üretimini, coroutine iptalini ve eşzamanlı kullanıcı işlemlerinde son seçimin kazanmasını doğrular.
 
+Release küçültme değerlendirmesinde unsigned release APK, R8 ve resource shrinking kapalıyken
+4,734,982 byte; etkinleştirildikten sonra 1,267,701 byte ölçülmüştür (yaklaşık %73 azalma).
+Bu nedenle release build'inde `isMinifyEnabled` ve `isShrinkResources` açıktır; Gson DTO'ları,
+Room entity'si ve WorkManager worker'ı için gerekli keep kuralları `app/proguard-rules.pro`
+dosyasındadır.
+
 ## Beta sürüm üretimi
 
 Beta sürüm değerleri varsayılan olarak şunlardır:

@@ -18,6 +18,26 @@ data class PrayerWidgetSnapshot(
     val dataState: PrayerWidgetDataState
 )
 
+fun PrayerWidgetSnapshot.withCache(
+    cache: CachedPrayerDay?,
+    settings: PrayerCalculationSettings,
+    cachePolicy: PrayerCachePolicy,
+    now: ZonedDateTime
+): PrayerWidgetSnapshot {
+    val nextLocation = cache?.location ?: location
+    val nextState = when {
+        cache == null -> PrayerWidgetDataState.Unavailable
+        cachePolicy.isFresh(cache, nextLocation, settings, now) -> PrayerWidgetDataState.Fresh
+        else -> PrayerWidgetDataState.Stale
+    }
+    return copy(
+        cache = cache,
+        location = nextLocation,
+        now = now,
+        dataState = nextState
+    )
+}
+
 class PrayerWidgetSnapshotSource(
     private val store: PrayerPreferences,
     private val settings: PrayerCalculationSettings,

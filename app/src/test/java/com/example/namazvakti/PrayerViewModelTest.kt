@@ -1,17 +1,22 @@
 package com.example.namazvakti
 
-import com.example.namazvakti.app.*
-import com.example.namazvakti.data.local.*
-import com.example.namazvakti.data.remote.*
-import com.example.namazvakti.data.repository.*
-import com.example.namazvakti.domain.model.*
-import com.example.namazvakti.domain.policy.*
-import com.example.namazvakti.domain.port.*
-import com.example.namazvakti.ui.main.*
-import com.example.namazvakti.widget.*
-import com.example.namazvakti.widget.alarm.*
-import com.example.namazvakti.widget.renderer.*
-import com.example.namazvakti.widget.worker.*
+import com.example.namazvakti.data.local.PrayerPreferences
+import com.example.namazvakti.domain.model.CachedPrayerDay
+import com.example.namazvakti.domain.model.PrayerCalculationSettings
+import com.example.namazvakti.domain.model.PrayerError
+import com.example.namazvakti.domain.model.PrayerLocation
+import com.example.namazvakti.domain.model.PrayerLocationConfig
+import com.example.namazvakti.domain.model.PrayerTimeProvider
+import com.example.namazvakti.domain.model.PrayerTimes
+import com.example.namazvakti.domain.model.RefreshOrigin
+import com.example.namazvakti.domain.model.RefreshResult
+import com.example.namazvakti.domain.port.PrayerRefreshRepository
+import com.example.namazvakti.domain.port.PrayerRefreshScheduler
+import com.example.namazvakti.domain.port.PrayerWidgetUpdatePort
+import com.example.namazvakti.ui.main.Freshness
+import com.example.namazvakti.ui.main.OperationState
+import com.example.namazvakti.ui.main.PrayerUiState
+import com.example.namazvakti.ui.main.PrayerViewModel
 import android.app.Application
 import android.content.Context
 import kotlinx.coroutines.CoroutineDispatcher
@@ -178,11 +183,11 @@ class PrayerViewModelTest {
     }
 
     private class FakeScheduler : PrayerRefreshScheduler {
-        override suspend fun enqueueRefresh(context: Context, force: Boolean) = Unit
-        override suspend fun scheduleBoundary(context: Context) = Unit
+        override suspend fun enqueueRefresh(force: Boolean) = Unit
+        override suspend fun scheduleBoundary() = Unit
     }
 
     private class FakeWidgetUpdater : PrayerWidgetUpdatePort {
-        override suspend fun updateAll(context: Context) = Unit
+        override suspend fun updateAll() = Unit
     }
 }

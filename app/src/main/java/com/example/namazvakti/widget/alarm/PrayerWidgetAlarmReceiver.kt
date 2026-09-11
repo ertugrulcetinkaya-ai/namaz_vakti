@@ -20,9 +20,12 @@ class PrayerWidgetAlarmReceiver : BroadcastReceiver() {
                     PrayerWidgetScheduler.cancelAll(appContext)
                     return@launch
                 }
-                PrayerWidgetUpdater.updateAll(appContext)
-                PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(appContext)
-                PrayerWidgetScheduler.enqueueRefresh(appContext)
+                val snapshot = PrayerWidgetUpdater.updateAllAndReturnSnapshot(appContext)
+                PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(
+                    appContext,
+                    snapshot = snapshot
+                )
+                PrayerWidgetScheduler.enqueueRefresh(appContext, snapshot = snapshot)
             } catch (exception: Exception) {
                 Log.e(TAG, "boundary alarm widget update failed", exception)
             } finally {

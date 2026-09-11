@@ -1,17 +1,16 @@
 package com.example.namazvakti
 
-import com.example.namazvakti.app.*
-import com.example.namazvakti.data.local.*
-import com.example.namazvakti.data.remote.*
-import com.example.namazvakti.data.repository.*
-import com.example.namazvakti.domain.model.*
-import com.example.namazvakti.domain.policy.*
-import com.example.namazvakti.domain.port.*
-import com.example.namazvakti.ui.main.*
-import com.example.namazvakti.widget.*
-import com.example.namazvakti.widget.alarm.*
-import com.example.namazvakti.widget.renderer.*
-import com.example.namazvakti.widget.worker.*
+import com.example.namazvakti.data.local.PrayerDayDao
+import com.example.namazvakti.data.local.PrayerTimesDatabase
+import com.example.namazvakti.data.local.PrayerTimesStore
+import com.example.namazvakti.data.local.toDomain
+import com.example.namazvakti.data.local.toEntity
+import com.example.namazvakti.domain.model.CachedPrayerDay
+import com.example.namazvakti.domain.model.PrayerCalculationSettings
+import com.example.namazvakti.domain.model.PrayerDataSource
+import com.example.namazvakti.domain.model.PrayerLocation
+import com.example.namazvakti.domain.model.PrayerTimeProvider
+import com.example.namazvakti.domain.model.PrayerTimes
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
@@ -23,6 +22,7 @@ import java.time.LocalTime
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
@@ -154,6 +154,26 @@ class PrayerTimesDatabaseInstrumentedTest {
                 ?.let(LocalDate::parse)
         )
         assertNull(dao.find(today.plusDays(61).toString(), "Ankara", "Turkey", 13, 0))
+    }
+
+    @Test
+    fun readingCacheDoesNotMutateRetentionWindow() = runBlocking {
+        val today = LocalDate.of(2026, 8, 23)
+        val oldDate = today.minusDays(91)
+        val store = PrayerTimesStore(
+            context,
+            dao,
+            PrayerTimeProvider(
+                Clock.fixed(Instant.parse("2026-08-23T08:00:00Z"), PrayerTimeProvider.DEFAULT_ZONE)
+            ),
+            PrayerCalculationSettings()
+        )
+        store.saveLocation(PrayerLocation("Ankara", "Turkey", "ANKARA"))
+        dao.upsertAll(listOf(cache(oldDate).toEntity(), cache(today).toEntity()))
+
+        store.readCache()
+
+        assertNotNull(dao.find(oldDate.toString(), "Ankara", "Turkey", 13, 0))
     }
 
     private fun cache(

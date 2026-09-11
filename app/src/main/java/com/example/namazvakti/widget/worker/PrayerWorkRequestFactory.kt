@@ -13,7 +13,11 @@ import java.util.concurrent.TimeUnit
 class PrayerWorkRequestFactory {
     fun immediateRefresh(): OneTimeWorkRequest = OneTimeWorkRequestBuilder<PrayerWidgetWorker>()
         .setInputData(workDataOf(PrayerWidgetWorker.INPUT_FETCH to true))
-        .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+        .setBackoffCriteria(
+            BackoffPolicy.EXPONENTIAL,
+            RETRY_BACKOFF_SECONDS,
+            TimeUnit.SECONDS
+        )
         .setConstraints(networkConstraints())
         .build()
 
@@ -21,6 +25,11 @@ class PrayerWorkRequestFactory {
         DAILY_INTERVAL_HOURS, TimeUnit.HOURS
     )
         .setInputData(workDataOf(PrayerWidgetWorker.INPUT_FETCH to true))
+        .setBackoffCriteria(
+            BackoffPolicy.EXPONENTIAL,
+            RETRY_BACKOFF_SECONDS,
+            TimeUnit.SECONDS
+        )
         .setConstraints(networkConstraints())
         .build()
 
@@ -30,5 +39,6 @@ class PrayerWorkRequestFactory {
 
     private companion object {
         const val DAILY_INTERVAL_HOURS = 24L
+        const val RETRY_BACKOFF_SECONDS = 30L
     }
 }

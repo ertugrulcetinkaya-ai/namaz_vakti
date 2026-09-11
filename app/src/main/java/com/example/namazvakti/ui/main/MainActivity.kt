@@ -3,10 +3,8 @@ package com.example.namazvakti.ui.main
 import com.example.namazvakti.R
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.PrayerError
-import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.PrayerLocationConfig
 import com.example.namazvakti.domain.model.RefreshOrigin
-import com.example.namazvakti.widget.alarm.PrayerExactAlarmAccess
 import com.example.namazvakti.widget.alarm.PrayerWidgetScheduler
 import android.os.Bundle
 import android.text.Editable
@@ -14,7 +12,6 @@ import android.text.TextWatcher
 import android.util.Log
 import android.view.View
 import android.view.ViewGroup
-import android.widget.BaseAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -43,6 +40,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var exactAlarmInfo: TextView
     private lateinit var exactAlarmButton: Button
     private lateinit var listView: ListView
+    private lateinit var exactAlarmController: PrayerExactAlarmController
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -88,10 +86,9 @@ class MainActivity : AppCompatActivity() {
         }
         exactAlarmButton = Button(this).apply {
             text = getString(R.string.enable_precise_widget_updates)
-            setOnClickListener {
-                startActivity(PrayerExactAlarmAccess.requestAccessIntent(this@MainActivity))
-            }
+            setOnClickListener { exactAlarmController.requestAccess() }
         }
+        exactAlarmController = PrayerExactAlarmController(this)
         listView = ListView(this).apply {
             choiceMode = ListView.CHOICE_MODE_SINGLE
             dividerHeight = 1
@@ -128,10 +125,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        val accessNeeded = PrayerExactAlarmAccess.requiresUserAccess() &&
-            !PrayerExactAlarmAccess.canScheduleExactAlarms(this)
-        exactAlarmInfo.visibility = if (accessNeeded) View.VISIBLE else View.GONE
-        exactAlarmButton.visibility = if (accessNeeded) View.VISIBLE else View.GONE
+        exactAlarmController.render(exactAlarmInfo, exactAlarmButton)
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(applicationContext)
@@ -188,49 +182,13 @@ class MainActivity : AppCompatActivity() {
                     PrayerError.Network -> getString(R.string.network_error)
                     is PrayerError.Service -> getString(R.string.service_error)
                     PrayerError.InvalidData -> getString(R.string.invalid_data_error)
-                    PrayerError.Storage -> getString(R.string.storage_error)
+                    PrayerError.Storage,
+                    PrayerError.TransientStorage,
+                    PrayerError.PermanentStorage -> getString(R.string.storage_error)
                     PrayerError.Unknown -> getString(R.string.refresh_error)
                 }
                 refreshButton.isEnabled = true
             }
-        }
-    }
-
-    private class CityAdapter(
-        private val activity: AppCompatActivity,
-        private val allItems: List<PrayerLocationConfig.CityOption>
-    ) : BaseAdapter() {
-        private var filteredItems = allItems
-
-        fun filter(query: String) {
-            val needle = query.trim().citySearchKey()
-            filteredItems = if (needle.isBlank()) allItems else allItems.filter {
-                it.displayCity.citySearchKey().contains(needle)
-            }
-            notifyDataSetChanged()
-        }
-
-        fun cityAt(position: Int): PrayerLocationConfig.CityOption =
-            filteredItems.getOrNull(position) ?: PrayerLocationConfig.defaultCity
-
-        fun positionOf(location: PrayerLocation): Int = filteredItems.indexOfFirst {
-            it.city == location.city && it.country == location.country
-        }
-
-        override fun getCount(): Int = filteredItems.size
-        override fun getItem(position: Int): Any = cityAt(position)
-        override fun getItemId(position: Int): Long = cityAt(position).displayCity.hashCode().toLong()
-        override fun hasStableIds(): Boolean = true
-
-        override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-            val view = (convertView as? TextView) ?: TextView(activity)
-            val city = cityAt(position)
-            view.text = city.displayCity
-            view.textSize = 20f
-            view.setTextColor(activity.getColor(R.color.screen_text))
-            view.setPadding(activity.resources.getDimensionPixelSize(R.dimen.city_row_padding))
-            view.contentDescription = city.displayCity
-            return view
         }
     }
 
