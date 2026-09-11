@@ -9,6 +9,10 @@
     <string name="refreshing">Vakitler yenileniyor…</string>
     <string name="refresh_success">Vakitler güncellendi</string>
     <string name="refresh_error">Vakitler güncellenemedi</string>
+    <string name="network_error">İnternet bağlantısı kullanılamıyor.</string>
+    <string name="service_error">Namaz vakitleri servisi şu anda kullanılamıyor.</string>
+    <string name="invalid_data_error">Namaz vakitleri verisi geçersiz.</string>
+    <string name="storage_error">Yerel veriler okunamadı.</string>
     <string name="stale_data">Eski veri gösteriliyor</string>
     <string name="offline_data">Çevrimdışı veri kullanılıyor</string>
     <string name="cache_metadata">Kaynak: %1$s • Yöntem: %2$d/%3$s • Son güncelleme: %4$s</string>

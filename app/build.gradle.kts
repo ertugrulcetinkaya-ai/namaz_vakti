@@ -65,6 +65,18 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    testOptions {
+        managedDevices {
+            localDevices {
+                create("pixel2api35") {
+                    device = "Pixel 2"
+                    apiLevel = 35
+                    systemImageSource = "aosp"
+                }
+            }
+        }
+    }
+
 }
 
 kotlin {

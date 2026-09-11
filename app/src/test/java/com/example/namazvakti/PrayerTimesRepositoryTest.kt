@@ -1,15 +1,30 @@
 package com.example.namazvakti
 
+import com.example.namazvakti.app.*
+import com.example.namazvakti.data.local.*
+import com.example.namazvakti.data.remote.*
+import com.example.namazvakti.data.repository.*
+import com.example.namazvakti.domain.model.*
+import com.example.namazvakti.domain.policy.*
+import com.example.namazvakti.domain.port.*
+import com.example.namazvakti.ui.main.*
+import com.example.namazvakti.widget.*
+import com.example.namazvakti.widget.alarm.*
+import com.example.namazvakti.widget.renderer.*
+import com.example.namazvakti.widget.worker.*
+import java.io.IOException
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.YearMonth
 import java.time.ZoneId
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 
 class PrayerTimesRepositoryTest {
@@ -84,6 +99,33 @@ class PrayerTimesRepositoryTest {
     }
 
     @Test
+    fun prefetchFailureIsLoggedWithoutFailingCurrentRefresh() = runTest {
+        val today = LocalDate.of(2026, 8, 25)
+        val store = FakeStore(location, settings, today)
+        val logger = RecordingLogger()
+        val api = FakeApi { year, month ->
+            if (YearMonth.of(year, month) == YearMonth.of(2026, 9)) {
+                throw IOException("prefetch offline")
+            }
+            calendar(YearMonth.of(year, month))
+        }
+        val repository = repository(
+            api = api,
+            store = store,
+            instant = Instant.parse("2026-08-25T10:00:00Z"),
+            eventLogger = logger
+        )
+
+        val result = repository.refreshAndCache()
+
+        assertTrue(result is RefreshResult.Success)
+        assertEquals(
+            listOf("prefetch_failure month=2026-09 error=network"),
+            logger.events
+        )
+    }
+
+    @Test
     fun existingNextMonthCoverageAvoidsASecondPrefetch() = runTest {
         val today = LocalDate.of(2026, 8, 31)
         val september = YearMonth.of(2026, 9)
@@ -113,27 +155,67 @@ class PrayerTimesRepositoryTest {
         assertTrue(store.days.isEmpty())
     }
 
+    @Test
+    fun failedRefreshPropagatesCancellationFromCacheRead() = runTest {
+        val today = LocalDate.of(2026, 8, 6)
+        val cancellation = CancellationException("refresh cancelled")
+        val store = FakeStore(location, settings, today, readCacheFailure = cancellation)
+        val repository = repository(FakeApi { _, _ -> throw IllegalStateException("offline") }, store)
+
+        var thrown: CancellationException? = null
+        try {
+            repository.refreshAndCache()
+            fail("refreshAndCache should propagate cancellation")
+        } catch (error: CancellationException) {
+            thrown = error
+        }
+
+        assertSame(cancellation, thrown)
+    }
+
+    @Test
+    fun cachedWidgetPropagatesCancellationFromCacheRead() = runTest {
+        val today = LocalDate.of(2026, 8, 6)
+        val cancellation = CancellationException("widget read cancelled")
+        val store = FakeStore(location, settings, today, readCacheFailure = cancellation)
+        val repository = repository(FakeApi { _, _ -> error("API should not be called") }, store)
+
+        var thrown: CancellationException? = null
+        try {
+            repository.cachedWidget()
+            fail("cachedWidget should propagate cancellation")
+        } catch (error: CancellationException) {
+            thrown = error
+        }
+
+        assertSame(cancellation, thrown)
+    }
+
     private fun repository(
         api: PrayerTimesRemoteDataSource,
         store: FakeStore,
-        instant: Instant = Instant.parse("2026-08-06T10:00:00Z")
+        instant: Instant = Instant.parse("2026-08-06T10:00:00Z"),
+        eventLogger: PrayerEventLogger = DefaultPrayerEventLogger
     ) = PrayerTimesRepository(
         api,
         store,
         settings,
-        PrayerTimeProvider(Clock.fixed(instant, PrayerTimeProvider.DEFAULT_ZONE))
+        PrayerTimeProvider(Clock.fixed(instant, PrayerTimeProvider.DEFAULT_ZONE)),
+        eventLogger
     )
+
+    private class RecordingLogger : PrayerEventLogger {
+        val events = mutableListOf<String>()
+
+        override fun warning(event: String, cause: Throwable) {
+            events += event
+        }
+    }
 
     private class FakeApi(
         private val calendarOutcome: (Int, Int) -> PrayerTimesCalendarResult
     ) : PrayerTimesRemoteDataSource {
         val requestedMonths = mutableListOf<YearMonth>()
-
-        override suspend fun fetchToday(
-            city: String,
-            country: String,
-            settings: PrayerCalculationSettings
-        ): PrayerTimesApiResult = error("Daily endpoint is not used by the repository")
 
         override suspend fun fetchMonth(
             city: String,
@@ -151,22 +233,29 @@ class PrayerTimesRepositoryTest {
         private var location: PrayerLocation,
         private val settings: PrayerCalculationSettings,
         private val today: LocalDate,
-        initial: List<CachedPrayerDay> = emptyList()
+        initial: List<CachedPrayerDay> = emptyList(),
+        private val readCacheFailure: CancellationException? = null
     ) : PrayerPreferences {
         val days = initial.associateByTo(mutableMapOf(), CachedPrayerDay::date)
 
-        override suspend fun readCache(): CachedPrayerDay? = days.values
-            .filter { !it.date.isAfter(today) }
-            .maxByOrNull(CachedPrayerDay::date)
+        override suspend fun readCache(): CachedPrayerDay? {
+            readCacheFailure?.let { throw it }
+            return days.values
+                .filter { !it.date.isAfter(today) }
+                .maxByOrNull(CachedPrayerDay::date)
+        }
 
         override suspend fun readCache(
             date: LocalDate,
             location: PrayerLocation,
             settings: PrayerCalculationSettings
-        ): CachedPrayerDay? = days[date]?.takeIf {
-            it.location.city == location.city &&
-                it.location.country == location.country &&
-                it.settings == settings
+        ): CachedPrayerDay? {
+            readCacheFailure?.let { throw it }
+            return days[date]?.takeIf {
+                it.location.city == location.city &&
+                    it.location.country == location.country &&
+                    it.settings == settings
+            }
         }
 
         override suspend fun saveCache(cache: CachedPrayerDay) {

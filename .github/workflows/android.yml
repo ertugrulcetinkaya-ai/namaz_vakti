@@ -5,15 +5,42 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
           distribution: temurin
           java-version: "17"
           cache: gradle
-      - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew lint test assembleDebug assembleAndroidTest
+      - uses: gradle/actions/setup-gradle@017a9effdb900e5b5b2fddfb590a105619dca3c3 # v4.4.2
+      - run: ./gradlew --dependency-verification=strict lint test assembleDebug assembleAndroidTest
+
+  instrumented:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+      - uses: gradle/actions/setup-gradle@017a9effdb900e5b5b2fddfb590a105619dca3c3 # v4.4.2
+      - name: Run managed-device instrumented tests
+        run: ./gradlew --dependency-verification=strict pixel2api35DebugAndroidTest -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect
+      - name: Upload instrumented test reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: android-instrumented-test-reports
+          if-no-files-found: warn
+          path: |
+            app/build/reports/androidTests/managedDevice/**
+            app/build/outputs/androidTest-results/managedDevice/**

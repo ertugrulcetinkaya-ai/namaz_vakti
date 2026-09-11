@@ -1,5 +1,17 @@
 package com.example.namazvakti
 
+import com.example.namazvakti.app.*
+import com.example.namazvakti.data.local.*
+import com.example.namazvakti.data.remote.*
+import com.example.namazvakti.data.repository.*
+import com.example.namazvakti.domain.model.*
+import com.example.namazvakti.domain.policy.*
+import com.example.namazvakti.domain.port.*
+import com.example.namazvakti.ui.main.*
+import com.example.namazvakti.widget.*
+import com.example.namazvakti.widget.alarm.*
+import com.example.namazvakti.widget.renderer.*
+import com.example.namazvakti.widget.worker.*
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
@@ -96,6 +108,7 @@ class PrayerTimesDatabaseInstrumentedTest {
             PrayerTimeProvider(Clock.fixed(instant, PrayerTimeProvider.DEFAULT_ZONE)),
             settings
         )
+        store.saveLocation(PrayerLocation("Ankara", "Turkey", "ANKARA"))
         store.saveCaches(
             listOf(
                 cache(LocalDate.of(2026, 8, 23)),
@@ -112,6 +125,35 @@ class PrayerTimesDatabaseInstrumentedTest {
                 settings
             )?.date
         )
+    }
+
+    @Test
+    fun storePrunesCacheOutsideRetentionWindow() = runBlocking {
+        val today = LocalDate.of(2026, 8, 23)
+        val store = PrayerTimesStore(
+            context,
+            dao,
+            PrayerTimeProvider(
+                Clock.fixed(Instant.parse("2026-08-23T08:00:00Z"), PrayerTimeProvider.DEFAULT_ZONE)
+            ),
+            PrayerCalculationSettings()
+        )
+        store.saveCaches(
+            listOf(
+                cache(today.minusDays(91)),
+                cache(today),
+                cache(today.plusDays(61))
+            )
+        )
+
+        assertNull(dao.find(today.minusDays(91).toString(), "Ankara", "Turkey", 13, 0))
+        assertEquals(
+            today,
+            dao.find(today.toString(), "Ankara", "Turkey", 13, 0)
+                ?.date
+                ?.let(LocalDate::parse)
+        )
+        assertNull(dao.find(today.plusDays(61).toString(), "Ankara", "Turkey", 13, 0))
     }
 
     private fun cache(

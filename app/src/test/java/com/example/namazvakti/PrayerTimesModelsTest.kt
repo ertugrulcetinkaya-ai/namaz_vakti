@@ -1,5 +1,17 @@
 package com.example.namazvakti
 
+import com.example.namazvakti.app.*
+import com.example.namazvakti.data.local.*
+import com.example.namazvakti.data.remote.*
+import com.example.namazvakti.data.repository.*
+import com.example.namazvakti.domain.model.*
+import com.example.namazvakti.domain.policy.*
+import com.example.namazvakti.domain.port.*
+import com.example.namazvakti.ui.main.*
+import com.example.namazvakti.widget.*
+import com.example.namazvakti.widget.alarm.*
+import com.example.namazvakti.widget.renderer.*
+import com.example.namazvakti.widget.worker.*
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -25,6 +37,28 @@ class PrayerTimesModelsTest {
 
         assertEquals("17:02", times?.asr?.toString())
         assertNull(parsePrayerTimesText("İmsak 04:12 • Güneş 05:49"))
+    }
+
+    @Test
+    fun rejectsNonChronologicalPrayerTimes() {
+        val invalid = sampleTimesText().replace("İkindi 17:02", "İkindi 12:00")
+
+        assertNull(parsePrayerTimesText(invalid))
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun prayerTimesRejectDuplicateBoundaries() {
+        sampleTimes().copy(asr = LocalTime.of(13, 8))
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun calculationSettingsRejectNonPositiveMethod() {
+        PrayerCalculationSettings(method = 0)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun calculationSettingsRejectUnsupportedSchool() {
+        PrayerCalculationSettings(school = 2)
     }
 
     @Test
@@ -117,6 +151,9 @@ class PrayerTimesModelsTest {
         LocalTime.of(4, 12), LocalTime.of(5, 49), LocalTime.of(13, 8),
         LocalTime.of(17, 2), LocalTime.of(20, 21), LocalTime.of(22, 1)
     )
+
+    private fun sampleTimesText() =
+        "İmsak 04:12 • Güneş 05:49 • Öğle 13:08 • İkindi 17:02 • Akşam 20:21 • Yatsı 22:01"
 
     private fun sampleCache(
         date: LocalDate = LocalDate.of(2026, 8, 6),
