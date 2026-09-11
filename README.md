@@ -74,11 +74,10 @@ Managed-device testleri debug keystore ile imzalanan, R8/resource shrinking etki
 
 Unit testler ayrıca cache şema dönüşümünü, retention penceresini, API timezone'una göre tarih üretimini, coroutine iptalini ve eşzamanlı kullanıcı işlemlerinde son seçimin kazanmasını doğrular.
 
-Release küçültme değerlendirmesinde unsigned release APK, R8 ve resource shrinking kapalıyken
-4,734,982 byte; etkinleştirildikten sonra 1,267,701 byte ölçülmüştür (yaklaşık %73 azalma).
-Bu nedenle release build'inde `isMinifyEnabled` ve `isShrinkResources` açıktır; Gson DTO'ları,
-Room entity'si ve WorkManager worker'ı için gerekli keep kuralları `app/proguard-rules.pro`
-dosyasındadır.
+Güncel HEAD'de unsigned release APK, R8 ve resource shrinking etkin halde `1,267,761` byte;
+release AAB ise `2,252,595` byte ölçülmüştür. Önceki küçültme karşılaştırmasındaki 4,734,982
+byte baseline tarihsel ölçümdür. Release build'inde `isMinifyEnabled` ve `isShrinkResources`
+açıktır; WorkManager worker'ı için gerekli keep kuralı `app/proguard-rules.pro` dosyasındadır.
 Minified instrumented test APK'sı için test runner ve reflection destek kuralları ayrıca
 `app/proguard-minified-test-rules.pro` dosyasındadır; production release bu test-only
 kurallarını kullanmaz.
@@ -93,6 +92,11 @@ Beta sürüm değerleri varsayılan olarak şunlardır:
 
 - `versionName`: `0.1.0-beta.1`
 - `versionCode`: `100`
+
+GitHub Beta Release workflow'u manuel version code kabul etmez; mevcut `100` baseline'ının
+üzerine workflow run numarasını ekleyerek tek ve monoton bir version code üretir. Daha yüksek
+bir version code yayınlanırsa workflow'daki `VERSION_CODE_BASE` değeri bir sonraki release'ten
+önce yükseltilmelidir.
 
 Yerelde farklı değerlerle build almak için:
 

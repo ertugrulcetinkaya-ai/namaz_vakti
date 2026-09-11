@@ -105,10 +105,12 @@ kotlin {
 }
 
 // AndroidX Test 1.7.0 uses SuspendToFutureAdapter, while WorkManager 2.11.2
-// requests the older compatible-futures line. Keep the runtime aligned so the
-// minified instrumentation APK is closed under R8's class analysis as well.
+// requests the older compatible-futures line. Keep this test-only alignment out
+// of production configurations.
 configurations.configureEach {
-    resolutionStrategy.force("androidx.concurrent:concurrent-futures-ktx:1.2.0")
+    if (name.contains("AndroidTest", ignoreCase = true)) {
+        resolutionStrategy.force("androidx.concurrent:concurrent-futures-ktx:1.2.0")
+    }
 }
 
 room {

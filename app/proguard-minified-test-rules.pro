@@ -10,7 +10,12 @@
 -keep interface kotlinx.coroutines.** { *; }
 
 -keep class com.example.namazvakti.domain.model.** { *; }
+-keep class com.example.namazvakti.data.remote.PrayerTimesApi { *; }
+-keep class com.example.namazvakti.data.remote.PrayerTimesApiResult { *; }
+-keep class com.example.namazvakti.data.remote.PrayerTimesApiDayResult { *; }
+-keep class com.example.namazvakti.data.remote.PrayerTimesCalendarResult { *; }
 -keep class com.example.namazvakti.data.local.CachedPrayerDayCodec { *; }
+-keep class com.example.namazvakti.data.local.PrayerDayEntity { *; }
 -keep class com.example.namazvakti.data.local.PrayerTimesDatabase { *; }
 -keep class com.example.namazvakti.data.local.PrayerTimesStore { *; }
 -keep class com.example.namazvakti.data.local.PrayerDayDao { *; }
