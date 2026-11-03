@@ -2,6 +2,7 @@ package com.example.namazvakti.data.local
 
 import android.content.Context
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.namazvakti.domain.model.CachedPrayerDay
@@ -70,9 +71,13 @@ class PrayerTimesStore(
     private val locationTimezoneKey = stringPreferencesKey("selected_timezone")
     private val latitudeKey = stringPreferencesKey("selected_latitude")
     private val longitudeKey = stringPreferencesKey("selected_longitude")
+    private val prayerDataVersionKey = intPreferencesKey("prayer_data_version")
     private val codec = CachedPrayerDayCodec()
     private val migrationMutex = Mutex()
+    private val dataVersionMutex = Mutex()
+    private val dataVersionGate = PrayerDataVersionGate(PrayerDataVersionGate.CURRENT_VERSION)
     @Volatile private var migrationComplete = false
+    @Volatile private var dataVersionCheckComplete = false
     @Volatile private var lastRetentionDate: LocalDate? = null
 
     override suspend fun saveCache(cache: CachedPrayerDay) = storageOperation {
@@ -202,7 +207,27 @@ class PrayerTimesStore(
         }
     }
 
+    private suspend fun ensurePrayerDataVersion() {
+        if (dataVersionCheckComplete) return
+        dataVersionMutex.withLock {
+            if (dataVersionCheckComplete) return@withLock
+            val storedVersion = context.dataStore.data.first()[prayerDataVersionKey]
+            dataVersionGate.ensureCurrent(storedVersion) { currentVersion ->
+                prayerDayDao.clearAll()
+                context.dataStore.edit { prefs ->
+                    prefs.remove(cacheKey)
+                    prefs.remove(legacyWidgetTextKey)
+                    prefs.remove(legacyWidgetDateKey)
+                    prefs.remove(legacyWidgetHijriKey)
+                    prefs[prayerDataVersionKey] = currentVersion
+                }
+            }
+            dataVersionCheckComplete = true
+        }
+    }
+
     private suspend fun <T> storageOperation(block: suspend () -> T): T = try {
+        ensurePrayerDataVersion()
         block()
     } catch (e: CancellationException) {
         throw e
