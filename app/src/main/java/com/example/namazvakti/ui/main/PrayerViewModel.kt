@@ -74,7 +74,13 @@ class PrayerViewModel @JvmOverloads constructor(
 
     fun selectCity(option: PrayerLocationConfig.CityOption) = launchLatest {
         try {
-            val location = PrayerLocation(option.city, option.country, option.displayCity)
+            val location = PrayerLocation(
+                city = option.city,
+                country = option.country,
+                displayCity = option.displayCity,
+                latitude = option.latitude,
+                longitude = option.longitude
+            )
             withContext(ioDispatcher) {
                 store.saveLocation(location)
             }

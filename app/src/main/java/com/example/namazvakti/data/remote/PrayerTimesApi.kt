@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.PrayerTimesApiException
 import com.example.namazvakti.domain.model.PrayerTimes
+import com.example.namazvakti.domain.model.PrayerTimeProvider
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.OkHttpClient
@@ -72,7 +73,10 @@ interface PrayerTimesRemoteDataSource {
         country: String,
         year: Int,
         month: Int,
-        settings: PrayerCalculationSettings
+        settings: PrayerCalculationSettings,
+        latitude: Double? = null,
+        longitude: Double? = null,
+        timezone: String = PrayerTimeProvider.DEFAULT_ZONE.id
     ): PrayerTimesCalendarResult
 }
 
@@ -92,19 +96,31 @@ class PrayerTimesApi(
         country: String,
         year: Int,
         month: Int,
-        settings: PrayerCalculationSettings
+        settings: PrayerCalculationSettings,
+        latitude: Double?,
+        longitude: Double?,
+        timezone: String
     ): PrayerTimesCalendarResult {
         require(month in 1..12) { "Month must be between 1 and 12" }
-        val url = baseUrl
+        val hasCoordinates = latitude != null && longitude != null
+        val urlBuilder = baseUrl
             .newBuilder()
-            .addPathSegment("calendarByCity")
+            .addPathSegment(if (hasCoordinates) "calendar" else "calendarByCity")
             .addPathSegment(year.toString())
             .addPathSegment(month.toString())
-            .addQueryParameter("city", city)
-            .addQueryParameter("country", country)
             .addQueryParameter("method", settings.method.toString())
             .addQueryParameter("school", settings.school.toString())
-            .build()
+        if (hasCoordinates) {
+            urlBuilder
+                .addQueryParameter("latitude", latitude.toString())
+                .addQueryParameter("longitude", longitude.toString())
+                .addQueryParameter("timezonestring", timezone)
+        } else {
+            urlBuilder
+                .addQueryParameter("city", city)
+                .addQueryParameter("country", country)
+        }
+        val url = urlBuilder.build()
         val request = Request.Builder().url(url).get().build()
         return parseCalendarResponse(execute(request))
     }

@@ -68,6 +68,8 @@ class PrayerTimesStore(
     private val cityKey = stringPreferencesKey("selected_city")
     private val countryKey = stringPreferencesKey("selected_country")
     private val locationTimezoneKey = stringPreferencesKey("selected_timezone")
+    private val latitudeKey = stringPreferencesKey("selected_latitude")
+    private val longitudeKey = stringPreferencesKey("selected_longitude")
     private val codec = CachedPrayerDayCodec()
     private val migrationMutex = Mutex()
     @Volatile private var migrationComplete = false
@@ -91,6 +93,8 @@ class PrayerTimesStore(
             prefs[cityKey] = location.city
             prefs[countryKey] = location.country
             prefs[locationTimezoneKey] = location.timezone.id
+            location.latitude?.let { prefs[latitudeKey] = it.toString() } ?: prefs.remove(latitudeKey)
+            location.longitude?.let { prefs[longitudeKey] = it.toString() } ?: prefs.remove(longitudeKey)
         }
         Unit
     }
@@ -111,10 +115,23 @@ class PrayerTimesStore(
         val prefs = context.dataStore.data.first()
         val city = prefs[cityKey] ?: PrayerLocationConfig.defaultCity.city
         val country = prefs[countryKey] ?: PrayerLocationConfig.defaultCity.country
-        val displayCity = PrayerLocationConfig.optionForCityAndCountry(city, country).displayCity
+        val option = PrayerLocationConfig.optionForCityAndCountry(city, country)
         val timezone = prefs[locationTimezoneKey]?.let { runCatching { ZoneId.of(it) }.getOrNull() }
             ?: PrayerTimeProvider.DEFAULT_ZONE
-        PrayerLocation(city, country, displayCity, timezone)
+        val storedCoordinates = prefs[latitudeKey]?.toDoubleOrNull()?.let { latitude ->
+            prefs[longitudeKey]?.toDoubleOrNull()?.let { longitude -> latitude to longitude }
+        }
+        val coordinates = storedCoordinates ?: option.latitude?.let { latitude ->
+            option.longitude?.let { longitude -> latitude to longitude }
+        }
+        PrayerLocation(
+            city = city,
+            country = country,
+            displayCity = option.displayCity,
+            timezone = timezone,
+            latitude = coordinates?.first,
+            longitude = coordinates?.second
+        )
     }
 
     override suspend fun readCache(): CachedPrayerDay? = storageOperation {

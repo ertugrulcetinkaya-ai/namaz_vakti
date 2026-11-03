@@ -10,7 +10,9 @@ data class PrayerLocation(
     val city: String,
     val country: String,
     val displayCity: String = city.uppercase(),
-    val timezone: ZoneId = PrayerTimeProvider.DEFAULT_ZONE
+    val timezone: ZoneId = PrayerTimeProvider.DEFAULT_ZONE,
+    val latitude: Double? = null,
+    val longitude: Double? = null
 )
 
 data class PrayerCalculationSettings(

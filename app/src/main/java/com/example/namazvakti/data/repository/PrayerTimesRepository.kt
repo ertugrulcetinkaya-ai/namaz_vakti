@@ -60,7 +60,14 @@ class PrayerTimesRepository(
         month: YearMonth
     ): List<CachedPrayerDay> {
         val response = api.fetchMonth(
-            location.city, location.country, month.year, month.monthValue, settings
+            city = location.city,
+            country = location.country,
+            year = month.year,
+            month = month.monthValue,
+            settings = settings,
+            latitude = location.latitude,
+            longitude = location.longitude,
+            timezone = location.timezone.id
         )
         val expectedDates = (1..month.lengthOfMonth()).map(month::atDay)
         if (response.days.map(PrayerTimesApiDayResult::date) != expectedDates) {
