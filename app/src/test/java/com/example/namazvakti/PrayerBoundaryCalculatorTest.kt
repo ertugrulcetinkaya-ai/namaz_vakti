@@ -30,33 +30,48 @@ class PrayerBoundaryCalculatorTest {
     }
 
     @Test
-    fun afterIshaSchedulesTomorrowFajrAcrossMidnight() {
+    fun afterIshaSchedulesTomorrowMidnightPlusThirtySeconds() {
         val today = LocalDate.of(2026, 8, 6)
         val cache = cache(today)
-        val tomorrow = cache(today.plusDays(1)).copy(
-            prayerTimes = cache(today.plusDays(1)).prayerTimes.copy(fajr = LocalTime.of(4, 10))
-        )
         val now = ZonedDateTime.of(today, LocalTime.of(23, 30), zone)
 
-        val target = PrayerBoundaryCalculator.calculateNextBoundary(cache, now, tomorrow)
+        val target = PrayerBoundaryCalculator.calculateNextBoundary(cache, now)
 
         assertEquals(
-            ZonedDateTime.of(today.plusDays(1), LocalTime.of(4, 10), zone),
+            ZonedDateTime.of(today.plusDays(1), LocalTime.of(0, 0, 30), zone),
             target
         )
     }
 
     @Test
-    fun missingTomorrowCacheUsesAConservativeMidnightFallback() {
-        val today = LocalDate.of(2026, 8, 6)
-        val now = ZonedDateTime.of(today, LocalTime.of(23, 30), zone)
+    fun afterMidnightBeforeFajrSchedulesTodaysFajr() {
+        val today = LocalDate.of(2026, 8, 7)
+        val now = ZonedDateTime.of(today, LocalTime.of(0, 10), zone)
 
-        val target = PrayerBoundaryCalculator.calculateNextBoundary(cache(today), now)
+        val target = PrayerBoundaryCalculator.calculateNextBoundary(
+            cache(today).copy(prayerTimes = cache(today).prayerTimes.copy(fajr = LocalTime.of(4, 10))),
+            now
+        )
 
         assertEquals(
-            ZonedDateTime.of(today.plusDays(1), LocalTime.of(0, 1), zone),
+            ZonedDateTime.of(today, LocalTime.of(4, 10), zone),
             target
         )
+    }
+
+    @Test
+    fun afterIshaUsesCacheTimezoneWhenNowHasDifferentTimezone() {
+        val today = LocalDate.of(2026, 8, 6)
+        val cache = cache(today)
+        val now = ZonedDateTime.parse("2026-08-06T20:30:00Z")
+
+        val target = PrayerBoundaryCalculator.calculateNextBoundary(cache, now)
+
+        assertEquals(
+            ZonedDateTime.of(today.plusDays(1), LocalTime.of(0, 0, 30), zone),
+            target
+        )
+        assertEquals(zone, target.zone)
     }
 
     private fun cache(date: LocalDate) = CachedPrayerDay(

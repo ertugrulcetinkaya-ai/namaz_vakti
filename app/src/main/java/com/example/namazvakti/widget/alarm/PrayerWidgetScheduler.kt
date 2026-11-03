@@ -83,16 +83,9 @@ object PrayerWidgetScheduler {
             PrayerBoundaryAlarm.cancel(appContext)
             return
         }
-        val tomorrow = today.plusDays(1)
-        val nextDayCache = if (currentCache.prayerTimes.nextPrayerBoundary(now.toLocalTime()) == null) {
-            container.store.readCache(tomorrow, location, container.settings)
-        } else {
-            null
-        }
         val target = PrayerBoundaryCalculator.calculateNextBoundary(
             currentCache,
-            now,
-            nextDayCache
+            now
         )
         WorkManager.getInstance(appContext).cancelUniqueWork(LEGACY_BOUNDARY_WORK_NAME)
         PrayerBoundaryAlarm.schedule(appContext, target)
