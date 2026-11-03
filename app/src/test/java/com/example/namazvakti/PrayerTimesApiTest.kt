@@ -4,6 +4,7 @@ import com.example.namazvakti.data.remote.PrayerTimesApi
 import com.example.namazvakti.data.remote.PrayerTimesApiDayResult
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.PrayerError
+import com.example.namazvakti.domain.model.PrayerTimeAdjustments
 import com.example.namazvakti.domain.model.PrayerTimesApiException
 import com.example.namazvakti.domain.model.classifyPrayerError
 import org.junit.Assert.assertEquals
@@ -70,6 +71,7 @@ class PrayerTimesApiTest {
             assertEquals("3", request.requestUrl?.queryParameter("method"))
             assertEquals("1", request.requestUrl?.queryParameter("school"))
             assertEquals("Europe/Istanbul", request.requestUrl?.queryParameter("timezonestring"))
+            assertEquals(PrayerTimeAdjustments.ALADHAN_TUNE, request.requestUrl?.queryParameter("tune"))
         } finally {
             server.shutdown()
         }
@@ -88,6 +90,7 @@ class PrayerTimesApiTest {
             assertEquals("/v1/calendarByCity/2026/8", request.requestUrl?.encodedPath)
             assertEquals("Baku", request.requestUrl?.queryParameter("city"))
             assertEquals("Azerbaijan", request.requestUrl?.queryParameter("country"))
+            assertEquals(PrayerTimeAdjustments.ALADHAN_TUNE, request.requestUrl?.queryParameter("tune"))
         } finally {
             server.shutdown()
         }

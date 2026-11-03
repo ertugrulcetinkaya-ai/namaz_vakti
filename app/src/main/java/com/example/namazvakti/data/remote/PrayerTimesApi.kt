@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.PrayerTimesApiException
 import com.example.namazvakti.domain.model.PrayerTimes
+import com.example.namazvakti.domain.model.PrayerTimeAdjustments
 import com.example.namazvakti.domain.model.PrayerTimeProvider
 import okhttp3.Call
 import okhttp3.Callback
@@ -110,6 +111,7 @@ class PrayerTimesApi(
             .addPathSegment(month.toString())
             .addQueryParameter("method", settings.method.toString())
             .addQueryParameter("school", settings.school.toString())
+            .addQueryParameter("tune", PrayerTimeAdjustments.ALADHAN_TUNE)
         if (hasCoordinates) {
             urlBuilder
                 .addQueryParameter("latitude", latitude.toString())
