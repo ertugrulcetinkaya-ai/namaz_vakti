@@ -53,7 +53,19 @@ class PrayerWidgetProvider : AppWidgetProvider() {
 
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
-        PrayerWidgetScheduler.cancelAll(context)
+        val pendingResult = goAsync()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(context.applicationContext)
+                PrayerWidgetScheduler.enqueueRefresh(context.applicationContext)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "widget disable cleanup failed", e)
+            } finally {
+                pendingResult.finish()
+            }
+        }
     }
 
     companion object {

@@ -18,7 +18,8 @@ class PrayerWidgetAlarmReceiver : BroadcastReceiver() {
             try {
                 val appContext = context.applicationContext
                 if (!PrayerWidgetScheduler.hasWidgets(appContext)) {
-                    PrayerWidgetScheduler.cancelAll(appContext)
+                    PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(appContext)
+                    PrayerWidgetScheduler.enqueueRefresh(appContext, force = false)
                     return@launch
                 }
                 val snapshot = PrayerWidgetUpdater.updateAllAndReturnSnapshot(appContext)

@@ -14,6 +14,8 @@ import com.example.namazvakti.domain.model.classifyPrayerStorageError
 import com.example.namazvakti.domain.model.code
 import com.example.namazvakti.domain.policy.PrayerRetryPolicy
 import com.example.namazvakti.domain.policy.PrayerWorkDecision
+import com.example.namazvakti.domain.policy.needsBackgroundRefresh
+import com.example.namazvakti.notification.PrayerNotificationScheduler
 import com.example.namazvakti.widget.PrayerWidgetSnapshot
 import com.example.namazvakti.widget.PrayerWidgetSnapshotLoader
 import com.example.namazvakti.widget.PrayerWidgetUpdater
@@ -25,12 +27,14 @@ import kotlinx.coroutines.CancellationException
 /** Dependencies kept behind an adapter so the worker orchestration can be tested directly. */
 internal interface PrayerWidgetWorkerDependencies {
     fun hasWidgets(): Boolean
+    suspend fun notificationsEnabled(): Boolean
     suspend fun cancelAll()
     suspend fun loadSnapshot(): PrayerWidgetSnapshot
     suspend fun refresh(): RefreshResult
     fun snapshotFor(cache: CachedPrayerDay?, current: PrayerWidgetSnapshot): PrayerWidgetSnapshot
     suspend fun render(snapshot: PrayerWidgetSnapshot)
     suspend fun scheduleBoundary(snapshot: PrayerWidgetSnapshot)
+    suspend fun scheduleNotifications()
 }
 
 private class AndroidPrayerWidgetWorkerDependencies(
@@ -39,6 +43,9 @@ private class AndroidPrayerWidgetWorkerDependencies(
     private val appContext = context.applicationContext
 
     override fun hasWidgets(): Boolean = PrayerWidgetScheduler.hasWidgets(appContext)
+
+    override suspend fun notificationsEnabled(): Boolean =
+        appContext.appContainer().notificationSettingsStore.read().notificationsEnabled
 
     override suspend fun cancelAll() {
         PrayerWidgetScheduler.cancelAll(appContext)
@@ -73,6 +80,10 @@ private class AndroidPrayerWidgetWorkerDependencies(
             snapshot = snapshot
         )
     }
+
+    override suspend fun scheduleNotifications() {
+        PrayerNotificationScheduler.scheduleNext(appContext)
+    }
 }
 
 class PrayerWidgetWorker : CoroutineWorker {
@@ -106,7 +117,9 @@ class PrayerWidgetWorker : CoroutineWorker {
     }
 
     private suspend fun performWork(): Result {
-        if (!dependencies.hasWidgets()) {
+        val widgetsExist = dependencies.hasWidgets()
+        val notificationsEnabled = dependencies.notificationsEnabled()
+        if (!needsBackgroundRefresh(widgetsExist, notificationsEnabled)) {
             dependencies.cancelAll()
             return Result.success()
         }
@@ -140,7 +153,11 @@ class PrayerWidgetWorker : CoroutineWorker {
                         "using stale cache category=${refreshed.error.code}",
                         refreshed.cause
                     )
-                    dependencies.render(staleSnapshot)
+                    if (widgetsExist) {
+                        dependencies.render(staleSnapshot)
+                        dependencies.scheduleBoundary(staleSnapshot)
+                    }
+                    if (notificationsEnabled) dependencies.scheduleNotifications()
                     return retryOrFailure(refreshed.error)
                 }
                 is RefreshResult.Failure -> {
@@ -149,6 +166,7 @@ class PrayerWidgetWorker : CoroutineWorker {
                         "refresh failed category=${refreshed.error.code}",
                         refreshed.cause
                     )
+                    if (notificationsEnabled) dependencies.scheduleNotifications()
                     return retryOrFailure(refreshed.error)
                 }
             }
@@ -158,9 +176,12 @@ class PrayerWidgetWorker : CoroutineWorker {
         }
 
         val renderSnapshot = dependencies.snapshotFor(cache, snapshot)
-        dependencies.render(renderSnapshot)
-        dependencies.scheduleBoundary(renderSnapshot)
-        Log.d(TAG, "rendered widget date=${cache.date}")
+        if (widgetsExist) {
+            dependencies.render(renderSnapshot)
+            dependencies.scheduleBoundary(renderSnapshot)
+            Log.d(TAG, "rendered widget date=${cache.date}")
+        }
+        if (notificationsEnabled) dependencies.scheduleNotifications()
         return Result.success()
     }
 

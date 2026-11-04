@@ -1,6 +1,10 @@
 package com.example.namazvakti.widget.alarm
 
 import com.example.namazvakti.widget.PrayerWidgetUpdater
+import com.example.namazvakti.widget.PrayerWidgetSnapshotLoader
+import com.example.namazvakti.notification.PrayerNotificationScheduler
+import com.example.namazvakti.domain.policy.needsBackgroundRefresh
+import com.example.namazvakti.app.appContainer
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -17,11 +21,24 @@ class PrayerWidgetSystemReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val appContext = context.applicationContext
-                val snapshot = PrayerWidgetUpdater.updateAllAndReturnSnapshot(appContext)
-                PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(
-                    appContext,
-                    snapshot = snapshot
-                )
+                val container = appContext.appContainer()
+                val widgetsExist = PrayerWidgetScheduler.hasWidgets(appContext)
+                val notificationsEnabled = container.notificationSettingsStore.read().notificationsEnabled
+                if (!needsBackgroundRefresh(widgetsExist, notificationsEnabled)) {
+                    PrayerWidgetScheduler.cancelAll(appContext)
+                    return@launch
+                }
+                val snapshot = if (widgetsExist) {
+                    PrayerWidgetUpdater.updateAllAndReturnSnapshot(appContext).also {
+                        PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(
+                            appContext,
+                            snapshot = it
+                        )
+                    }
+                } else {
+                    PrayerWidgetSnapshotLoader.load(appContext)
+                }
+                if (notificationsEnabled) PrayerNotificationScheduler.scheduleNext(appContext)
                 PrayerWidgetScheduler.enqueueRefresh(
                     appContext,
                     force = false,
