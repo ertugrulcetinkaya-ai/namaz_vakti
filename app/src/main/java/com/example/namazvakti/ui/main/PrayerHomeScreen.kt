@@ -53,6 +53,8 @@ import com.example.namazvakti.domain.model.PrayerTimes
 import com.example.namazvakti.domain.model.RamadanRange
 import com.example.namazvakti.domain.policy.PrayerCountdown
 import com.example.namazvakti.domain.policy.PrayerCountdownCalculator
+import com.example.namazvakti.domain.policy.RamadanCountdownCalculator
+import com.example.namazvakti.domain.policy.RamadanCountdownKind
 import java.time.Duration
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -91,6 +93,29 @@ fun PrayerHomeScreen(
     }
     val isTomorrow = countdown?.nextPrayerAt?.toLocalDate()?.isAfter(localNow.toLocalDate()) == true
     val ramadanDay = ramadanRange?.dayNumber(today)
+    val ramadanCountdown = if (ramadanDay != null && todayCache != null) {
+        RamadanCountdownCalculator.calculate(
+            date = today,
+            range = ramadanRange,
+            today = todayCache.prayerTimes,
+            tomorrow = ready.tomorrowCache
+                ?.takeIf { it.date == today.plusDays(1) }
+                ?.prayerTimes,
+            timezone = todayCache.timezone,
+            now = localNow
+        )
+    } else {
+        null
+    }
+    val ramadanCountdownText = ramadanCountdown?.let { countdown ->
+        val totalMinutes = countdown.remaining.toMinutes().coerceAtLeast(0)
+        val hours = (totalMinutes / 60).toInt()
+        val minutes = (totalMinutes % 60).toInt()
+        when (countdown.kind) {
+            RamadanCountdownKind.IFTAR -> stringResource(R.string.ramadan_iftar_countdown, hours, minutes)
+            RamadanCountdownKind.SAHUR -> stringResource(R.string.ramadan_sahur_countdown, hours, minutes)
+        }
+    }
     val officialRamadanText = ramadanRange?.let { range ->
         range.dayNumber(today)?.let { "$it Ramazan ${range.hijriYear}" }
     }
@@ -180,13 +205,20 @@ fun PrayerHomeScreen(
                 item {
                     NextPrayerCard(countdown = countdown, isTomorrow = isTomorrow)
                     ramadanDay?.let { day ->
-                        Text(
-                            text = stringResource(R.string.ramadan_day, day),
-                            modifier = Modifier.padding(start = 8.dp, top = 4.dp),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.tertiary,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        if (ramadanCountdownText != null) {
+                            RamadanCountdownCard(
+                                countdownText = ramadanCountdownText,
+                                dayText = stringResource(R.string.ramadan_day, day)
+                            )
+                        } else {
+                            Text(
+                                text = stringResource(R.string.ramadan_day, day),
+                                modifier = Modifier.padding(start = 8.dp, top = 4.dp),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.tertiary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
                 }
 
@@ -246,6 +278,34 @@ fun PrayerHomeScreen(
                     item { ExactAlarmWarning(onRequestExactAlarm) }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun RamadanCountdownCard(countdownText: String, dayText: String) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                countdownText,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onTertiaryContainer
+            )
+            Text(
+                dayText,
+                style = MaterialTheme.typography.labelMedium,
+                textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                color = MaterialTheme.colorScheme.onTertiaryContainer
+            )
         }
     }
 }

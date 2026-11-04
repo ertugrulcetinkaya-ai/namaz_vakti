@@ -21,7 +21,6 @@
     <string name="prayer_dhuhr">Öğle</string>
     <string name="prayer_asr">İkindi</string>
     <string name="prayer_maghrib">Akşam</string>
-    <string name="prayer_maghrib_iftar">Akşam\n(İftar)</string>
     <string name="prayer_isha">Yatsı</string>
     <string name="prayer_imsak_reminder">İmsağa</string>
     <string name="prayer_dhuhr_reminder">Öğleye</string>
@@ -72,9 +71,11 @@
     <string name="ramadan_day_label">Gün</string>
     <string name="imsakiye_title">Ramazan İmsakiyesi</string>
     <string name="ramadan_estimated_notice">Tarihler hesaplamaya dayalıdır; Diyanet’in resmi takvimi yayınlandığında değişebilir</string>
-    <string name="qadr_night_marker">Bu akşam Kadir Gecesi</string>
+    <string name="qadr_night_marker">Kadir Gecesi</string>
     <string name="eid_date">Ramazan Bayramı · 1 Şevval · %1$s</string>
     <string name="ramadan_day">Ramazan’ın %1$d. günü</string>
+    <string name="ramadan_iftar_countdown">İftara %1$d sa %2$02d dk</string>
+    <string name="ramadan_sahur_countdown">Sahura (İmsak) %1$d sa %2$02d dk</string>
     <string name="open_imsakiye">İmsakiye %1$s</string>
     <string name="no_prayer_data">Bugünün vakitleri henüz yok.</string>
     <string name="retry">Tekrar dene</string>

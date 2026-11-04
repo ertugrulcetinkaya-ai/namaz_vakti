@@ -1,6 +1,7 @@
 package com.example.namazvakti.ui.main
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -10,16 +11,19 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -29,15 +33,19 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -52,8 +60,9 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.max
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun MonthlyPrayerScreen(
     state: MonthlyUiState,
@@ -68,25 +77,42 @@ fun MonthlyPrayerScreen(
     val minimum = YearMonth.from(today).minusMonths(3)
     val maximum = YearMonth.from(today).plusMonths(12)
     val listState = rememberLazyListState()
+    val horizontalScrollState = rememberScrollState()
+    val columnLabels = prayerHeaderLabels()
+    val columnWidths = rememberPrayerColumnWidths(columnLabels)
+    val dayColumnWidth = calendarDayColumnWidth(isImsakiye = false)
+    val stickyHeaderOffsetPx = with(LocalDensity.current) { 48.dp.roundToPx() }
     LaunchedEffect(month, state.loading, state.days) {
-        if (!state.loading && state.days.isNotEmpty() && month == YearMonth.from(today)) {
-            val statusItems = if (state.source == com.example.namazvakti.domain.model.MonthDataSource.PARTIAL) 1 else 0
-            val target = statusItems + today.dayOfMonth - 1
-            listState.animateScrollToItem(target.coerceAtMost(statusItems + state.days.lastIndex))
+        val todayIndex = state.days.indexOfFirst { it.date == today }
+        if (!state.loading && todayIndex >= 0 && month == YearMonth.from(today)) {
+            val leadingItems = 1 +
+                (if (state.loading) 1 else 0) +
+                (if (state.source == com.example.namazvakti.domain.model.MonthDataSource.PARTIAL) 1 else 0) +
+                (if (state.error != null && state.days.isEmpty()) 1 else 0)
+            listState.animateScrollToItem(leadingItems + todayIndex, scrollOffset = -stickyHeaderOffsetPx)
         }
     }
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(month.format(MONTH_FORMATTER)) },
+                title = {
+                    Text(
+                        month.format(MONTH_FORMATTER),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
                 actions = {
-                    androidx.compose.material3.TextButton(onClick = onOpenImsakiye) {
-                        Text(stringResource(R.string.imsakiye_open))
+                    IconButton(onClick = onOpenImsakiye) {
+                        Icon(
+                            Icons.Default.DateRange,
+                            contentDescription = stringResource(R.string.imsakiye_open)
+                        )
                     }
                     IconButton(
                         enabled = month > minimum,
@@ -104,42 +130,57 @@ fun MonthlyPrayerScreen(
             )
         }
     ) { insets ->
-        Column(modifier = Modifier.fillMaxSize().padding(insets)) {
-            PrayerTableHeader()
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                if (state.loading) {
-                    item { CalendarLoading() }
-                }
-                if (state.source == com.example.namazvakti.domain.model.MonthDataSource.PARTIAL) {
-                    item { CalendarNotice(stringResource(R.string.monthly_partial)) }
-                }
-                if (state.error != null && state.days.isEmpty() && !state.loading) {
-                    item { CalendarRetry(onRetry) }
-                }
-                items(state.days, key = { it.date.toString() }) { cache ->
-                    val inOfficialRange = ramadanRange?.dayNumber(cache.date) != null
-                    PrayerCalendarRow(
-                        cache = cache,
-                        dateLabel = cache.date.format(DAY_LABEL_FORMATTER),
-                        accessibilityDate = cache.date.format(ACCESSIBLE_DATE_FORMATTER),
-                        highlighted = cache.date == today,
-                        ramadan = inOfficialRange || cache.hijriMonth == 9
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize().padding(insets),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            stickyHeader(key = "monthly_header") {
+                Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = 2.dp) {
+                    PrayerTableHeader(
+                        labels = columnLabels,
+                        columnWidths = columnWidths,
+                        horizontalScrollState = horizontalScrollState,
+                        dayColumnWidth = dayColumnWidth
                     )
                 }
-                if (state.error != null && state.days.isNotEmpty()) {
-                    item { CalendarRetry(onRetry) }
-                }
+            }
+            if (state.loading) {
+                item { CalendarLoading() }
+            }
+            if (state.source == com.example.namazvakti.domain.model.MonthDataSource.PARTIAL) {
+                item { CalendarNotice(stringResource(R.string.monthly_partial)) }
+            }
+            if (state.error != null && state.days.isEmpty()) {
+                item { CalendarRetry(onRetry, showFailureMessage = true) }
+            }
+            items(state.days, key = { it.date.toString() }) { cache ->
+                val inOfficialRange = ramadanRange?.dayNumber(cache.date) != null
+                PrayerCalendarRow(
+                    cache = cache,
+                    dateLabel = cache.date.format(DAY_LABEL_FORMATTER),
+                    accessibilityDate = cache.date.format(ACCESSIBLE_DATE_FORMATTER),
+                    highlighted = cache.date == today,
+                    columnWidths = columnWidths,
+                    horizontalScrollState = horizontalScrollState,
+                    dayColumnWidth = dayColumnWidth,
+                    ramadan = inOfficialRange || cache.hijriMonth == 9
+                )
+            }
+            if (state.error != null && state.days.isNotEmpty()) {
+                item { CalendarRetry(onRetry, showFailureMessage = false) }
+            } else if (
+                state.source == com.example.namazvakti.domain.model.MonthDataSource.PARTIAL &&
+                state.days.isNotEmpty()
+            ) {
+                item { CalendarRetry(onRetry, showFailureMessage = false) }
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun ImsakiyeScreen(
     state: ImsakiyeUiState,
@@ -149,14 +190,18 @@ fun ImsakiyeScreen(
 ) {
     val range = state.range
     val listState = rememberLazyListState()
-    LaunchedEffect(range, state.days, state.loading) {
-        val dayNumber = range?.dayNumber(today)
-        if (!state.loading && dayNumber != null && state.days.isNotEmpty()) {
-            val partialOffset = if (state.days.size < range.dayCount) 1 else 0
-            val firstRowIndex = partialOffset
-            val target = firstRowIndex + dayNumber - 1
-            val lastRowIndex = firstRowIndex + state.days.lastIndex
-            listState.animateScrollToItem(target.coerceAtMost(lastRowIndex))
+    val horizontalScrollState = rememberScrollState()
+    val columnLabels = prayerHeaderLabels()
+    val columnWidths = rememberPrayerColumnWidths(columnLabels)
+    val dayColumnWidth = calendarDayColumnWidth(isImsakiye = true)
+    val stickyHeaderOffsetPx = with(LocalDensity.current) { 48.dp.roundToPx() }
+    LaunchedEffect(range, state.days, state.loading, state.error) {
+        val todayIndex = state.days.indexOfFirst { it.date == today }
+        if (!state.loading && todayIndex >= 0) {
+            val leadingItems = 1 +
+                (if (state.loading) 1 else 0) +
+                (if (range != null && state.days.size < range.dayCount) 1 else 0)
+            listState.animateScrollToItem(leadingItems + todayIndex, scrollOffset = -stickyHeaderOffsetPx)
         }
     }
     Scaffold(
@@ -172,7 +217,7 @@ fun ImsakiyeScreen(
                             overflow = TextOverflow.Ellipsis
                         )
                         state.location?.displayCity?.let { city ->
-                            Text("· $city", style = MaterialTheme.typography.labelMedium)
+                            Text(city, style = MaterialTheme.typography.labelMedium, maxLines = 1)
                         }
                         if (range?.estimated == true) {
                             Text(
@@ -193,92 +238,106 @@ fun ImsakiyeScreen(
             )
         }
     ) { insets ->
-        Column(modifier = Modifier.fillMaxSize().padding(insets)) {
-            PrayerTableHeader(isImsakiye = true)
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                if (state.loading) item { CalendarLoading() }
-                if (range == null && state.error != null) {
-                    item { CalendarRetry(onRetry) }
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize().padding(insets),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            stickyHeader(key = "imsakiye_header") {
+                Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = 2.dp) {
+                    PrayerTableHeader(
+                        labels = columnLabels,
+                        columnWidths = columnWidths,
+                        horizontalScrollState = horizontalScrollState,
+                        dayColumnWidth = dayColumnWidth,
+                        isImsakiye = true
+                    )
                 }
-                if (range != null && state.days.size < range.dayCount) {
-                    item { CalendarNotice(stringResource(R.string.monthly_partial)) }
-                }
-                items(state.days, key = { it.date.toString() }) { cache ->
-                    val dayNumber = range?.dayNumber(cache.date)
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        PrayerCalendarRow(
-                            cache = cache,
-                            dateLabel = buildString {
-                                append(dayNumber ?: "–")
-                                append('\n')
-                                append(cache.date.format(IMSAKIYE_DATE_FORMATTER))
-                                append('\n')
-                                append(cache.date.format(WEEKDAY_SHORT_FORMATTER))
-                            },
-                            accessibilityDate = cache.date.format(ACCESSIBLE_DATE_FORMATTER),
-                            highlighted = cache.date == today,
-                            ramadanDay = dayNumber,
-                            isIftar = true
-                        )
-                        if (dayNumber == 26) {
+            }
+            if (state.loading) item { CalendarLoading() }
+            if (range == null && state.error != null) {
+                item { CalendarRetry(onRetry, showFailureMessage = true) }
+            }
+            if (range != null && state.days.size < range.dayCount) {
+                item { CalendarNotice(stringResource(R.string.monthly_partial)) }
+            }
+            items(state.days, key = { it.date.toString() }) { cache ->
+                val dayNumber = range?.dayNumber(cache.date)
+                Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                    PrayerCalendarRow(
+                        cache = cache,
+                        dateLabel = buildString {
+                            append(dayNumber?.let { "$it. gün" } ?: "–")
+                            append('\n')
+                            append(cache.date.format(IMSAKIYE_DATE_FORMATTER))
+                            append(' ')
+                            append(cache.date.format(WEEKDAY_SHORT_FORMATTER))
+                        },
+                        accessibilityDate = cache.date.format(ACCESSIBLE_DATE_FORMATTER),
+                        highlighted = cache.date == today,
+                        columnWidths = columnWidths,
+                        horizontalScrollState = horizontalScrollState,
+                        dayColumnWidth = dayColumnWidth,
+                        ramadanDay = dayNumber,
+                        isIftar = true,
+                        qadrNight = dayNumber == 26
+                    )
+                    if (dayNumber == 26) {
+                        Row(
+                            modifier = Modifier.padding(start = 12.dp + dayColumnWidth, bottom = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text("🌙", style = MaterialTheme.typography.labelSmall)
                             Text(
                                 stringResource(R.string.qadr_night_marker),
-                                modifier = Modifier.padding(start = 62.dp, bottom = 4.dp),
                                 color = MaterialTheme.colorScheme.tertiary,
-                                style = MaterialTheme.typography.labelMedium,
+                                style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold
                             )
                         }
                     }
                 }
-                if (range != null) {
-                    item {
-                        Text(
-                            stringResource(
-                                R.string.eid_date,
-                                range.eidDate.format(ACCESSIBLE_DATE_FORMATTER)
-                            ),
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+            }
+            if (range != null) {
+                item {
+                    Text(
+                        stringResource(
+                            R.string.eid_date,
+                            range.eidDate.format(ACCESSIBLE_DATE_FORMATTER)
+                        ),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
-                if (state.error != null) item { CalendarRetry(onRetry) }
+            }
+            if (state.error != null && state.days.isNotEmpty()) {
+                item { CalendarRetry(onRetry, showFailureMessage = false) }
             }
         }
     }
 }
 
 @Composable
-private fun PrayerTableHeader(isImsakiye: Boolean = false) {
-    PrayerTimeName.entries.toList().let { prayers ->
-        PrayerTableRowShell(
-            dayLabel = if (isImsakiye) stringResource(R.string.ramadan_day_label) else stringResource(R.string.day_label),
-            prayerLabels = prayers.map { name ->
-                when (name) {
-                    PrayerTimeName.IMSAK -> stringResource(R.string.prayer_imsak)
-                    PrayerTimeName.SUNRISE -> stringResource(R.string.prayer_sunrise)
-                    PrayerTimeName.DHUHR -> stringResource(R.string.prayer_dhuhr)
-                    PrayerTimeName.ASR -> stringResource(R.string.prayer_asr)
-                    PrayerTimeName.MAGHRIB -> if (isImsakiye) {
-                        stringResource(R.string.prayer_maghrib_iftar)
-                    } else {
-                        stringResource(R.string.prayer_maghrib)
-                    }
-                    PrayerTimeName.ISHA -> stringResource(R.string.prayer_isha)
-                }
-            },
-            bold = true,
-            header = true,
-            iftarColumn = isImsakiye
-        )
-    }
+private fun PrayerTableHeader(
+    labels: List<String>,
+    columnWidths: List<androidx.compose.ui.unit.Dp>,
+    horizontalScrollState: ScrollState,
+    dayColumnWidth: androidx.compose.ui.unit.Dp,
+    isImsakiye: Boolean = false
+) {
+    PrayerTableRowShell(
+        dayLabel = if (isImsakiye) stringResource(R.string.ramadan_day_label) else stringResource(R.string.day_label),
+        prayerLabels = labels,
+        columnWidths = columnWidths,
+        horizontalScrollState = horizontalScrollState,
+        dayColumnWidth = dayColumnWidth,
+        bold = true,
+        header = true,
+        iftarColumn = isImsakiye
+    )
 }
 
 @Composable
@@ -287,9 +346,13 @@ private fun PrayerCalendarRow(
     dateLabel: String,
     accessibilityDate: String,
     highlighted: Boolean,
+    columnWidths: List<androidx.compose.ui.unit.Dp>,
+    horizontalScrollState: ScrollState,
+    dayColumnWidth: androidx.compose.ui.unit.Dp,
     ramadan: Boolean = false,
     ramadanDay: Int? = null,
-    isIftar: Boolean = false
+    isIftar: Boolean = false,
+    qadrNight: Boolean = false
 ) {
     val prayerLabels = PrayerTimeName.entries.map { name ->
         val time = cache.prayerTimes.timeAt(name).format(PrayerTimes.TIME_FORMATTER)
@@ -299,6 +362,7 @@ private fun PrayerCalendarRow(
         append(accessibilityDate)
         ramadanDay?.let { append(", Ramazan'ın $it. günü") }
         if (ramadan) append(", Ramazan")
+        if (qadrNight) append(", Kadir Gecesi, 26. günün akşamı 27. güne bağlanır")
         PrayerTimeName.entries.forEachIndexed { index, prayer ->
             append(", ")
             append(prayer.accessibleName())
@@ -325,6 +389,9 @@ private fun PrayerCalendarRow(
                 if (ramadan && ramadanDay == null) append("\n☾")
             },
             prayerLabels = prayerLabels,
+            columnWidths = columnWidths,
+            horizontalScrollState = horizontalScrollState,
+            dayColumnWidth = dayColumnWidth,
             bold = highlighted,
             iftarColumn = isIftar
         )
@@ -335,27 +402,31 @@ private fun PrayerCalendarRow(
 private fun PrayerTableRowShell(
     dayLabel: String,
     prayerLabels: List<String>,
+    columnWidths: List<androidx.compose.ui.unit.Dp>,
+    horizontalScrollState: ScrollState,
+    dayColumnWidth: androidx.compose.ui.unit.Dp,
     bold: Boolean,
     header: Boolean = false,
     iftarColumn: Boolean = false
 ) {
-    val largeScale = LocalDensity.current.fontScale >= 1.5f
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = if (header) 8.dp else 7.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = if (header) 40.dp else 48.dp)
+            .padding(horizontal = 4.dp, vertical = if (header) 4.dp else 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = dayLabel,
-            modifier = Modifier.width(if (iftarColumn) 66.dp else 54.dp),
+            modifier = Modifier.width(dayColumnWidth),
             style = if (header) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium,
             fontWeight = if (bold || header) FontWeight.Bold else FontWeight.Normal,
-            textAlign = TextAlign.Start
+            textAlign = TextAlign.Start,
+            maxLines = if (header) 1 else 2,
+            overflow = TextOverflow.Clip
         )
-        val scroll = rememberScrollState()
         Row(
-            modifier = Modifier
-                .weight(1f)
-                .then(if (largeScale) Modifier.horizontalScroll(scroll) else Modifier),
+            modifier = Modifier.weight(1f).horizontalScroll(horizontalScrollState),
             verticalAlignment = Alignment.CenterVertically
         ) {
             prayerLabels.forEachIndexed { index, label ->
@@ -363,21 +434,76 @@ private fun PrayerTableRowShell(
                 Text(
                     text = label,
                     modifier = Modifier
-                        .then(if (largeScale) Modifier.width(68.dp) else Modifier.weight(1f))
+                        .width(columnWidths[index])
                         .then(
                             if (emphasized) Modifier
                                 .background(MaterialTheme.colorScheme.tertiaryContainer, RoundedCornerShape(5.dp))
-                                .padding(vertical = 3.dp)
-                            else Modifier
+                                .padding(vertical = 3.dp, horizontal = 6.dp)
+                            else Modifier.padding(horizontal = 6.dp)
+                        )
+                        .then(
+                            if (header && iftarColumn && index == PrayerTimeName.MAGHRIB.ordinal) {
+                                Modifier.clearAndSetSemantics { contentDescription = "Akşam (iftar)" }
+                            } else {
+                                Modifier
+                            }
                         ),
                     textAlign = TextAlign.Center,
-                    maxLines = if (header) 2 else 1,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Clip,
                     style = if (header) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelSmall,
                     fontWeight = if (bold || emphasized || header) FontWeight.Bold else FontWeight.Medium,
                     color = if (emphasized) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSurface
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun prayerHeaderLabels(): List<String> = PrayerTimeName.entries.map { name ->
+    when (name) {
+        PrayerTimeName.IMSAK -> stringResource(R.string.prayer_imsak)
+        PrayerTimeName.SUNRISE -> stringResource(R.string.prayer_sunrise)
+        PrayerTimeName.DHUHR -> stringResource(R.string.prayer_dhuhr)
+        PrayerTimeName.ASR -> stringResource(R.string.prayer_asr)
+        PrayerTimeName.MAGHRIB -> stringResource(R.string.prayer_maghrib)
+        PrayerTimeName.ISHA -> stringResource(R.string.prayer_isha)
+    }
+}
+
+@Composable
+private fun rememberPrayerColumnWidths(labels: List<String>): List<androidx.compose.ui.unit.Dp> {
+    val textMeasurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val headerStyle = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+    val timeStyle = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium)
+    return remember(textMeasurer, labels, density.density, density.fontScale, headerStyle, timeStyle) {
+        labels.map { label ->
+            val labelWidth = textMeasurer.measure(
+                text = AnnotatedString(label),
+                style = headerStyle,
+                maxLines = 1
+            ).size.width
+            val timeWidth = textMeasurer.measure(
+                text = AnnotatedString("00:00"),
+                style = timeStyle,
+                maxLines = 1
+            ).size.width
+            with(density) { max(labelWidth, timeWidth).toDp() + 16.dp }
+        }
+    }
+}
+
+@Composable
+private fun calendarDayColumnWidth(isImsakiye: Boolean): androidx.compose.ui.unit.Dp {
+    val largeScale = LocalDensity.current.fontScale >= 1.5f
+    return when {
+        isImsakiye && largeScale -> 112.dp
+        isImsakiye -> 76.dp
+        largeScale -> 72.dp
+        else -> 54.dp
     }
 }
 
@@ -405,13 +531,13 @@ private fun CalendarNotice(message: String) {
 }
 
 @Composable
-private fun CalendarRetry(onRetry: () -> Unit) {
+private fun CalendarRetry(onRetry: () -> Unit, showFailureMessage: Boolean) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text(stringResource(R.string.monthly_load_failed))
+        if (showFailureMessage) Text(stringResource(R.string.monthly_load_failed))
         Button(onClick = onRetry) { Text(stringResource(R.string.retry)) }
     }
 }
