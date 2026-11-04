@@ -10,11 +10,17 @@ import org.junit.Test
 class PrayerDataVersionGateTest {
     @Test
     fun olderVersionClearsPrayerCachesOnceAndPreservesSelectedLocation() = runTest {
-        var version: Int? = 2
+        var version: Int? = 3
         val roomDays = mutableListOf("old room day")
         val legacyCaches = mutableListOf("old datastore cache")
-        val city = "Ankara"
-        val country = "Turkey"
+        val prayerPreferences = mutableMapOf(
+            "selected_city" to "Ankara",
+            "selected_country" to "Turkey"
+        )
+        val notificationPreferences = mutableMapOf(
+            "notifications_enabled" to true,
+            "lead_minutes" to 10
+        )
         val gate = PrayerDataVersionGate(PrayerDataVersionGate.CURRENT_VERSION)
         var cleanupCount = 0
 
@@ -29,12 +35,16 @@ class PrayerDataVersionGateTest {
         assertTrue(roomDays.isEmpty())
         assertTrue(legacyCaches.isEmpty())
         assertEquals(PrayerDataVersionGate.CURRENT_VERSION, version)
-        assertEquals("Ankara", city)
-        assertEquals("Turkey", country)
+        assertEquals("Ankara", prayerPreferences["selected_city"])
+        assertEquals("Turkey", prayerPreferences["selected_country"])
+        assertEquals(true, notificationPreferences["notifications_enabled"])
+        assertEquals(10, notificationPreferences["lead_minutes"])
 
         assertFalse(ensureCurrent())
         assertEquals(1, cleanupCount)
-        assertEquals("Ankara", city)
-        assertEquals("Turkey", country)
+        assertEquals("Ankara", prayerPreferences["selected_city"])
+        assertEquals("Turkey", prayerPreferences["selected_country"])
+        assertEquals(true, notificationPreferences["notifications_enabled"])
+        assertEquals(10, notificationPreferences["lead_minutes"])
     }
 }

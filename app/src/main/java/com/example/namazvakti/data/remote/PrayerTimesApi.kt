@@ -1,6 +1,7 @@
 package com.example.namazvakti.data.remote
 
 import com.google.gson.Gson
+import com.example.namazvakti.domain.model.DiyanetHijriCalendar
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.PrayerTimesApiException
 import com.example.namazvakti.domain.model.PrayerTimes
@@ -113,7 +114,10 @@ class PrayerTimesApi(
             .addPathSegment(month.toString())
             .addQueryParameter("method", settings.method.toString())
             .addQueryParameter("school", settings.school.toString())
-            .addQueryParameter("calendarMethod", "DIYANET")
+            .addQueryParameter(
+                "calendarMethod",
+                DiyanetHijriCalendar.ALADHAN_FALLBACK_METHOD
+            )
             .addQueryParameter("tune", PrayerTimeAdjustments.ALADHAN_TUNE)
         if (hasCoordinates) {
             urlBuilder
@@ -139,7 +143,10 @@ class PrayerTimesApi(
                     .addPathSegment("hToGCalendar")
                     .addPathSegment(month.toString())
                     .addPathSegment(hijriYear.toString())
-                    .addQueryParameter("calendarMethod", "DIYANET")
+                    .addQueryParameter(
+                        "calendarMethod",
+                        DiyanetHijriCalendar.ALADHAN_FALLBACK_METHOD
+                    )
                     .build()
             )
             .get()

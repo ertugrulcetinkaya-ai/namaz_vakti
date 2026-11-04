@@ -63,7 +63,7 @@ class PrayerWidgetRendererInstrumentedTest {
             assertEquals(
                 when (size) {
                     PrayerWidgetSizeClass.SMALL -> "Eski veri"
-                    PrayerWidgetSizeClass.MEDIUM -> "İSTANBUL • 22 Safer 1448 • Eski veri"
+                    PrayerWidgetSizeClass.MEDIUM -> "İSTANBUL • 23 Safer 1448 • Eski veri"
                     PrayerWidgetSizeClass.LARGE -> "İSTANBUL • Eski veri"
                 },
                 stale.root.text(R.id.prayer_widget_city)

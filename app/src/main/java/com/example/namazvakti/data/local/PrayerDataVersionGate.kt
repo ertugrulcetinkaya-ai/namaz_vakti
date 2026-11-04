@@ -11,6 +11,6 @@ internal class PrayerDataVersionGate(private val currentVersion: Int) {
     }
 
     companion object {
-        const val CURRENT_VERSION = 3
+        const val CURRENT_VERSION = 4
     }
 }

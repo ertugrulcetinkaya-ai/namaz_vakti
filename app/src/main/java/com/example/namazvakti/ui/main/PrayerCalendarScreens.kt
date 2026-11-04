@@ -53,6 +53,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import com.example.namazvakti.R
 import com.example.namazvakti.domain.model.CachedPrayerDay
+import com.example.namazvakti.domain.model.displayHijriDate
+import com.example.namazvakti.domain.model.displayHijriText
 import com.example.namazvakti.domain.model.PrayerTimeName
 import com.example.namazvakti.domain.model.PrayerTimes
 import com.example.namazvakti.domain.model.RamadanRange
@@ -81,7 +83,7 @@ fun MonthlyPrayerScreen(
     val columnLabels = prayerHeaderLabels()
     val columnWidths = rememberPrayerColumnWidths(columnLabels)
     val dayColumnWidth = calendarDayColumnWidth(isImsakiye = false)
-    val stickyHeaderOffsetPx = with(LocalDensity.current) { 48.dp.roundToPx() }
+    val stickyHeaderOffsetPx = with(LocalDensity.current) { 32.dp.roundToPx() }
     LaunchedEffect(month, state.loading, state.days) {
         val todayIndex = state.days.indexOfFirst { it.date == today }
         if (!state.loading && todayIndex >= 0 && month == YearMonth.from(today)) {
@@ -157,15 +159,25 @@ fun MonthlyPrayerScreen(
             }
             items(state.days, key = { it.date.toString() }) { cache ->
                 val inOfficialRange = ramadanRange?.dayNumber(cache.date) != null
+                val hijriDate = cache.displayHijriDate()
+                val ramadanDay = ramadanRange?.dayNumber(cache.date)
+                    ?: hijriDate?.takeIf { it.month == 9 }?.day
                 PrayerCalendarRow(
                     cache = cache,
-                    dateLabel = cache.date.format(DAY_LABEL_FORMATTER),
+                    dateLabel = buildString {
+                        append(cache.date.format(MONTHLY_DATE_LABEL_FORMATTER))
+                        hijriDate?.toDisplayText()?.let {
+                            append('\n')
+                            append(it)
+                        }
+                    },
                     accessibilityDate = cache.date.format(ACCESSIBLE_DATE_FORMATTER),
                     highlighted = cache.date == today,
                     columnWidths = columnWidths,
                     horizontalScrollState = horizontalScrollState,
                     dayColumnWidth = dayColumnWidth,
-                    ramadan = inOfficialRange || cache.hijriMonth == 9
+                    ramadan = inOfficialRange || hijriDate?.month == 9,
+                    ramadanDay = ramadanDay
                 )
             }
             if (state.error != null && state.days.isNotEmpty()) {
@@ -194,7 +206,7 @@ fun ImsakiyeScreen(
     val columnLabels = prayerHeaderLabels()
     val columnWidths = rememberPrayerColumnWidths(columnLabels)
     val dayColumnWidth = calendarDayColumnWidth(isImsakiye = true)
-    val stickyHeaderOffsetPx = with(LocalDensity.current) { 48.dp.roundToPx() }
+    val stickyHeaderOffsetPx = with(LocalDensity.current) { 32.dp.roundToPx() }
     LaunchedEffect(range, state.days, state.loading, state.error) {
         val todayIndex = state.days.indexOfFirst { it.date == today }
         if (!state.loading && todayIndex >= 0) {
@@ -273,6 +285,10 @@ fun ImsakiyeScreen(
                             append(cache.date.format(IMSAKIYE_DATE_FORMATTER))
                             append(' ')
                             append(cache.date.format(WEEKDAY_SHORT_FORMATTER))
+                            cache.displayHijriText()?.let {
+                                append('\n')
+                                append(it)
+                            }
                         },
                         accessibilityDate = cache.date.format(ACCESSIBLE_DATE_FORMATTER),
                         highlighted = cache.date == today,
@@ -360,6 +376,10 @@ private fun PrayerCalendarRow(
     }
     val fullDescription = buildString {
         append(accessibilityDate)
+        cache.displayHijriText()?.let {
+            append(", ")
+            append(it)
+        }
         ramadanDay?.let { append(", Ramazan'ın $it. günü") }
         if (ramadan) append(", Ramazan")
         if (qadrNight) append(", Kadir Gecesi, 26. günün akşamı 27. güne bağlanır")
@@ -422,7 +442,7 @@ private fun PrayerTableRowShell(
             style = if (header) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium,
             fontWeight = if (bold || header) FontWeight.Bold else FontWeight.Normal,
             textAlign = TextAlign.Start,
-            maxLines = if (header) 1 else 2,
+            maxLines = if (header) 1 else 4,
             overflow = TextOverflow.Clip
         )
         Row(
@@ -500,10 +520,10 @@ private fun rememberPrayerColumnWidths(labels: List<String>): List<androidx.comp
 private fun calendarDayColumnWidth(isImsakiye: Boolean): androidx.compose.ui.unit.Dp {
     val largeScale = LocalDensity.current.fontScale >= 1.5f
     return when {
-        isImsakiye && largeScale -> 112.dp
-        isImsakiye -> 76.dp
-        largeScale -> 72.dp
-        else -> 54.dp
+        isImsakiye && largeScale -> 168.dp
+        isImsakiye -> 144.dp
+        largeScale -> 168.dp
+        else -> 144.dp
     }
 }
 
@@ -552,7 +572,7 @@ private fun PrayerTimeName.accessibleName(): String = when (this) {
 }
 
 private val MONTH_FORMATTER = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.forLanguageTag("tr-TR"))
-private val DAY_LABEL_FORMATTER = DateTimeFormatter.ofPattern("d\nEEE", Locale.forLanguageTag("tr-TR"))
+private val MONTHLY_DATE_LABEL_FORMATTER = DateTimeFormatter.ofPattern("d EEE", Locale.forLanguageTag("tr-TR"))
 private val IMSAKIYE_DATE_FORMATTER = DateTimeFormatter.ofPattern("d MMM", Locale.forLanguageTag("tr-TR"))
 private val WEEKDAY_SHORT_FORMATTER = DateTimeFormatter.ofPattern("EEE", Locale.forLanguageTag("tr-TR"))
 private val ACCESSIBLE_DATE_FORMATTER = DateTimeFormatter.ofPattern("d MMMM EEEE", Locale.forLanguageTag("tr-TR"))

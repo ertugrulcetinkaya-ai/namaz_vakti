@@ -4,11 +4,13 @@ import android.content.Context
 import com.example.namazvakti.app.appContainer
 import com.example.namazvakti.data.local.PrayerPreferences
 import com.example.namazvakti.domain.model.CachedPrayerDay
+import com.example.namazvakti.domain.model.DiyanetHijriCalendar
 import com.example.namazvakti.domain.model.DiyanetRamadanCalendar
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.RamadanRange
 import com.example.namazvakti.domain.model.PrayerTimeProvider
+import com.example.namazvakti.domain.model.alAdhanHijriDate
 import com.example.namazvakti.domain.policy.PrayerCachePolicy
 import com.example.namazvakti.widget.renderer.PrayerWidgetDataState
 import java.time.ZonedDateTime
@@ -62,9 +64,11 @@ class PrayerWidgetSnapshotSource(
         val tomorrowCache = if (cache?.date == today) {
             store.readCache(today.plusDays(1), location, settings)
         } else null
-        val ramadanRange = DiyanetRamadanCalendar.entries.values
-            .firstOrNull { today in it.firstRamadan..it.firstShawwal.minusDays(1) }
-            ?.toRange()
+        val todayHijri = DiyanetHijriCalendar.hijriDateOf(today)
+            ?: cache?.takeIf { it.date == today }?.alAdhanHijriDate()
+        val ramadanRange = todayHijri
+            ?.takeIf { it.month == 9 }
+            ?.let { DiyanetRamadanCalendar.find(it.year)?.toRange() }
         return PrayerWidgetSnapshot(
             cache = cache,
             location = location,
