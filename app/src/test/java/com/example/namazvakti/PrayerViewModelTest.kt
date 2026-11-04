@@ -9,6 +9,9 @@ import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.PrayerLocationConfig
 import com.example.namazvakti.domain.model.PrayerNotificationSettings
 import com.example.namazvakti.domain.model.PrayerTimeProvider
+import com.example.namazvakti.domain.model.MonthDataSource
+import com.example.namazvakti.domain.model.MonthResult
+import com.example.namazvakti.domain.model.RamadanRange
 import com.example.namazvakti.domain.model.PrayerTimes
 import com.example.namazvakti.domain.model.RefreshOrigin
 import com.example.namazvakti.domain.model.RefreshResult
@@ -39,6 +42,7 @@ import org.junit.Test
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.YearMonth
 import kotlin.coroutines.ContinuationInterceptor
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -181,6 +185,95 @@ class PrayerViewModelTest {
         assertTrue(scheduler.notificationSchedules >= 2)
     }
 
+    @Test
+    fun changingMonthCancelsThePreviousMonthRequest() = runTest {
+        val store = FakeStore()
+        val repository = MonthRepository(store)
+        val viewModel = viewModel(store, repository, CoroutineScope(StandardTestDispatcher(testScheduler)))
+        advanceUntilIdle()
+
+        viewModel.loadMonth(YearMonth.of(2026, 8))
+        runCurrent()
+        viewModel.loadMonth(YearMonth.of(2026, 9))
+        advanceUntilIdle()
+
+        assertTrue(repository.firstMonthCancelled)
+        assertEquals(YearMonth.of(2026, 9), viewModel.monthlyState.value.month)
+        assertEquals(MonthDataSource.CACHE, viewModel.monthlyState.value.source)
+    }
+
+    @Test
+    fun monthlyStateExposesPartialOfflineRows() = runTest {
+        val store = FakeStore()
+        val repository = MonthRepository(store, monthSource = MonthDataSource.PARTIAL)
+        val viewModel = viewModel(store, repository, CoroutineScope(StandardTestDispatcher(testScheduler)))
+        advanceUntilIdle()
+
+        viewModel.loadMonth(YearMonth.of(2026, 11))
+        advanceUntilIdle()
+
+        assertEquals(MonthDataSource.PARTIAL, viewModel.monthlyState.value.source)
+        assertTrue(viewModel.monthlyState.value.days.isNotEmpty())
+    }
+
+    @Test
+    fun imsakiyeStateCarriesRamadanRangeForInsideAndOutsideDayLabels() = runTest {
+        val store = FakeStore()
+        val range = RamadanRange(
+            1448,
+            LocalDate.of(2027, 2, 8),
+            LocalDate.of(2027, 3, 8),
+            LocalDate.of(2027, 3, 9),
+            estimated = false
+        )
+        val repository = MonthRepository(store, range = range)
+        val viewModel = viewModel(store, repository, CoroutineScope(StandardTestDispatcher(testScheduler)))
+        advanceUntilIdle()
+
+        viewModel.loadImsakiye()
+        advanceUntilIdle()
+
+        val stateRange = requireNotNull(viewModel.imsakiyeState.value.range)
+        assertEquals(5, stateRange.dayNumber(LocalDate.of(2027, 2, 12)))
+        assertEquals(null, stateRange.dayNumber(LocalDate.of(2027, 2, 7)))
+    }
+
+    @Test
+    fun changingCityReloadsAnOpenImsakiye() = runTest {
+        val store = FakeStore()
+        val range = RamadanRange(
+            1448,
+            LocalDate.of(2027, 2, 8),
+            LocalDate.of(2027, 3, 8),
+            LocalDate.of(2027, 3, 9),
+            estimated = false
+        )
+        val repository = MonthRepository(store, range = range)
+        val viewModel = viewModel(store, repository, CoroutineScope(StandardTestDispatcher(testScheduler)))
+        advanceUntilIdle()
+        viewModel.loadImsakiye()
+        advanceUntilIdle()
+        val before = repository.monthRequests
+
+        val selected = PrayerLocationConfig.cityOptions.first { it.city == "Istanbul" }
+        repository.refreshResult = RefreshResult.Success(
+            sampleCache(
+                PrayerLocation(
+                    selected.city,
+                    selected.country,
+                    selected.displayCity,
+                    latitude = selected.latitude,
+                    longitude = selected.longitude
+                )
+            )
+        )
+        viewModel.selectCity(selected)
+        advanceUntilIdle()
+
+        assertTrue(repository.monthRequests > before)
+        assertEquals(selected.city, store.location.city)
+    }
+
     private fun viewModel(
         store: FakeStore,
         repository: PrayerRefreshRepository,
@@ -228,6 +321,37 @@ class PrayerViewModelTest {
 
     private class FakeRepository(private val result: RefreshResult) : PrayerRefreshRepository {
         override suspend fun refreshAndCache() = result
+    }
+
+    private inner class MonthRepository(
+        private val store: FakeStore,
+        private val range: RamadanRange? = null,
+        private val monthSource: MonthDataSource = MonthDataSource.CACHE
+    ) : PrayerRefreshRepository {
+        var refreshResult: RefreshResult = RefreshResult.Failure(Exception())
+        var firstMonthCancelled = false
+        var monthRequests = 0
+        private var firstMonthCall = true
+
+        override suspend fun refreshAndCache() = refreshResult
+
+        override suspend fun ensureMonth(yearMonth: YearMonth): MonthResult {
+            monthRequests++
+            if (firstMonthCall && yearMonth == YearMonth.of(2026, 8)) {
+                firstMonthCall = false
+                try {
+                    awaitCancellation()
+                } finally {
+                    firstMonthCancelled = true
+                }
+            }
+            val days = (1..yearMonth.lengthOfMonth()).map { day ->
+                sampleCache(store.location, yearMonth.atDay(day))
+            }
+            return MonthResult(yearMonth, days, monthSource)
+        }
+
+        override suspend fun ramadanRange() = range
     }
 
     private class CancelThenSucceedRepository(

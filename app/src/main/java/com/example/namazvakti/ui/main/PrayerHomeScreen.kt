@@ -50,6 +50,7 @@ import com.example.namazvakti.R
 import com.example.namazvakti.domain.model.CachedPrayerDay
 import com.example.namazvakti.domain.model.PrayerTimeName
 import com.example.namazvakti.domain.model.PrayerTimes
+import com.example.namazvakti.domain.model.RamadanRange
 import com.example.namazvakti.domain.policy.PrayerCountdown
 import com.example.namazvakti.domain.policy.PrayerCountdownCalculator
 import java.time.Duration
@@ -64,6 +65,9 @@ fun PrayerHomeScreen(
     now: ZonedDateTime,
     onRefresh: () -> Unit,
     onOpenCities: () -> Unit,
+    onOpenMonthly: () -> Unit,
+    onOpenImsakiye: () -> Unit,
+    ramadanRange: RamadanRange?,
     onOpenNotificationSettings: () -> Unit,
     exactAlarmNeeded: Boolean,
     onRequestExactAlarm: () -> Unit
@@ -86,6 +90,19 @@ fun PrayerHomeScreen(
         )
     }
     val isTomorrow = countdown?.nextPrayerAt?.toLocalDate()?.isAfter(localNow.toLocalDate()) == true
+    val ramadanDay = ramadanRange?.dayNumber(today)
+    val officialRamadanText = ramadanRange?.let { range ->
+        range.dayNumber(today)?.let { "$it Ramazan ${range.hijriYear}" }
+    }
+    val dailyHijriText = if (officialRamadanText != null && !ramadanRange.estimated) {
+        todayCache?.hijriText
+            ?.takeIf { it.trim() == officialRamadanText }
+            ?: officialRamadanText
+    } else {
+        todayCache?.hijriText
+    }
+    val showRamadanCard = ramadanRange != null && today <= ramadanRange.endDate &&
+        !ramadanRange.startDate.isAfter(today.plusDays(60))
 
     Scaffold(
         topBar = {
@@ -150,7 +167,7 @@ fun PrayerHomeScreen(
                             text = today.format(TURKISH_DATE_FORMATTER),
                             style = MaterialTheme.typography.bodyLarge
                         )
-                        todayCache?.hijriText?.takeIf(String::isNotBlank)?.let { hijri ->
+                        dailyHijriText?.takeIf(String::isNotBlank)?.let { hijri ->
                             Text(
                                 text = hijri,
                                 style = MaterialTheme.typography.bodySmall,
@@ -162,14 +179,52 @@ fun PrayerHomeScreen(
 
                 item {
                     NextPrayerCard(countdown = countdown, isTomorrow = isTomorrow)
+                    ramadanDay?.let { day ->
+                        Text(
+                            text = stringResource(R.string.ramadan_day, day),
+                            modifier = Modifier.padding(start = 8.dp, top = 4.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.tertiary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+
+                if (showRamadanCard) {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = onOpenImsakiye,
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                            )
+                        ) {
+                            Text(
+                                text = stringResource(R.string.open_imsakiye, ramadanRange.hijriYear.toString()),
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
+                    }
                 }
 
                 item {
-                    Text(
-                        text = stringResource(R.string.today_prayer_times),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = stringResource(R.string.today_prayer_times),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        androidx.compose.material3.TextButton(onClick = onOpenMonthly) {
+                            Text(stringResource(R.string.monthly_open))
+                        }
+                    }
                 }
 
                 if (todayCache != null && countdown != null) {

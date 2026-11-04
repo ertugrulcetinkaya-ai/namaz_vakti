@@ -8,6 +8,7 @@ import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.PrayerLocationConfig
 import com.example.namazvakti.domain.model.PrayerNotificationSettings
+import com.example.namazvakti.domain.model.RamadanRange
 import com.example.namazvakti.domain.model.PrayerTimeProvider
 import com.example.namazvakti.domain.model.RefreshResult
 import com.example.namazvakti.domain.model.classifyPrayerError
@@ -30,6 +31,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.YearMonth
 
 class PrayerViewModel @JvmOverloads constructor(
     application: Application,
@@ -51,11 +53,26 @@ class PrayerViewModel @JvmOverloads constructor(
     val notificationSettings: StateFlow<PrayerNotificationSettings> = _notificationSettings.asStateFlow()
     private val _notificationSettingsError = MutableStateFlow(false)
     val notificationSettingsError: StateFlow<Boolean> = _notificationSettingsError.asStateFlow()
+    private val _monthlyState = MutableStateFlow(MonthlyUiState(YearMonth.now()))
+    val monthlyState: StateFlow<MonthlyUiState> = _monthlyState.asStateFlow()
+    private val _imsakiyeState = MutableStateFlow(ImsakiyeUiState())
+    val imsakiyeState: StateFlow<ImsakiyeUiState> = _imsakiyeState.asStateFlow()
+    private val _ramadanRange = MutableStateFlow<RamadanRange?>(null)
+    val ramadanRange: StateFlow<RamadanRange?> = _ramadanRange.asStateFlow()
     private var actionJob: Job? = null
+    private var monthJob: Job? = null
+    private var imsakiyeJob: Job? = null
+    private var rangeJob: Job? = null
+    private var requestedMonth: YearMonth? = null
+    private var imsakiyeRequested = false
 
-    init { load() }
+    init {
+        load()
+    }
 
-    fun load() = launchLatest {
+    fun load(): Job {
+        loadRamadanRange()
+        return launchLatest {
         try {
             val snapshot = withContext(ioDispatcher) {
                 val location = store.readLocation()
@@ -84,6 +101,7 @@ class PrayerViewModel @JvmOverloads constructor(
             throw e
         } catch (e: Exception) {
             _state.value = PrayerUiState.Error(null, classifyPrayerStorageError(e))
+        }
         }
     }
 
@@ -116,6 +134,9 @@ class PrayerViewModel @JvmOverloads constructor(
             }
             scheduler.scheduleNotifications()
             refreshInternal()
+            requestedMonth?.let(::loadMonth)
+            if (imsakiyeRequested) loadImsakiye()
+            loadRamadanRange()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -124,6 +145,85 @@ class PrayerViewModel @JvmOverloads constructor(
     }
 
     private fun scope(): CoroutineScope = testScope ?: viewModelScope
+
+    fun loadMonth(month: YearMonth) {
+        requestedMonth = month
+        monthJob?.cancel()
+        _monthlyState.value = MonthlyUiState(month, loading = true)
+        monthJob = scope().launch {
+            try {
+                val result = withContext(ioDispatcher) { repository.ensureMonth(month) }
+                _monthlyState.value = MonthlyUiState(
+                    month = month,
+                    days = result.days.sortedBy { it.date },
+                    source = result.source,
+                    error = result.error
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _monthlyState.value = MonthlyUiState(month, error = e)
+            }
+        }
+    }
+
+    fun loadRamadanRange() {
+        rangeJob?.cancel()
+        rangeJob = scope().launch {
+            try {
+                _ramadanRange.value = withContext(ioDispatcher) { repository.ramadanRange() }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                _ramadanRange.value = null
+            }
+        }
+    }
+
+    fun loadImsakiye() {
+        imsakiyeRequested = true
+        imsakiyeJob?.cancel()
+        _imsakiyeState.value = _imsakiyeState.value.copy(loading = true, error = null)
+        imsakiyeJob = scope().launch {
+            try {
+                val range = _ramadanRange.value
+                    ?: withContext(ioDispatcher) { repository.ramadanRange() }
+                if (range == null) {
+                    _imsakiyeState.value = ImsakiyeUiState(
+                        error = IllegalStateException("Ramadan dates unavailable")
+                    )
+                    return@launch
+                }
+                _ramadanRange.value = range
+                val location = withContext(ioDispatcher) { store.readLocation() }
+                val lastMonth = YearMonth.from(range.endDate)
+                val months = generateSequence(YearMonth.from(range.startDate)) { month ->
+                    if (month < lastMonth) month.plusMonths(1) else null
+                }.toList()
+                val monthResults = months.map { month ->
+                    withContext(ioDispatcher) { repository.ensureMonth(month) }
+                }
+                val days = monthResults.flatMap { it.days }
+                    .filter { it.date in range.startDate..range.endDate }
+                    .distinctBy { it.date }
+                    .sortedBy { it.date }
+                _imsakiyeState.value = ImsakiyeUiState(
+                    location = location,
+                    range = range,
+                    days = days,
+                    error = if (days.size < range.dayCount) {
+                        monthResults.firstNotNullOfOrNull { it.error }
+                    } else {
+                        null
+                    }
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _imsakiyeState.value = _imsakiyeState.value.copy(loading = false, error = e)
+            }
+        }
+    }
 
     private fun launchLatest(block: suspend () -> Unit): Job {
         actionJob?.cancel()
@@ -162,6 +262,7 @@ class PrayerViewModel @JvmOverloads constructor(
                     widgetUpdater.updateAll()
                     scheduler.scheduleBoundary()
                     scheduler.scheduleNotifications()
+                    loadRamadanRange()
                     _state.value = PrayerUiState.Ready(
                         result.cache.location,
                         Freshness.Fresh,

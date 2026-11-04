@@ -32,6 +32,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import java.time.LocalDate
 import java.time.ZonedDateTime
+import java.time.YearMonth
 
 @Composable
 fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
@@ -39,6 +40,9 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val notificationSettings by viewModel.notificationSettings.collectAsStateWithLifecycle()
     val notificationSettingsError by viewModel.notificationSettingsError.collectAsStateWithLifecycle()
+    val monthlyState by viewModel.monthlyState.collectAsStateWithLifecycle()
+    val imsakiyeState by viewModel.imsakiyeState.collectAsStateWithLifecycle()
+    val ramadanRange by viewModel.ramadanRange.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
     val location = when (val current = state) {
         is PrayerUiState.Ready -> current.location
@@ -50,6 +54,8 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
     val today = now.withZoneSameInstant(timezone).toLocalDate()
     var lastObservedDate by remember { mutableStateOf(today) }
     var showCities by rememberSaveable { mutableStateOf(false) }
+    var showMonthly by rememberSaveable { mutableStateOf(false) }
+    var showImsakiye by rememberSaveable { mutableStateOf(false) }
     var showNotificationSettings by rememberSaveable { mutableStateOf(false) }
     var pendingNotificationSettings by remember { mutableStateOf<PrayerNotificationSettings?>(null) }
     var resumeVersion by remember { mutableIntStateOf(0) }
@@ -127,7 +133,13 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
         context.startActivity(PrayerExactAlarmAccess.requestAccessIntent(context))
     }
 
-    BackHandler(enabled = showCities) { showCities = false }
+    BackHandler(enabled = showCities || showMonthly || showImsakiye) {
+        when {
+            showCities -> showCities = false
+            showMonthly -> showMonthly = false
+            showImsakiye -> showImsakiye = false
+        }
+    }
 
     if (showCities) {
         CitySelectionScreen(
@@ -138,12 +150,42 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
                 viewModel.selectCity(option)
             }
         )
+    } else if (showMonthly) {
+        MonthlyPrayerScreen(
+            state = monthlyState,
+            ramadanRange = ramadanRange,
+            today = today,
+            onBack = { showMonthly = false },
+            onOpenImsakiye = {
+                viewModel.loadImsakiye()
+                showMonthly = false
+                showImsakiye = true
+            },
+            onMonthChange = viewModel::loadMonth,
+            onRetry = { viewModel.loadMonth(monthlyState.month) }
+        )
+    } else if (showImsakiye) {
+        ImsakiyeScreen(
+            state = imsakiyeState,
+            today = today,
+            onBack = { showImsakiye = false },
+            onRetry = viewModel::loadImsakiye
+        )
     } else {
         PrayerHomeScreen(
             state = state,
             now = now,
             onRefresh = viewModel::refresh,
             onOpenCities = { showCities = true },
+            onOpenMonthly = {
+                viewModel.loadMonth(YearMonth.from(today))
+                showMonthly = true
+            },
+            onOpenImsakiye = {
+                viewModel.loadImsakiye()
+                showImsakiye = true
+            },
+            ramadanRange = ramadanRange,
             onOpenNotificationSettings = { showNotificationSettings = true },
             exactAlarmNeeded = exactAlarmNeeded,
             onRequestExactAlarm = requestExactAlarm
