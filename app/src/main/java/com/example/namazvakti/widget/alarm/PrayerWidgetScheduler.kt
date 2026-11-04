@@ -10,6 +10,8 @@ import androidx.work.WorkManager
 import com.example.namazvakti.app.appContainer
 import com.example.namazvakti.domain.model.CachedPrayerDay
 import com.example.namazvakti.domain.policy.PrayerBoundaryCalculator
+import com.example.namazvakti.domain.policy.needsBackgroundRefresh
+import com.example.namazvakti.notification.PrayerNotificationAlarm
 import com.example.namazvakti.widget.PrayerWidgetProvider
 import com.example.namazvakti.widget.PrayerWidgetSnapshot
 import com.example.namazvakti.widget.worker.PrayerWorkRequestFactory
@@ -27,11 +29,13 @@ object PrayerWidgetScheduler {
         snapshot: PrayerWidgetSnapshot? = null
     ) {
         val appContext = context.applicationContext
-        if (!hasWidgets(appContext)) {
+        val widgetsExist = hasWidgets(appContext)
+        val container = appContext.appContainer()
+        val notificationsEnabled = container.notificationSettingsStore.read().notificationsEnabled
+        if (!needsBackgroundRefresh(widgetsExist, notificationsEnabled)) {
             cancelAll(appContext)
             return
         }
-        val container = appContext.appContainer()
         val location = snapshot?.location ?: container.store.readLocation()
         val cached = if (snapshot != null) snapshot.cache else container.store.readCache()
         val needsRefresh = force || !container.cachePolicy.isFresh(
@@ -63,7 +67,8 @@ object PrayerWidgetScheduler {
     ) {
         val appContext = context.applicationContext
         if (!hasWidgets(appContext)) {
-            cancelAll(appContext)
+            PrayerBoundaryAlarm.cancel(appContext)
+            WorkManager.getInstance(appContext).cancelUniqueWork(LEGACY_BOUNDARY_WORK_NAME)
             return
         }
         val container = appContext.appContainer()
@@ -97,6 +102,22 @@ object PrayerWidgetScheduler {
         listOf(ONE_TIME_WORK_NAME, API_REFRESH_WORK_NAME, LEGACY_BOUNDARY_WORK_NAME)
             .forEach(manager::cancelUniqueWork)
         PrayerBoundaryAlarm.cancel(context.applicationContext)
+        PrayerNotificationAlarm.cancel(context.applicationContext)
+    }
+
+    suspend fun requestBackgroundRefresh(context: Context) {
+        val appContext = context.applicationContext
+        val workManager = WorkManager.getInstance(appContext)
+        workManager.enqueueUniqueWork(
+            ONE_TIME_WORK_NAME,
+            ExistingWorkPolicy.KEEP,
+            requestFactory.immediateRefresh()
+        )
+        workManager.enqueueUniquePeriodicWork(
+            API_REFRESH_WORK_NAME,
+            ExistingPeriodicWorkPolicy.UPDATE,
+            requestFactory.dailySafetyRefresh()
+        )
     }
 
     fun hasWidgets(context: Context): Boolean {

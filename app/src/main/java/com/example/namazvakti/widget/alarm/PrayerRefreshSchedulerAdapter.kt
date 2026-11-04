@@ -2,6 +2,7 @@ package com.example.namazvakti.widget.alarm
 
 import android.content.Context
 import com.example.namazvakti.domain.port.PrayerRefreshScheduler
+import com.example.namazvakti.notification.PrayerNotificationScheduler
 
 /** Android adapter for the context-free scheduler port used by the UI/domain layer. */
 class PrayerRefreshSchedulerAdapter(
@@ -15,5 +16,9 @@ class PrayerRefreshSchedulerAdapter(
 
     override suspend fun scheduleBoundary() {
         PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(appContext)
+    }
+
+    override suspend fun scheduleNotifications() {
+        PrayerNotificationScheduler.scheduleNext(appContext)
     }
 }

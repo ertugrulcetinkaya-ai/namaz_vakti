@@ -21,6 +21,7 @@
 -keep class com.example.namazvakti.data.local.PrayerDayDao { *; }
 -keep class com.example.namazvakti.data.local.PrayerTimesDatabaseKt { *; }
 -keep class com.example.namazvakti.data.local.PrayerTimesStoreKt { *; }
+-keep class com.example.namazvakti.notification.PrayerNotificationPublisher { *; }
 -keep class com.example.namazvakti.widget.PrayerWidgetSnapshot { *; }
 -keep class com.example.namazvakti.widget.renderer.** { *; }
 -keep class com.example.namazvakti.widget.worker.** { *; }

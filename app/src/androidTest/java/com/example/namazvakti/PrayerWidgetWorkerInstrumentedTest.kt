@@ -36,13 +36,27 @@ class PrayerWidgetWorkerInstrumentedTest {
 
     @Test
     fun widgetMissingReturnsSuccessWithoutCallingApi() = runBlocking {
-        val dependencies = FakeDependencies(hasWidgets = false)
+        val dependencies = FakeDependencies(hasWidgets = false, notificationsEnabled = false)
 
         val result = worker(dependencies, fetch = true).doWork()
 
         assertTrue(result is ListenableWorker.Result.Success)
         assertEquals(0, dependencies.refreshCalls)
         assertTrue(dependencies.cancelled)
+    }
+
+    @Test
+    fun notificationsKeepBackgroundRefreshRunningWithoutWidget() = runBlocking {
+        val dependencies = FakeDependencies(hasWidgets = false, notificationsEnabled = true)
+
+        val result = worker(dependencies, fetch = true).doWork()
+
+        assertTrue(result is ListenableWorker.Result.Success)
+        assertEquals(1, dependencies.refreshCalls)
+        assertTrue(dependencies.rendered.isEmpty())
+        assertTrue(dependencies.scheduled.isEmpty())
+        assertEquals(1, dependencies.notificationSchedules)
+        assertFalse(dependencies.cancelled)
     }
 
     @Test
@@ -153,15 +167,19 @@ class PrayerWidgetWorkerInstrumentedTest {
 
     private class FakeDependencies(
         private val hasWidgets: Boolean = true,
+        private val notificationsEnabled: Boolean = false,
         var snapshot: PrayerWidgetSnapshot = freshSnapshot(sampleCache(LocalDate.of(2026, 8, 6))),
         private val refreshResult: RefreshResult = RefreshResult.Success(snapshot.cache!!)
     ) : PrayerWidgetWorkerDependencies {
         var refreshCalls = 0
         var cancelled = false
+        var notificationSchedules = 0
         val rendered = mutableListOf<PrayerWidgetSnapshot>()
         val scheduled = mutableListOf<PrayerWidgetSnapshot>()
 
         override fun hasWidgets(): Boolean = hasWidgets
+
+        override suspend fun notificationsEnabled(): Boolean = notificationsEnabled
 
         override suspend fun cancelAll() {
             cancelled = true
@@ -193,6 +211,10 @@ class PrayerWidgetWorkerInstrumentedTest {
 
         override suspend fun scheduleBoundary(snapshot: PrayerWidgetSnapshot) {
             scheduled += snapshot
+        }
+
+        override suspend fun scheduleNotifications() {
+            notificationSchedules += 1
         }
     }
 

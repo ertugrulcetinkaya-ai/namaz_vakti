@@ -4,8 +4,43 @@
     <string name="current_city">Seçili şehir: %1$s</string>
     <string name="search_city">Şehir ara</string>
     <string name="refresh_prayer_times">Vakitleri yenile</string>
-    <string name="precise_widget_updates_disabled">Widget’ın vakit değişiminde gecikmeden yenilenmesi için alarm erişimini etkinleştirin.</string>
-    <string name="enable_precise_widget_updates">Dakik widget güncellemesini etkinleştir</string>
+    <string name="precise_widget_updates_disabled">Widget ve bildirimlerin dakik çalışması için alarm erişimini etkinleştirin; erişim olmadan bildirimler birkaç dakika gecikebilir.</string>
+    <string name="enable_precise_widget_updates">Dakik alarm güncellemelerini etkinleştir</string>
+    <string name="notification_settings">Bildirim ayarları</string>
+    <string name="notification_settings_title">Namaz vakti bildirimleri</string>
+    <string name="notifications_enabled">Namaz vakti bildirimlerini aç</string>
+    <string name="notification_lead_time">Önceden hatırlat</string>
+    <string name="notification_prayer_permission_denied">Bildirim izni verilmedi; bildirimler kapalı kaldı.</string>
+    <string name="notification_channel_at_time_name">Vakit girdi</string>
+    <string name="notification_channel_at_time_description">Namaz vakti başladığında bildirim gösterir.</string>
+    <string name="notification_channel_reminder_name">Vakit hatırlatması</string>
+    <string name="notification_channel_reminder_description">Namaz vaktinden önce hatırlatma gösterir.</string>
+    <string name="notification_content">%1$s · %2$s</string>
+    <string name="notification_at_time_title">%1$s vakti</string>
+    <string name="notification_reminder_title">%1$s %2$d dk</string>
+    <string name="notification_sunrise_at_time">Güneş doğdu</string>
+    <string name="notification_sunrise_reminder">Güneşin doğmasına %1$d dk (sabah namazı için son vakit)</string>
+    <string name="prayer_imsak">İmsak</string>
+    <string name="prayer_sunrise">Güneş</string>
+    <string name="prayer_dhuhr">Öğle</string>
+    <string name="prayer_asr">İkindi</string>
+    <string name="prayer_maghrib">Akşam</string>
+    <string name="prayer_isha">Yatsı</string>
+    <string name="prayer_imsak_reminder">İmsağa</string>
+    <string name="prayer_dhuhr_reminder">Öğleye</string>
+    <string name="prayer_asr_reminder">İkindiye</string>
+    <string name="prayer_maghrib_reminder">Akşama</string>
+    <string name="prayer_isha_reminder">Yatsıya</string>
+    <string name="notification_cancel">Vazgeç</string>
+    <string name="notification_save">Kaydet</string>
+    <string-array name="notification_lead_choices">
+        <item>Kapalı</item>
+        <item>5 dk</item>
+        <item>10 dk</item>
+        <item>15 dk</item>
+        <item>30 dk</item>
+        <item>45 dk</item>
+    </string-array>
     <string name="refreshing">Vakitler yenileniyor…</string>
     <string name="refresh_success">Vakitler güncellendi</string>
     <string name="refresh_error">Vakitler güncellenemedi</string>
