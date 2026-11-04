@@ -2,6 +2,7 @@ package com.example.namazvakti.app
 
 import android.app.Application
 import com.example.namazvakti.data.local.PrayerTimesDatabase
+import com.example.namazvakti.data.local.PrayerNotificationSettingsStore
 import com.example.namazvakti.data.local.PrayerTimesStore
 import com.example.namazvakti.data.remote.PrayerTimesApi
 import com.example.namazvakti.data.repository.PrayerTimesRepository
@@ -27,6 +28,7 @@ class AppContainer(application: Application) {
         settings,
         cacheRetentionPolicy
     )
+    val notificationSettingsStore = PrayerNotificationSettingsStore(application)
     val api = PrayerTimesApi()
     val repository = PrayerTimesRepository(api, store, settings, timeProvider)
 }
