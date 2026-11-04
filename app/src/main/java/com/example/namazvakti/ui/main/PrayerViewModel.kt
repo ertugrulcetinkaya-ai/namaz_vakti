@@ -66,6 +66,10 @@ class PrayerViewModel @JvmOverloads constructor(
                     cachePolicy.isFresh(cache, location, settings, timeProvider.now())
                 )
             }
+            val tomorrowCache = readTomorrowCache(
+                snapshot.first,
+                timeProvider.today(snapshot.first.timezone)
+            )
             _notificationSettings.value = withContext(ioDispatcher) {
                 notificationSettingsStore.read()
             }
@@ -73,7 +77,8 @@ class PrayerViewModel @JvmOverloads constructor(
             _state.value = PrayerUiState.Ready(
                 location = snapshot.first,
                 freshness = if (snapshot.third) Freshness.Fresh else Freshness.Stale,
-                cache = snapshot.second
+                cache = snapshot.second,
+                tomorrowCache = tomorrowCache
             )
         } catch (e: CancellationException) {
             throw e
@@ -135,15 +140,25 @@ class PrayerViewModel @JvmOverloads constructor(
             return
         }
         val (location, cache) = snapshot
+        val today = timeProvider.today(location.timezone)
+        val tomorrowCache = readTomorrowCache(location, today)
         val currentFreshness = if (
             cachePolicy.isFresh(cache, location, settings, timeProvider.now())
         ) Freshness.Fresh else Freshness.Stale
         _state.value = PrayerUiState.Ready(
-            location, currentFreshness, OperationState.Refreshing, cache
+            location,
+            currentFreshness,
+            OperationState.Refreshing,
+            cache,
+            tomorrowCache = tomorrowCache
         )
         try {
             when (val result = withContext(ioDispatcher) { repository.refreshAndCache() }) {
                 is RefreshResult.Success -> {
+                    val tomorrowCache = readTomorrowCache(
+                        result.cache.location,
+                        result.cache.date
+                    )
                     widgetUpdater.updateAll()
                     scheduler.scheduleBoundary()
                     scheduler.scheduleNotifications()
@@ -153,17 +168,25 @@ class PrayerViewModel @JvmOverloads constructor(
                         OperationState.Refreshed,
                         result.cache,
                         result.origin,
-                        null
+                        null,
+                        tomorrowCache
                     )
                 }
-                is RefreshResult.StaleCache -> _state.value = PrayerUiState.Ready(
-                    result.cache.location,
-                    Freshness.Stale,
-                    OperationState.RefreshFailed,
-                    result.cache,
-                    null,
-                    result.error
-                )
+                is RefreshResult.StaleCache -> {
+                    val tomorrowCache = readTomorrowCache(
+                        result.cache.location,
+                        result.cache.date
+                    )
+                    _state.value = PrayerUiState.Ready(
+                        result.cache.location,
+                        Freshness.Stale,
+                        OperationState.RefreshFailed,
+                        result.cache,
+                        null,
+                        result.error,
+                        tomorrowCache
+                    )
+                }
                 is RefreshResult.Failure -> _state.value = PrayerUiState.Error(
                     location,
                     result.error
@@ -174,5 +197,18 @@ class PrayerViewModel @JvmOverloads constructor(
         } catch (e: Exception) {
             _state.value = PrayerUiState.Error(location, classifyPrayerError(e))
         }
+    }
+
+    private suspend fun readTomorrowCache(
+        location: PrayerLocation,
+        date: java.time.LocalDate
+    ) = try {
+        withContext(ioDispatcher) {
+            store.readCache(date.plusDays(1), location, settings)
+        }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        null
     }
 }

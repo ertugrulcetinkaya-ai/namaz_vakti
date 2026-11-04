@@ -60,6 +60,23 @@ class PrayerViewModelTest {
     }
 
     @Test
+    fun loadIncludesTomorrowCacheForCountdown() = runTest {
+        val store = FakeStore()
+        val today = LocalDate.now(PrayerTimeProvider.DEFAULT_ZONE)
+        val tomorrow = sampleCache(store.location, today.plusDays(1))
+        store.caches[tomorrow.date] = tomorrow
+        val viewModel = viewModel(
+            store,
+            FakeRepository(RefreshResult.Failure(Exception())),
+            CoroutineScope(StandardTestDispatcher(testScheduler))
+        )
+
+        advanceUntilIdle()
+
+        assertEquals(tomorrow, (viewModel.state.value as PrayerUiState.Ready).tomorrowCache)
+    }
+
+    @Test
     fun successfulRefreshReportsRefreshedFreshState() = runTest {
         val store = FakeStore()
         val cache = sampleCache(store.location)
@@ -177,8 +194,11 @@ class PrayerViewModelTest {
         PrayerCachePolicy(), notificationSettingsStore
     )
 
-    private fun sampleCache(location: PrayerLocation) = CachedPrayerDay(
-        LocalDate.now(), location, PrayerTimeProvider.DEFAULT_ZONE, PrayerCalculationSettings(),
+    private fun sampleCache(
+        location: PrayerLocation,
+        date: LocalDate = LocalDate.now(PrayerTimeProvider.DEFAULT_ZONE)
+    ) = CachedPrayerDay(
+        date, location, PrayerTimeProvider.DEFAULT_ZONE, PrayerCalculationSettings(),
         PrayerTimes(
             LocalTime.of(4, 12), LocalTime.of(5, 49), LocalTime.of(13, 8),
             LocalTime.of(17, 2), LocalTime.of(20, 21), LocalTime.of(22, 1)
@@ -188,8 +208,15 @@ class PrayerViewModelTest {
     private class FakeStore : PrayerPreferences {
         var location = PrayerLocation("Ankara", "Turkey", "ANKARA")
         var cache: CachedPrayerDay? = null
+        val caches = mutableMapOf<LocalDate, CachedPrayerDay>()
         var clearCalls = 0
         override suspend fun readCache() = cache
+        override suspend fun readCache(
+            date: LocalDate,
+            location: PrayerLocation,
+            settings: PrayerCalculationSettings
+        ) = caches[date]?.takeIf { it.matches(date, location, settings) }
+            ?: cache?.takeIf { it.matches(date, location, settings) }
         override suspend fun saveCache(cache: CachedPrayerDay) { this.cache = cache }
         override suspend fun readLocation() = location
         override suspend fun saveLocation(location: PrayerLocation) { this.location = location }

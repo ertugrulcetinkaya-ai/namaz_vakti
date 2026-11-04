@@ -49,22 +49,30 @@ data class PrayerTimes(
         }
     }
 
-    fun nextPrayerBoundary(now: LocalTime): PrayerBoundarySchedule? = when {
-        now < fajr -> PrayerBoundarySchedule("İmsak", fajr)
-        now < sunrise -> PrayerBoundarySchedule("Güneş", sunrise)
-        now < dhuhr -> PrayerBoundarySchedule("Öğle", dhuhr)
-        now < asr -> PrayerBoundarySchedule("İkindi", asr)
-        now < maghrib -> PrayerBoundarySchedule("Akşam", maghrib)
-        now < isha -> PrayerBoundarySchedule("Yatsı", isha)
-        else -> null
+    fun nextPrayerBoundary(now: LocalTime): PrayerBoundarySchedule? =
+        nextPrayerName(now)?.let { PrayerBoundarySchedule(it.displayName, timeAt(it)) }
+
+    fun currentPrayerName(now: LocalTime): PrayerTimeName =
+        prayerSchedule().lastOrNull { (_, time) -> now >= time }?.first ?: PrayerTimeName.ISHA
+
+    fun nextPrayerName(now: LocalTime): PrayerTimeName? =
+        prayerSchedule().firstOrNull { (_, time) -> now < time }?.first
+
+    fun timeAt(prayer: PrayerTimeName): LocalTime = when (prayer) {
+        PrayerTimeName.IMSAK -> fajr
+        PrayerTimeName.SUNRISE -> sunrise
+        PrayerTimeName.DHUHR -> dhuhr
+        PrayerTimeName.ASR -> asr
+        PrayerTimeName.MAGHRIB -> maghrib
+        PrayerTimeName.ISHA -> isha
     }
 
     fun toWidgetText(): String = displayItems().joinToString(" • ") { "${it.label} ${it.time.format(TIME_FORMATTER)}" }
 
     fun toHighlightedDisplayItems(now: LocalTime): List<PrayerDisplayItem> {
         val items = displayItems()
-        val activeIndex = currentPrayerIndex(now)
-        return items.mapIndexed { index, item -> item.copy(highlighted = index == activeIndex) }
+        val activePrayer = currentPrayerName(now)
+        return items.mapIndexed { index, item -> item.copy(highlighted = index == activePrayer.ordinal) }
     }
 
     private fun displayItems(): List<PrayerDisplayItem> = listOf(
@@ -76,18 +84,27 @@ data class PrayerTimes(
         PrayerDisplayItem("Yatsı", isha)
     )
 
-    private fun currentPrayerIndex(now: LocalTime): Int = when {
-        now >= fajr && now < sunrise -> 0
-        now >= sunrise && now < dhuhr -> 1
-        now >= dhuhr && now < asr -> 2
-        now >= asr && now < maghrib -> 3
-        now >= maghrib && now < isha -> 4
-        else -> 5
-    }
+    private fun prayerSchedule(): List<Pair<PrayerTimeName, LocalTime>> = listOf(
+        PrayerTimeName.IMSAK to fajr,
+        PrayerTimeName.SUNRISE to sunrise,
+        PrayerTimeName.DHUHR to dhuhr,
+        PrayerTimeName.ASR to asr,
+        PrayerTimeName.MAGHRIB to maghrib,
+        PrayerTimeName.ISHA to isha
+    )
 
     companion object {
         val TIME_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
     }
+}
+
+enum class PrayerTimeName(val displayName: String) {
+    IMSAK("İmsak"),
+    SUNRISE("Güneş"),
+    DHUHR("Öğle"),
+    ASR("İkindi"),
+    MAGHRIB("Akşam"),
+    ISHA("Yatsı")
 }
 
 data class PrayerDisplayItem(
