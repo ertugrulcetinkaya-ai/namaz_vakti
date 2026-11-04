@@ -143,7 +143,7 @@ dependencies {
     implementation("androidx.room:room-ktx:2.8.4")
     ksp("androidx.room:room-compiler:2.8.4")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
-    implementation("com.google.code.gson:gson:2.14.0")
+    implementation("com.google.code.gson:gson:2.15.0")
     implementation("com.squareup.okhttp3:okhttp:5.3.2")
     // Room 2.8.4 schema migration helpers require 1.8.1; align the older lifecycle transitive.
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
