@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -49,7 +50,7 @@ fun PrayerNotificationSettingsSheet(
 ) {
     var notificationsEnabled by remember(settings) { mutableStateOf(settings.notificationsEnabled) }
     var enabledPrayers by remember(settings) { mutableStateOf(settings.enabledPrayers) }
-    var leadMinutes by remember(settings) { mutableStateOf(settings.leadMinutes) }
+    var leadMinutes by remember(settings) { mutableIntStateOf(settings.leadMinutes) }
     var leadMenuExpanded by rememberSaveable { mutableStateOf(false) }
     val leadValues = listOf(0, 5, 10, 15, 30, 45)
     val leadLabels = stringArrayResource(R.array.notification_lead_choices)

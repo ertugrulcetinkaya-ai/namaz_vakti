@@ -208,6 +208,7 @@ private fun ExactAlarmWarning(onRequestExactAlarm: () -> Unit) {
 @Composable
 private fun NextPrayerCard(countdown: PrayerCountdown?) {
     val context = LocalContext.current
+    val unknownCountdownAccessibility = stringResource(R.string.prayer_countdown_unknown_accessibility)
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
@@ -234,7 +235,7 @@ private fun NextPrayerCard(countdown: PrayerCountdown?) {
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
                 Text(
-                    text = countdown.remaining.formatCountdown(context, includeDays = true),
+                    text = countdown.remaining.formatCountdown(includeDays = true),
                     modifier = Modifier.clearAndSetSemantics {
                         contentDescription = countdown.accessibilityDescription(context, prayerLabel)
                     },
@@ -259,7 +260,7 @@ private fun NextPrayerCard(countdown: PrayerCountdown?) {
                 Text(
                     text = stringResource(R.string.prayer_countdown_unknown_accessibility),
                     modifier = Modifier.clearAndSetSemantics {
-                        contentDescription = context.getString(R.string.prayer_countdown_unknown_accessibility)
+                        contentDescription = unknownCountdownAccessibility
                     },
                     style = MaterialTheme.typography.bodySmall
                 )
@@ -411,20 +412,27 @@ private fun PrayerTimeName.stringId(): Int = when (this) {
     PrayerTimeName.ISHA -> R.string.prayer_isha
 }
 
-private fun Duration.formatCountdown(context: android.content.Context, includeDays: Boolean): String {
+@Composable
+private fun Duration.formatCountdown(includeDays: Boolean): String {
     val totalSeconds = seconds.coerceAtLeast(0)
     val days = totalSeconds / SECONDS_PER_DAY
     val hours = totalSeconds % SECONDS_PER_DAY / SECONDS_PER_HOUR
     val minutes = totalSeconds % SECONDS_PER_HOUR / SECONDS_PER_MINUTE
     val seconds = totalSeconds % SECONDS_PER_MINUTE
     return if (includeDays && days > 0) {
-        context.getString(R.string.prayer_countdown_display_days, days, hours, minutes, seconds)
+        stringResource(
+            R.string.prayer_countdown_display_days,
+            days.toInt(),
+            hours.toInt(),
+            minutes.toInt(),
+            seconds.toInt()
+        )
     } else {
-        context.getString(
+        stringResource(
             R.string.prayer_countdown_display,
-            days * HOURS_PER_DAY + hours,
-            minutes,
-            seconds
+            (days * HOURS_PER_DAY + hours).toInt(),
+            minutes.toInt(),
+            seconds.toInt()
         )
     }
 }
