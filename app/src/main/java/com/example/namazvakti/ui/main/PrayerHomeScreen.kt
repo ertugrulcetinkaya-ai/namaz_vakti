@@ -6,9 +6,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,7 +21,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -33,7 +37,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -79,6 +85,7 @@ fun PrayerHomeScreen(
             now = localNow
         )
     }
+    val isTomorrow = countdown?.nextPrayerAt?.toLocalDate()?.isAfter(localNow.toLocalDate()) == true
 
     Scaffold(
         topBar = {
@@ -96,7 +103,7 @@ fun PrayerHomeScreen(
                         enabled = ready != null
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Settings,
+                            painter = painterResource(R.drawable.ic_notifications_24),
                             contentDescription = stringResource(R.string.notification_settings_open)
                         )
                     }
@@ -109,22 +116,29 @@ fun PrayerHomeScreen(
             onRefresh = onRefresh,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .padding(top = innerPadding.calculateTopPadding())
         ) {
+            val layoutDirection = LocalLayoutDirection.current
+            val navigationBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                contentPadding = PaddingValues(
+                    start = 20.dp + innerPadding.calculateStartPadding(layoutDirection),
+                    top = 8.dp,
+                    end = 20.dp + innerPadding.calculateEndPadding(layoutDirection),
+                    bottom = 8.dp + innerPadding.calculateBottomPadding() + navigationBarPadding
+                ),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 item {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         OutlinedButton(
                             onClick = onOpenCities,
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                         ) {
                             Text(
                                 text = location?.displayCity ?: stringResource(R.string.home_city_hint),
-                                style = MaterialTheme.typography.titleLarge,
+                                style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
                             Icon(
@@ -134,12 +148,12 @@ fun PrayerHomeScreen(
                         }
                         Text(
                             text = today.format(TURKISH_DATE_FORMATTER),
-                            style = MaterialTheme.typography.titleMedium
+                            style = MaterialTheme.typography.bodyLarge
                         )
                         todayCache?.hijriText?.takeIf(String::isNotBlank)?.let { hijri ->
                             Text(
                                 text = hijri,
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -147,7 +161,7 @@ fun PrayerHomeScreen(
                 }
 
                 item {
-                    NextPrayerCard(countdown = countdown)
+                    NextPrayerCard(countdown = countdown, isTomorrow = isTomorrow)
                 }
 
                 item {
@@ -206,7 +220,7 @@ private fun ExactAlarmWarning(onRequestExactAlarm: () -> Unit) {
 }
 
 @Composable
-private fun NextPrayerCard(countdown: PrayerCountdown?) {
+private fun NextPrayerCard(countdown: PrayerCountdown?, isTomorrow: Boolean) {
     val context = LocalContext.current
     val unknownCountdownAccessibility = stringResource(R.string.prayer_countdown_unknown_accessibility)
     Card(
@@ -214,32 +228,33 @@ private fun NextPrayerCard(countdown: PrayerCountdown?) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
     ) {
         Column(
-            modifier = Modifier.padding(22.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
                 text = stringResource(R.string.next_prayer_title),
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
             if (countdown?.nextPrayer != null && countdown.nextPrayerAt != null && countdown.remaining != null) {
                 val prayerLabel = stringResource(countdown.nextPrayer.stringId())
+                val prayerTime = countdown.nextPrayerAt.format(PrayerTimes.TIME_FORMATTER)
                 Text(
-                    text = stringResource(
-                        R.string.prayer_time_with_time,
-                        prayerLabel,
-                        countdown.nextPrayerAt.format(PrayerTimes.TIME_FORMATTER)
-                    ),
-                    style = MaterialTheme.typography.headlineSmall,
+                    text = if (isTomorrow) {
+                        stringResource(R.string.tomorrow_prayer_time_with_time, prayerLabel, prayerTime)
+                    } else {
+                        stringResource(R.string.prayer_time_with_time, prayerLabel, prayerTime)
+                    },
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
                 Text(
                     text = countdown.remaining.formatCountdown(includeDays = true),
                     modifier = Modifier.clearAndSetSemantics {
-                        contentDescription = countdown.accessibilityDescription(context, prayerLabel)
+                        contentDescription = countdown.accessibilityDescription(context, prayerLabel, isTomorrow)
                     },
-                    style = MaterialTheme.typography.headlineMedium.copy(
+                    style = MaterialTheme.typography.titleLarge.copy(
                         fontFeatureSettings = "'tnum'"
                     ),
                     fontWeight = FontWeight.SemiBold,
@@ -270,7 +285,7 @@ private fun NextPrayerCard(countdown: PrayerCountdown?) {
                 text = countdown?.let {
                     stringResource(R.string.current_prayer_value, stringResource(it.activePrayer.stringId()))
                 } ?: stringResource(R.string.next_prayer_unknown),
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
@@ -296,7 +311,7 @@ private fun PrayerTimeRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 16.dp),
+                .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -327,12 +342,14 @@ private fun PrayerTimeRow(
 @Composable
 private fun CacheFooter(state: PrayerUiState.Ready, cache: CachedPrayerDay) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        val offlineCache = state.operation == OperationState.Refreshed &&
+            state.refreshOrigin == com.example.namazvakti.domain.model.RefreshOrigin.LOCAL_CACHE
+        val staleOrFailed = state.operation == OperationState.RefreshFailed || state.freshness == Freshness.Stale
         val status = when {
             state.operation == OperationState.Refreshing -> stringResource(R.string.refreshing)
-            state.operation == OperationState.Refreshed && state.refreshOrigin == com.example.namazvakti.domain.model.RefreshOrigin.LOCAL_CACHE ->
-                stringResource(R.string.offline_data)
-            state.operation == OperationState.RefreshFailed || state.freshness == Freshness.Stale ->
+            staleOrFailed ->
                 stringResource(R.string.stale_data)
+            offlineCache -> stringResource(R.string.offline_data)
             state.operation == OperationState.Refreshed -> stringResource(R.string.refresh_success)
             else -> null
         }
@@ -340,7 +357,12 @@ private fun CacheFooter(state: PrayerUiState.Ready, cache: CachedPrayerDay) {
             Text(
                 text = it,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error
+                color = when {
+                    state.operation == OperationState.Refreshing -> MaterialTheme.colorScheme.onSurfaceVariant
+                    staleOrFailed -> MaterialTheme.colorScheme.error
+                    offlineCache -> MaterialTheme.colorScheme.tertiary
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                }
             )
         }
         val school = if (cache.settings.school == 1) {
@@ -439,7 +461,8 @@ private fun Duration.formatCountdown(includeDays: Boolean): String {
 
 private fun PrayerCountdown.accessibilityDescription(
     context: android.content.Context,
-    prayerLabel: String
+    prayerLabel: String,
+    isTomorrow: Boolean
 ): String {
     val duration = remaining ?: return context.getString(R.string.prayer_countdown_unknown_accessibility)
     val totalSeconds = duration.seconds.coerceAtLeast(0)
@@ -458,7 +481,12 @@ private fun PrayerCountdown.accessibilityDescription(
     } else {
         R.string.prayer_countdown_accessibility_minutes
     }
-    return context.getString(description, prayerLabel, durationText)
+    val accessiblePrayerLabel = if (isTomorrow) {
+        context.getString(R.string.tomorrow_prayer_accessibility_label, prayerLabel)
+    } else {
+        prayerLabel
+    }
+    return context.getString(description, accessiblePrayerLabel, durationText)
 }
 
 private val TURKISH_DATE_FORMATTER: DateTimeFormatter =

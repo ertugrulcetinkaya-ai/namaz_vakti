@@ -55,6 +55,8 @@
     <string name="home_city_hint">Şehir</string>
     <string name="next_prayer_title">Sıradaki vakit</string>
     <string name="prayer_time_with_time">%1$s %2$s</string>
+    <string name="tomorrow_prayer_time_with_time">Yarın %1$s %2$s</string>
+    <string name="tomorrow_prayer_accessibility_label">Yarın %1$s</string>
     <string name="current_prayer_value">Şu an: %1$s vakti</string>
     <string name="next_prayer_unknown">Sıradaki vakit henüz bilinmiyor</string>
     <string name="tomorrow_times_loading">Yarının vakitleri alınıyor.</string>
