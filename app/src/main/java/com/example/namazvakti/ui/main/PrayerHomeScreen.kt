@@ -33,7 +33,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -148,10 +147,7 @@ fun PrayerHomeScreen(
                 }
 
                 item {
-                    NextPrayerCard(
-                        countdown = countdown,
-                        localNow = localNow
-                    )
+                    NextPrayerCard(countdown = countdown)
                 }
 
                 item {
@@ -210,7 +206,7 @@ private fun ExactAlarmWarning(onRequestExactAlarm: () -> Unit) {
 }
 
 @Composable
-private fun NextPrayerCard(countdown: PrayerCountdown?, localNow: ZonedDateTime) {
+private fun NextPrayerCard(countdown: PrayerCountdown?) {
     val context = LocalContext.current
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -351,9 +347,15 @@ private fun CacheFooter(state: PrayerUiState.Ready, cache: CachedPrayerDay) {
         } else {
             stringResource(R.string.school_standard)
         }
+        val source = when (cache.source) {
+            com.example.namazvakti.domain.model.PrayerDataSource.ALADHAN ->
+                stringResource(R.string.prayer_source_aladhan)
+            com.example.namazvakti.domain.model.PrayerDataSource.LEGACY_CACHE ->
+                stringResource(R.string.prayer_source_legacy_cache)
+        }
         val metadata = stringResource(
             R.string.cache_metadata,
-            cache.source.displayName,
+            source,
             cache.settings.method,
             school,
             cache.fetchedAt.atZone(cache.timezone).format(METADATA_TIME_FORMATTER)
@@ -432,7 +434,8 @@ private fun PrayerCountdown.accessibilityDescription(
     prayerLabel: String
 ): String {
     val duration = remaining ?: return context.getString(R.string.prayer_countdown_unknown_accessibility)
-    val totalMinutes = duration.seconds.coerceAtLeast(0) / SECONDS_PER_MINUTE
+    val totalSeconds = duration.seconds.coerceAtLeast(0)
+    val totalMinutes = (totalSeconds + SECONDS_PER_MINUTE - 1) / SECONDS_PER_MINUTE
     val hours = totalMinutes / 60
     val minutes = totalMinutes % 60
     val durationText = if (hours > 0) {

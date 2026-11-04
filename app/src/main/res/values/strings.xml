@@ -71,6 +71,8 @@
     <string name="prayer_countdown_accessibility_minutes">%1$s vaktine %2$s kaldı</string>
     <string name="prayer_countdown_accessibility_now">%1$s vakti başladı</string>
     <string name="prayer_countdown_duration_hours">%1$s %2$s</string>
+    <string name="prayer_source_aladhan">AlAdhan</string>
+    <string name="prayer_source_legacy_cache">Eski yerel önbellek</string>
     <string name="active_prayer">Aktif vakit</string>
     <string name="city_selection_title">Şehir seçin</string>
     <string name="back">Geri</string>

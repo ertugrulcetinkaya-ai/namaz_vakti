@@ -135,9 +135,9 @@ data class CachedPrayerDay(
         this.settings == settings
 }
 
-enum class PrayerDataSource(val displayName: String) {
-    ALADHAN("AlAdhan"),
-    LEGACY_CACHE("Eski yerel önbellek")
+enum class PrayerDataSource {
+    ALADHAN,
+    LEGACY_CACHE
 }
 
 data class PrayerBoundarySchedule(
