@@ -11,3 +11,7 @@
 -keep class com.example.namazvakti.widget.worker.PrayerWidgetWorker {
     <init>(android.content.Context, androidx.work.WorkerParameters);
 }
+
+-keep class com.example.namazvakti.notification.PrayerNotificationReceiver {
+    <init>();
+}
