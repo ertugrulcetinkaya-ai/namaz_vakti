@@ -1,9 +1,14 @@
 package com.example.namazvakti.ui.main
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import com.example.namazvakti.R
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.PrayerError
 import com.example.namazvakti.domain.model.PrayerLocationConfig
+import com.example.namazvakti.domain.model.PrayerNotificationPrayer
+import com.example.namazvakti.domain.model.PrayerNotificationSettings
 import com.example.namazvakti.domain.model.RefreshOrigin
 import com.example.namazvakti.widget.alarm.PrayerWidgetScheduler
 import android.os.Bundle
@@ -13,13 +18,23 @@ import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.ArrayAdapter
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ListView
+import android.widget.ScrollView
+import android.widget.Spinner
 import android.widget.TextView
+import android.widget.Toast
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SwitchCompat
+import androidx.core.content.ContextCompat
 import androidx.core.view.setPadding
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -30,6 +45,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.time.format.DateTimeFormatter
+import com.example.namazvakti.notification.PrayerNotificationScheduler
 
 class MainActivity : AppCompatActivity() {
     private val viewModel: PrayerViewModel by viewModels()
@@ -39,12 +55,37 @@ class MainActivity : AppCompatActivity() {
     private lateinit var refreshButton: Button
     private lateinit var exactAlarmInfo: TextView
     private lateinit var exactAlarmButton: Button
+    private lateinit var notificationSettingsButton: Button
     private lateinit var listView: ListView
     private lateinit var exactAlarmController: PrayerExactAlarmController
+    private lateinit var notificationPermissionLauncher: ActivityResultLauncher<String>
+    private var notificationDialog: AlertDialog? = null
+    private var notificationDialogSwitch: SwitchCompat? = null
+    private var notificationDialogControls: List<View> = emptyList()
+    private var pendingNotificationSettings: PrayerNotificationSettings? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        notificationPermissionLauncher = registerForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) { granted ->
+            val pending = pendingNotificationSettings ?: return@registerForActivityResult
+            pendingNotificationSettings = null
+            if (granted) {
+                viewModel.updateNotificationSettings(pending)
+                notificationDialog?.dismiss()
+            } else {
+                viewModel.updateNotificationSettings(pending.copy(notificationsEnabled = false))
+                notificationDialogSwitch?.isChecked = false
+                setNotificationControlsEnabled(false)
+                Toast.makeText(
+                    this,
+                    R.string.notification_prayer_permission_denied,
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
 
         val padding = resources.getDimensionPixelSize(R.dimen.screen_padding)
         val root = LinearLayout(this).apply {
@@ -88,6 +129,11 @@ class MainActivity : AppCompatActivity() {
             text = getString(R.string.enable_precise_widget_updates)
             setOnClickListener { exactAlarmController.requestAccess() }
         }
+        notificationSettingsButton = Button(this).apply {
+            text = getString(R.string.notification_settings)
+            isEnabled = false
+            setOnClickListener { showNotificationSettings() }
+        }
         exactAlarmController = PrayerExactAlarmController(this)
         listView = ListView(this).apply {
             choiceMode = ListView.CHOICE_MODE_SINGLE
@@ -111,6 +157,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(refreshButton)
         root.addView(exactAlarmInfo)
         root.addView(exactAlarmButton)
+        root.addView(notificationSettingsButton)
         root.addView(listView, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
         ))
@@ -118,7 +165,16 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.state.collect { renderState(it) }
+                launch { viewModel.state.collect { renderState(it) } }
+                launch {
+                    viewModel.notificationSettingsError.collect { failed ->
+                        if (failed) Toast.makeText(
+                            this@MainActivity,
+                            R.string.storage_error,
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
             }
         }
     }
@@ -129,6 +185,7 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(applicationContext)
+                PrayerNotificationScheduler.scheduleNext(applicationContext)
             } catch (exception: CancellationException) {
                 throw exception
             } catch (exception: Exception) {
@@ -137,6 +194,104 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun showNotificationSettings() {
+        val current = viewModel.notificationSettings.value
+        val padding = resources.getDimensionPixelSize(R.dimen.screen_padding)
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(padding)
+        }
+        val enabledSwitch = SwitchCompat(this).apply {
+            text = getString(R.string.notifications_enabled)
+            isChecked = current.notificationsEnabled
+        }
+        notificationDialogSwitch = enabledSwitch
+        content.addView(enabledSwitch)
+
+        val checkboxes = PrayerNotificationPrayer.entries.associateWith { prayer ->
+            CheckBox(this).apply {
+                text = prayerLabel(prayer)
+                isChecked = prayer in current.enabledPrayers
+            }.also(content::addView)
+        }
+        val leadLabel = TextView(this).apply {
+            text = getString(R.string.notification_lead_time)
+            setPadding(0, padding / 2, 0, 0)
+        }
+        content.addView(leadLabel)
+        val leadValues = listOf(0, 5, 10, 15, 30, 45)
+        val leadSpinner = Spinner(this).apply {
+            adapter = ArrayAdapter.createFromResource(
+                this@MainActivity,
+                R.array.notification_lead_choices,
+                android.R.layout.simple_spinner_item
+            ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+            setSelection(leadValues.indexOf(current.leadMinutes).coerceAtLeast(0))
+        }
+        content.addView(leadSpinner)
+
+        notificationDialogControls = checkboxes.values.toList() + listOf(leadLabel, leadSpinner)
+        setNotificationControlsEnabled(current.notificationsEnabled)
+        enabledSwitch.setOnCheckedChangeListener { _, enabled ->
+            setNotificationControlsEnabled(enabled)
+        }
+
+        val scroll = ScrollView(this).apply { addView(content) }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.notification_settings_title)
+            .setView(scroll)
+            .setNegativeButton(R.string.notification_cancel, null)
+            .setPositiveButton(R.string.notification_save, null)
+            .create()
+        notificationDialog = dialog
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val updated = PrayerNotificationSettings(
+                    notificationsEnabled = enabledSwitch.isChecked,
+                    enabledPrayers = checkboxes.filterValues { it.isChecked }.keys,
+                    leadMinutes = leadValues[leadSpinner.selectedItemPosition]
+                )
+                saveNotificationSettings(updated)
+            }
+        }
+        dialog.setOnDismissListener {
+            if (notificationDialog === dialog) {
+                notificationDialog = null
+                notificationDialogSwitch = null
+                notificationDialogControls = emptyList()
+            }
+        }
+        dialog.show()
+    }
+
+    private fun saveNotificationSettings(settings: PrayerNotificationSettings) {
+        if (settings.notificationsEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            pendingNotificationSettings = settings
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            return
+        }
+        viewModel.updateNotificationSettings(settings)
+        notificationDialog?.dismiss()
+    }
+
+    private fun setNotificationControlsEnabled(enabled: Boolean) {
+        notificationDialogControls.forEach { it.isEnabled = enabled }
+    }
+
+    private fun prayerLabel(prayer: PrayerNotificationPrayer): String = getString(
+        when (prayer) {
+            PrayerNotificationPrayer.IMSAK -> R.string.prayer_imsak
+            PrayerNotificationPrayer.SUNRISE -> R.string.prayer_sunrise
+            PrayerNotificationPrayer.DHUHR -> R.string.prayer_dhuhr
+            PrayerNotificationPrayer.ASR -> R.string.prayer_asr
+            PrayerNotificationPrayer.MAGHRIB -> R.string.prayer_maghrib
+            PrayerNotificationPrayer.ISHA -> R.string.prayer_isha
+        }
+    )
+
     private fun renderState(state: PrayerUiState) {
         when (state) {
             PrayerUiState.Loading -> {
@@ -144,6 +299,7 @@ class MainActivity : AppCompatActivity() {
                 refreshButton.isEnabled = false
             }
             is PrayerUiState.Ready -> {
+                notificationSettingsButton.isEnabled = true
                 val base = getString(R.string.current_city, state.location.displayCity)
                 val stateText = when (state.operation) {
                     OperationState.Refreshing -> "$base — ${getString(R.string.refreshing)}"
@@ -178,6 +334,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             is PrayerUiState.Error -> {
+                notificationSettingsButton.isEnabled = false
                 status.text = when (state.error) {
                     PrayerError.Network -> getString(R.string.network_error)
                     is PrayerError.Service -> getString(R.string.service_error)

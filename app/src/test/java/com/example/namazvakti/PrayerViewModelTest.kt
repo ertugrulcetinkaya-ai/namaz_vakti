@@ -1,11 +1,13 @@
 package com.example.namazvakti
 
 import com.example.namazvakti.data.local.PrayerPreferences
+import com.example.namazvakti.data.local.PrayerNotificationSettingsSource
 import com.example.namazvakti.domain.model.CachedPrayerDay
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.PrayerError
 import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.PrayerLocationConfig
+import com.example.namazvakti.domain.model.PrayerNotificationSettings
 import com.example.namazvakti.domain.model.PrayerTimeProvider
 import com.example.namazvakti.domain.model.PrayerTimes
 import com.example.namazvakti.domain.model.RefreshOrigin
@@ -17,6 +19,7 @@ import com.example.namazvakti.ui.main.Freshness
 import com.example.namazvakti.ui.main.OperationState
 import com.example.namazvakti.ui.main.PrayerUiState
 import com.example.namazvakti.ui.main.PrayerViewModel
+import com.example.namazvakti.domain.policy.PrayerCachePolicy
 import android.app.Application
 import android.content.Context
 import kotlinx.coroutines.CoroutineDispatcher
@@ -27,6 +30,9 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -136,10 +142,39 @@ class PrayerViewModelTest {
         assertEquals(newLocation, (viewModel.state.value as PrayerUiState.Ready).location)
     }
 
-    private fun viewModel(store: FakeStore, repository: PrayerRefreshRepository, scope: CoroutineScope) = PrayerViewModel(
-        Application(), store, repository, FakeScheduler(), FakeWidgetUpdater(),
+    @Test
+    fun savingNotificationSettingsUpdatesStateAndSchedulesNotifications() = runTest {
+        val source = FakeNotificationSettingsStore()
+        val scheduler = FakeScheduler()
+        val viewModel = viewModel(
+            FakeStore(),
+            FakeRepository(RefreshResult.Failure(Exception())),
+            CoroutineScope(StandardTestDispatcher(testScheduler)),
+            source,
+            scheduler
+        )
+        advanceUntilIdle()
+        val settings = PrayerNotificationSettings(notificationsEnabled = true, leadMinutes = 10)
+
+        viewModel.updateNotificationSettings(settings)
+        advanceUntilIdle()
+
+        assertEquals(settings, source.read())
+        assertEquals(settings, viewModel.notificationSettings.value)
+        assertTrue(scheduler.notificationSchedules >= 2)
+    }
+
+    private fun viewModel(
+        store: FakeStore,
+        repository: PrayerRefreshRepository,
+        scope: CoroutineScope,
+        notificationSettingsStore: FakeNotificationSettingsStore = FakeNotificationSettingsStore(),
+        scheduler: FakeScheduler = FakeScheduler()
+    ) = PrayerViewModel(
+        Application(), store, repository, scheduler, FakeWidgetUpdater(),
         PrayerTimeProvider(), PrayerCalculationSettings(), scope,
-        scope.coroutineContext[ContinuationInterceptor] as CoroutineDispatcher
+        scope.coroutineContext[ContinuationInterceptor] as CoroutineDispatcher,
+        PrayerCachePolicy(), notificationSettingsStore
     )
 
     private fun sampleCache(location: PrayerLocation) = CachedPrayerDay(
@@ -189,8 +224,17 @@ class PrayerViewModelTest {
     }
 
     private class FakeScheduler : PrayerRefreshScheduler {
+        var notificationSchedules = 0
         override suspend fun enqueueRefresh(force: Boolean) = Unit
         override suspend fun scheduleBoundary() = Unit
+        override suspend fun scheduleNotifications() { notificationSchedules += 1 }
+    }
+
+    private class FakeNotificationSettingsStore : PrayerNotificationSettingsSource {
+        private val state = MutableStateFlow(PrayerNotificationSettings())
+        override val settings: Flow<PrayerNotificationSettings> = state
+        override suspend fun read() = state.first()
+        override suspend fun save(settings: PrayerNotificationSettings) { state.value = settings }
     }
 
     private class FakeWidgetUpdater : PrayerWidgetUpdatePort {

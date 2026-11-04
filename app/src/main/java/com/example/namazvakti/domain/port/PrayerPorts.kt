@@ -9,6 +9,7 @@ interface PrayerRefreshRepository {
 interface PrayerRefreshScheduler {
     suspend fun enqueueRefresh(force: Boolean)
     suspend fun scheduleBoundary()
+    suspend fun scheduleNotifications()
 }
 
 interface PrayerWidgetUpdatePort {

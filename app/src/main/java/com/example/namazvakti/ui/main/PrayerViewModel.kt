@@ -3,9 +3,11 @@ package com.example.namazvakti.ui.main
 import android.app.Application
 import com.example.namazvakti.app.NamazVaktiApp
 import com.example.namazvakti.data.local.PrayerPreferences
+import com.example.namazvakti.data.local.PrayerNotificationSettingsSource
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.PrayerLocationConfig
+import com.example.namazvakti.domain.model.PrayerNotificationSettings
 import com.example.namazvakti.domain.model.PrayerTimeProvider
 import com.example.namazvakti.domain.model.RefreshResult
 import com.example.namazvakti.domain.model.classifyPrayerError
@@ -39,10 +41,16 @@ class PrayerViewModel @JvmOverloads constructor(
     private val settings: PrayerCalculationSettings = (application as NamazVaktiApp).container.settings,
     private val testScope: CoroutineScope? = null,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    private val cachePolicy: PrayerCachePolicy = PrayerCachePolicy()
+    private val cachePolicy: PrayerCachePolicy = PrayerCachePolicy(),
+    private val notificationSettingsStore: PrayerNotificationSettingsSource =
+        (application as NamazVaktiApp).container.notificationSettingsStore
 ) : AndroidViewModel(application) {
     private val _state = MutableStateFlow<PrayerUiState>(PrayerUiState.Loading)
     val state: StateFlow<PrayerUiState> = _state.asStateFlow()
+    private val _notificationSettings = MutableStateFlow(PrayerNotificationSettings())
+    val notificationSettings: StateFlow<PrayerNotificationSettings> = _notificationSettings.asStateFlow()
+    private val _notificationSettingsError = MutableStateFlow(false)
+    val notificationSettingsError: StateFlow<Boolean> = _notificationSettingsError.asStateFlow()
     private var actionJob: Job? = null
 
     init { load() }
@@ -58,6 +66,10 @@ class PrayerViewModel @JvmOverloads constructor(
                     cachePolicy.isFresh(cache, location, settings, timeProvider.now())
                 )
             }
+            _notificationSettings.value = withContext(ioDispatcher) {
+                notificationSettingsStore.read()
+            }
+            scheduler.scheduleNotifications()
             _state.value = PrayerUiState.Ready(
                 location = snapshot.first,
                 freshness = if (snapshot.third) Freshness.Fresh else Freshness.Stale,
@@ -72,6 +84,19 @@ class PrayerViewModel @JvmOverloads constructor(
 
     fun refresh() = launchLatest { refreshInternal() }
 
+    fun updateNotificationSettings(settings: PrayerNotificationSettings) = launchLatest {
+        try {
+            withContext(ioDispatcher) { notificationSettingsStore.save(settings) }
+            _notificationSettings.value = settings
+            _notificationSettingsError.value = false
+            scheduler.scheduleNotifications()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            _notificationSettingsError.value = true
+        }
+    }
+
     fun selectCity(option: PrayerLocationConfig.CityOption) = launchLatest {
         try {
             val location = PrayerLocation(
@@ -84,6 +109,7 @@ class PrayerViewModel @JvmOverloads constructor(
             withContext(ioDispatcher) {
                 store.saveLocation(location)
             }
+            scheduler.scheduleNotifications()
             refreshInternal()
         } catch (e: CancellationException) {
             throw e
@@ -120,6 +146,7 @@ class PrayerViewModel @JvmOverloads constructor(
                 is RefreshResult.Success -> {
                     widgetUpdater.updateAll()
                     scheduler.scheduleBoundary()
+                    scheduler.scheduleNotifications()
                     _state.value = PrayerUiState.Ready(
                         result.cache.location,
                         Freshness.Fresh,
