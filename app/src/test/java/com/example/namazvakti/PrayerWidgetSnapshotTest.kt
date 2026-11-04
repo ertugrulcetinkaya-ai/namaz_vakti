@@ -19,7 +19,7 @@ import org.junit.Test
 
 class PrayerWidgetSnapshotTest {
     @Test
-    fun loadsOneConsistentSnapshotWithOneLocationAndCacheRead() =
+    fun loadsOneConsistentSnapshotWithTodayAndTomorrowCacheLookups() =
         kotlinx.coroutines.test.runTest {
             val location = PrayerLocation("Ankara", "Turkey", "ANKARA")
             val cache = CachedPrayerDay(
@@ -47,8 +47,10 @@ class PrayerWidgetSnapshotTest {
             val snapshot = source.load()
 
             assertEquals(1, store.readLocationCalls)
-            assertEquals(1, store.readCacheCalls)
+            assertEquals(0, store.readCacheCalls)
+            assertEquals(2, store.readCacheForDateCalls)
             assertEquals(cache, snapshot.cache)
+            assertEquals(null, snapshot.tomorrowCache)
             assertEquals(PrayerWidgetDataState.Fresh, snapshot.dataState)
         }
 
@@ -58,10 +60,20 @@ class PrayerWidgetSnapshotTest {
     ) : PrayerPreferences {
         var readLocationCalls = 0
         var readCacheCalls = 0
+        var readCacheForDateCalls = 0
 
         override suspend fun readCache(): CachedPrayerDay? {
             readCacheCalls += 1
             return cache
+        }
+
+        override suspend fun readCache(
+            date: LocalDate,
+            location: PrayerLocation,
+            settings: PrayerCalculationSettings
+        ): CachedPrayerDay? {
+            readCacheForDateCalls += 1
+            return cache.takeIf { it.date == date && it.matches(date, location, settings) }
         }
 
         override suspend fun saveCache(cache: CachedPrayerDay) = Unit

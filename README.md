@@ -17,7 +17,9 @@ Namaz Vakti, Türkiye'deki şehirler için günlük namaz vakitlerini gösteren 
 - Ayın son yedi gününde sonraki ayı otomatik önceden indirme; aylık tablo aylarını isteğe bağlı indirme
 - Veri kaynağı, hesaplama yöntemi ve son güncelleme bilgisini gösterme
 - Kaynak, yöntem, güncellik ve hata durumlarını gösteren Compose arayüzü
-- Aktif vakti vurgulayan, stale veriyi belirten ana ekran widget'ı
+- 2×1, 4×1 ve 4×2+ boyutlarında, aktif vakti işaretleyen ana ekran widget'ı
+- Sıradaki vakti `Chronometer` ile canlı gösteren widget; uygulama saniyede bir çalışmaz
+- Android 12+ responsive `RemoteViews`, dinamik sistem renkleri ve sistem köşe yarıçapları
 - Vakit sınırlarında ve sistem saati değişikliklerinde otomatik widget güncellemesi
 - İsteğe bağlı, vakit başına açılabilen namaz vakti bildirimleri ve önceden hatırlatma
 - CI doğrulaması ve imzalı beta artifact üretimi
@@ -33,6 +35,12 @@ Kod sınırları paketlerle görünür hale getirilmiştir:
 - `widget/alarm`, `widget/renderer`, `widget/worker`: alarm/scheduler, `RemoteViews` render'ı ve WorkManager
 
 `PrayerTimesRepository` aylık API sonucunu doğrular, isteğe bağlı ay indirmelerini ve sonraki ay ön-getirmesini koordine eder. Hicri Ramazan aralıklarında resmi Diyanet kayıtları AlAdhan `hToGCalendar` tahminlerinin önüne geçer. `PrayerTimesStore` konumu DataStore'da, günlük vakitleri ve sayısal hicri alanları Room'da `konum + tarih + yöntem + mezhep` anahtarıyla saklar. Room sürüm 1'den 2'ye açık migration kullanır; namaz veri sürümü 3 olduğundan eski hesaplama ve hicri metin cache'leri ilk kullanımda bir kez silinir. `PrayerCachePolicy` timezone duyarlı cache güncelliğinin tek karar noktasıdır.
+
+## Ana ekran widget'ı
+
+Widget 2×1 boyutta sıradaki vakit ve geri sayımı, 4×1 boyutta şehir/hicri tarih ile altı vakitlik ızgarayı, 4×2 ve daha büyük boyutlarda miladi/hicri tarih, belirgin geri sayım ve vakit ızgarasını gösterir. Ramazan günlerinde büyük boyuta Diyanet takvim aralığından iftar veya sahur bilgisi eklenir. Tüm boyutlar uygulamayı açar.
+
+Geri sayım `RemoteViews` içindeki Android `Chronometer` ile çalışır; ana uygulama her saniye uyanmaz. Vakit sınırlarında mevcut alarm widget'ı yeniden çizer. Yarın önbellekte yoksa yatsı sonrasında geri sayım gösterilmez; eski veride de geri sayım kapalı kalır. Android 12+ boyuta göre responsive `RemoteViews` ve sistem dinamik renklerini kullanır. Android 8–11 boyut seçimini widget seçeneklerinden, renkleri uygulamanın yeşil temasından alır.
 
 ## Gereksinimler
 
@@ -77,7 +85,7 @@ Gradle Managed Device emulator'ında CI ile aynı instrumented testleri çalış
 ./gradlew --dependency-verification=strict pixel2api35MinifiedAndroidTest -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect
 ```
 
-Managed-device testleri debug keystore ile imzalanan, R8/resource shrinking etkin `minified` varyantında çalışır. Böylece legacy Gson cache migration'ı ve widget reflection yolları küçültülmüş runtime üzerinde de doğrulanır. Instrumentation testleri fresh, stale ve cache bulunmayan widget durumlarını kontrol eder. Render smoke testi ise gerçek `RemoteViews` ağacını inflate eder, ölçer ve bitmap üzerine çizerek görünümün cihazda oluşturulabildiğini doğrular.
+Managed-device testleri debug keystore ile imzalanan, R8/resource shrinking etkin `minified` varyantında çalışır. Böylece legacy Gson cache migration'ı ve widget reflection yolları küçültülmüş runtime üzerinde de doğrulanır. Instrumentation testleri küçük, orta ve büyük widget'ı fresh, stale ve cache bulunmayan durumlarda inflate eder, gerçek boyutlarında ölçer ve PNG olarak dış uygulama klasörüne kaydeder. Render görüntüleri `review_bundles/widget_refresh_20261105/` altında tutulur ve commit edilmez. Android 12+ açık/koyu dinamik renkleri ile API 30 eski renk teması ayrıca görüntülenir.
 
 Unit testler ayrıca cache şema dönüşümünü, Room migration'ını, 13 aylık retention penceresini, resmi Ramazan tarih önceliğini ve tahmini fallback'ı, API hicri alan doğrulamasını, timezone'a göre tarih üretimini, geri sayım sınırlarını, coroutine iptalini ve eşzamanlı kullanıcı işlemlerinde son seçimin kazanmasını doğrular. Compose UI smoke testi eklenmedi: managed minified testte Compose test rule, uygulama APK'sında R8 tarafından yeniden adlandırılan/kaldırılan `InfiniteAnimationPolicy`, `IntObjectMapKt.mutableIntObjectMapOf` ve `ViewTreeLifecycleOwner` API'lerine erişemedi.
 

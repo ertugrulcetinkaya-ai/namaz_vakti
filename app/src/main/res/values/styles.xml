@@ -1,5 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <style name="WidgetRoot" />
+    <style name="WidgetPrayerItem">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:gravity">center</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:textColor">@color/widget_text</item>
+        <item name="android:textSize">@dimen/widget_prayer_text_size</item>
+        <item name="android:textStyle">normal</item>
+    </style>
+    <style name="WidgetPrayerItemLarge" parent="WidgetPrayerItem">
+        <item name="android:gravity">start|center_vertical</item>
+        <item name="android:textSize">11sp</item>
+        <item name="android:layout_marginEnd">2dp</item>
+    </style>
     <style name="Theme.NamazVakti" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:fontFamily">sans</item>
     </style>
