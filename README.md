@@ -13,6 +13,7 @@ Namaz Vakti, Türkiye'deki şehirler için günlük namaz vakitlerini gösteren 
 - Güncellik ve hata durumlarını gösteren uygulama arayüzü
 - Aktif vakti vurgulayan, stale veriyi belirten ana ekran widget'ı
 - Vakit sınırlarında ve sistem saati değişikliklerinde otomatik widget güncellemesi
+- İsteğe bağlı, vakit başına açılabilen namaz vakti bildirimleri ve önceden hatırlatma
 - CI doğrulaması ve imzalı beta artifact üretimi
 
 ## Mimari
