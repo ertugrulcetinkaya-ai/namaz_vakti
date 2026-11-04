@@ -51,7 +51,13 @@
     <string name="school_hanafi">Hanefi</string>
     <string name="prayer_times_unavailable">Vakitler alınamadı</string>
     <string name="widget_stale_suffix"> • Eski veri</string>
-    <string name="widget_content_description">%1$s için namaz vakitleri. Durum: %2$s. Aktif vakit: %3$s.</string>
+    <string name="widget_stale_label">Eski veri</string>
+    <string name="widget_content_description">%1$s için namaz vakitleri. %2$s</string>
+    <string name="widget_next_prayer">Sıradaki vakit: %1$s</string>
+    <string name="widget_next_prayer_accessibility">Sıradaki vakit %1$s.</string>
+    <string name="widget_ramadan_iftar">İftar %1$s</string>
+    <string name="widget_ramadan_sahur">Sahur (İmsak) %1$s</string>
+    <string name="widget_description">Namaz vakitleri, sıradaki vakit için canlı geri sayım ve Ramazan bilgisi.</string>
     <string name="home_city_hint">Şehir</string>
     <string name="next_prayer_title">Sıradaki vakit</string>
     <string name="prayer_time_with_time">%1$s %2$s</string>
