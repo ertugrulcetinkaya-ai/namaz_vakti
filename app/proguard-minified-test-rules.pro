@@ -2,12 +2,17 @@
 # obfuscated app. Keep test-framework classes and app APIs that the test APK
 # reaches directly through reflection or Kotlin synthetic default constructors.
 -keep class androidx.tracing.** { *; }
+-keep class androidx.arch.core.** { *; }
 -keep class androidx.room.** { *; }
+-keep class androidx.sqlite.** { *; }
+-keep interface androidx.sqlite.** { *; }
 -keep class androidx.work.** { *; }
 -keep class kotlin.** { *; }
 -keep interface kotlin.** { *; }
 -keep class kotlinx.coroutines.** { *; }
 -keep interface kotlinx.coroutines.** { *; }
+-keep class kotlinx.serialization.** { *; }
+-keep interface kotlinx.serialization.** { *; }
 
 -keep class com.example.namazvakti.domain.model.** { *; }
 -keep class com.example.namazvakti.data.remote.PrayerTimesApi { *; }
@@ -17,6 +22,7 @@
 -keep class com.example.namazvakti.data.local.CachedPrayerDayCodec { *; }
 -keep class com.example.namazvakti.data.local.PrayerDayEntity { *; }
 -keep class com.example.namazvakti.data.local.PrayerTimesDatabase { *; }
+-keep class com.example.namazvakti.data.local.PrayerTimesDatabase$Companion { *; }
 -keep class com.example.namazvakti.data.local.PrayerTimesStore { *; }
 -keep class com.example.namazvakti.data.local.PrayerDayDao { *; }
 -keep class com.example.namazvakti.data.local.PrayerTimesDatabaseKt { *; }

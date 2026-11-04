@@ -40,6 +40,18 @@ interface PrayerPreferences {
         location: PrayerLocation,
         settings: PrayerCalculationSettings
     ): CachedPrayerDay? = readCache()?.takeIf { it.matches(date, location, settings) }
+    suspend fun readCaches(
+        startDate: LocalDate,
+        endDate: LocalDate,
+        location: PrayerLocation,
+        settings: PrayerCalculationSettings
+    ): List<CachedPrayerDay> = buildList {
+        var date = startDate
+        while (!date.isAfter(endDate)) {
+            readCache(date, location, settings)?.let(::add)
+            date = date.plusDays(1)
+        }
+    }
     suspend fun saveCache(cache: CachedPrayerDay)
     suspend fun saveCaches(caches: List<CachedPrayerDay>) {
         caches.forEach { saveCache(it) }
@@ -178,6 +190,19 @@ class PrayerTimesStore(
         }
     }
 
+    override suspend fun readCaches(
+        startDate: LocalDate,
+        endDate: LocalDate,
+        location: PrayerLocation,
+        settings: PrayerCalculationSettings
+    ): List<CachedPrayerDay> = storageOperation {
+        migrateLegacyCache()
+        prayerDayDao.findBetween(
+            startDate.toString(), endDate.toString(), location.city, location.country,
+            settings.method, settings.school
+        ).map(PrayerDayEntity::toDomain)
+    }
+
     private suspend fun pruneIfDue(location: PrayerLocation) {
         val today = timeProvider.today(location.timezone)
         if (lastRetentionDate == today) return
@@ -282,6 +307,9 @@ internal data class CachedPrayerDayDto(
     @field:SerializedName("maghrib") val maghrib: String? = null,
     @field:SerializedName("isha") val isha: String? = null,
     @field:SerializedName("hijriText") val hijriText: String? = null,
+    @field:SerializedName("hijriDay") val hijriDay: Int? = null,
+    @field:SerializedName("hijriMonth") val hijriMonth: Int? = null,
+    @field:SerializedName("hijriYear") val hijriYear: Int? = null,
     @field:SerializedName("fetchedAtEpochMillis") val fetchedAtEpochMillis: Long? = null
 ) {
     fun toDomain(): CachedPrayerDay {
@@ -308,7 +336,10 @@ internal data class CachedPrayerDayDto(
                 LocalTime.parse(asr.orEmpty()), LocalTime.parse(maghrib.orEmpty()), LocalTime.parse(isha.orEmpty())
             ),
             hijriText = hijriText,
-            fetchedAt = Instant.ofEpochMilli(requireNotNull(fetchedAtEpochMillis))
+            fetchedAt = Instant.ofEpochMilli(requireNotNull(fetchedAtEpochMillis)),
+            hijriDay = hijriDay,
+            hijriMonth = hijriMonth,
+            hijriYear = hijriYear
         )
     }
 }
@@ -330,6 +361,9 @@ private fun CachedPrayerDay.toDto() = CachedPrayerDayDto(
     maghrib = prayerTimes.maghrib.toString(),
     isha = prayerTimes.isha.toString(),
     hijriText = hijriText,
+    hijriDay = hijriDay,
+    hijriMonth = hijriMonth,
+    hijriYear = hijriYear,
     fetchedAtEpochMillis = fetchedAt.toEpochMilli()
 )
 

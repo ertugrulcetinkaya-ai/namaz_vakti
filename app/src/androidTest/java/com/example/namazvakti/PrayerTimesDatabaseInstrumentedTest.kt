@@ -13,8 +13,11 @@ import com.example.namazvakti.domain.model.PrayerTimeProvider
 import com.example.namazvakti.domain.model.PrayerTimes
 import android.content.Context
 import androidx.room.Room
+import androidx.room.testing.MigrationTestHelper
+import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
@@ -142,7 +145,8 @@ class PrayerTimesDatabaseInstrumentedTest {
             listOf(
                 cache(today.minusDays(91)),
                 cache(today),
-                cache(today.plusDays(61))
+                cache(today.plusMonths(13)),
+                cache(today.plusMonths(13).plusDays(1))
             )
         )
 
@@ -153,7 +157,8 @@ class PrayerTimesDatabaseInstrumentedTest {
                 ?.date
                 ?.let(LocalDate::parse)
         )
-        assertNull(dao.find(today.plusDays(61).toString(), "Ankara", "Turkey", 13, 0))
+        assertNotNull(dao.find(today.plusMonths(13).toString(), "Ankara", "Turkey", 13, 0))
+        assertNull(dao.find(today.plusMonths(13).plusDays(1).toString(), "Ankara", "Turkey", 13, 0))
     }
 
     @Test
@@ -176,6 +181,43 @@ class PrayerTimesDatabaseInstrumentedTest {
         assertNotNull(dao.find(oldDate.toString(), "Ankara", "Turkey", 13, 0))
     }
 
+    @Test
+    fun versionOneDatabaseMigratesNullableHijriColumnsWithoutLosingRows() {
+        val helper = MigrationTestHelper(
+            InstrumentationRegistry.getInstrumentation(),
+            PrayerTimesDatabase::class.java,
+            emptyList(),
+            FrameworkSQLiteOpenHelperFactory()
+        )
+        helper.createDatabase(MIGRATION_DATABASE, 1).apply {
+            execSQL(
+                """INSERT INTO prayer_days VALUES (
+                    '2026-08-23', 'Ankara', 'Turkey', 13, 0, 'ANKARA',
+                    'Europe/Istanbul', 'Europe/Istanbul', '04:29', '06:01',
+                    '12:56', '16:41', '19:42', '21:07', '10 Rebiülevvel 1448',
+                    1777105600000, 'ALADHAN'
+                )"""
+            )
+            close()
+        }
+
+        val migrated = helper.runMigrationsAndValidate(
+            MIGRATION_DATABASE,
+            2,
+            true,
+            PrayerTimesDatabase.MIGRATION_1_2
+        )
+        val cursor = migrated.query(
+            "SELECT hijriDay, hijriMonth, hijriYear FROM prayer_days WHERE date = '2026-08-23'"
+        )
+        assertEquals(true, cursor.moveToFirst())
+        assertNull(cursor.getInt(0).takeUnless { cursor.isNull(0) })
+        assertNull(cursor.getInt(1).takeUnless { cursor.isNull(1) })
+        assertNull(cursor.getInt(2).takeUnless { cursor.isNull(2) })
+        cursor.close()
+        migrated.close()
+    }
+
     private fun cache(
         date: LocalDate,
         settings: PrayerCalculationSettings = PrayerCalculationSettings()
@@ -189,7 +231,14 @@ class PrayerTimesDatabaseInstrumentedTest {
             LocalTime.of(16, 41), LocalTime.of(19, 42), LocalTime.of(21, 7)
         ),
         hijriText = "10 Rebiülevvel 1448",
+        hijriDay = 10,
+        hijriMonth = 3,
+        hijriYear = 1448,
         fetchedAt = Instant.parse("2026-08-23T08:00:00Z"),
         source = PrayerDataSource.ALADHAN
     )
+
+    private companion object {
+        const val MIGRATION_DATABASE = "prayer_migration_test.db"
+    }
 }

@@ -30,6 +30,9 @@ class PrayerDayEntityTest {
                 LocalTime.of(16, 41), LocalTime.of(19, 42), LocalTime.of(21, 7)
             ),
             hijriText = "10 Rebiülevvel 1448",
+            hijriDay = 10,
+            hijriMonth = 3,
+            hijriYear = 1448,
             fetchedAt = Instant.parse("2026-08-23T08:00:00Z"),
             source = PrayerDataSource.ALADHAN
         )
@@ -60,6 +63,9 @@ class PrayerDayEntityTest {
         maghrib = "19:42",
         isha = "21:07",
         hijriText = "10 Rebiülevvel 1448",
+        hijriDay = null,
+        hijriMonth = null,
+        hijriYear = null,
         fetchedAtEpochMillis = 1_777_105_600_000,
         source = PrayerDataSource.ALADHAN.name
     )
