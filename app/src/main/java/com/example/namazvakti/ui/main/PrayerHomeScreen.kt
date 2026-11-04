@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import com.example.namazvakti.R
 import com.example.namazvakti.domain.model.CachedPrayerDay
+import com.example.namazvakti.domain.model.displayHijriText
 import com.example.namazvakti.domain.model.PrayerTimeName
 import com.example.namazvakti.domain.model.PrayerTimes
 import com.example.namazvakti.domain.model.RamadanRange
@@ -120,11 +121,11 @@ fun PrayerHomeScreen(
         range.dayNumber(today)?.let { "$it Ramazan ${range.hijriYear}" }
     }
     val dailyHijriText = if (officialRamadanText != null && !ramadanRange.estimated) {
-        todayCache?.hijriText
+        todayCache?.displayHijriText()
             ?.takeIf { it.trim() == officialRamadanText }
             ?: officialRamadanText
     } else {
-        todayCache?.hijriText
+        todayCache?.displayHijriText()
     }
     val showRamadanCard = ramadanRange != null && today <= ramadanRange.endDate &&
         !ramadanRange.startDate.isAfter(today.plusDays(60))

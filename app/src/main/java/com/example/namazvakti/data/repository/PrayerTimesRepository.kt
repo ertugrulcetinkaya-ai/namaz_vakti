@@ -10,6 +10,7 @@ import com.example.namazvakti.domain.model.CachedPrayerDay
 import com.example.namazvakti.domain.model.DefaultPrayerEventLogger
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.DiyanetRamadanCalendar
+import com.example.namazvakti.domain.model.DiyanetHijriCalendar
 import com.example.namazvakti.domain.model.MonthDataSource
 import com.example.namazvakti.domain.model.MonthResult
 import com.example.namazvakti.domain.model.PrayerDataSource
@@ -23,6 +24,7 @@ import com.example.namazvakti.domain.model.RefreshOrigin
 import com.example.namazvakti.domain.model.classifyPrayerStorageError
 import com.example.namazvakti.domain.model.classifyPrayerError
 import com.example.namazvakti.domain.model.code
+import com.example.namazvakti.domain.model.alAdhanHijriDate
 import com.example.namazvakti.domain.port.PrayerRefreshRepository
 import java.time.ZoneId
 import java.time.YearMonth
@@ -186,16 +188,17 @@ class PrayerTimesRepository(
         val today = timeProvider.today(location.timezone)
         val current = store.readCache(today, location, settings)
             ?: store.readCache()?.takeIf { it.date == today }
+        val todayHijri = DiyanetHijriCalendar.hijriDateOf(today)
+            ?: current?.takeIf { it.date == today }?.alAdhanHijriDate()
         val targetHijriYear = when {
-            current?.hijriMonth != null && current.hijriYear != null ->
-                current.hijriYear + if (current.hijriMonth <= 9) 0 else 1
+            todayHijri != null -> todayHijri.year + if (todayHijri.month <= 9) 0 else 1
             else -> DiyanetRamadanCalendar.entries.values
                 .sortedBy { it.firstRamadan }
                 .firstOrNull { it.firstShawwal.isAfter(today) }
                 ?.hijriYear ?: today.year - 578
         }
 
-        DiyanetRamadanCalendar.find(targetHijriYear)?.let { return it.toRange() }
+        DiyanetHijriCalendar.ramadanRangeOf(targetHijriYear)?.let { return it }
 
         return try {
             val firstRamadan = api.fetchHijriMonth(9, targetHijriYear).minOrNull() ?: return null

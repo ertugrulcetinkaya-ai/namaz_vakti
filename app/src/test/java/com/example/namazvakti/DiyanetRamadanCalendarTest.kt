@@ -1,6 +1,7 @@
 package com.example.namazvakti
 
 import com.example.namazvakti.domain.model.DiyanetRamadanCalendar
+import com.example.namazvakti.domain.model.DiyanetHijriCalendar
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -33,7 +34,15 @@ class DiyanetRamadanCalendarTest {
 
     @Test
     fun officialRecordsOnlyContainYearsVerifiedAgainstPublishedDiyanetCalendars() {
-        assertEquals((1447..1457).toSet(), DiyanetRamadanCalendar.entries.keys)
+        assertEquals((1446..1457).toSet(), DiyanetRamadanCalendar.entries.keys)
         assertTrue(DiyanetRamadanCalendar.find(1458) == null)
+    }
+
+    @Test
+    fun ramadanAndShawwalStartsMatchTheHijriMonthStartTable() {
+        DiyanetRamadanCalendar.entries.forEach { (hijriYear, entry) ->
+            assertEquals(DiyanetHijriCalendar.startDateOf(hijriYear, 9), entry.firstRamadan)
+            assertEquals(DiyanetHijriCalendar.startDateOf(hijriYear, 10), entry.firstShawwal)
+        }
     }
 }

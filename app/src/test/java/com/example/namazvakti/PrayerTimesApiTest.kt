@@ -73,7 +73,7 @@ class PrayerTimesApiTest {
             assertEquals("32.8543", request.requestUrl?.queryParameter("longitude"))
             assertEquals("3", request.requestUrl?.queryParameter("method"))
             assertEquals("1", request.requestUrl?.queryParameter("school"))
-            assertEquals("DIYANET", request.requestUrl?.queryParameter("calendarMethod"))
+            assertEquals("HJCoSA", request.requestUrl?.queryParameter("calendarMethod"))
             assertEquals("Europe/Istanbul", request.requestUrl?.queryParameter("timezonestring"))
             assertEquals(PrayerTimeAdjustments.ALADHAN_TUNE, request.requestUrl?.queryParameter("tune"))
         } finally {
@@ -94,7 +94,7 @@ class PrayerTimesApiTest {
             assertEquals("/v1/calendarByCity/2026/8", request.requestUrl?.encodedPath)
             assertEquals("Baku", request.requestUrl?.queryParameter("city"))
             assertEquals("Azerbaijan", request.requestUrl?.queryParameter("country"))
-            assertEquals("DIYANET", request.requestUrl?.queryParameter("calendarMethod"))
+            assertEquals("HJCoSA", request.requestUrl?.queryParameter("calendarMethod"))
             assertEquals(PrayerTimeAdjustments.ALADHAN_TUNE, request.requestUrl?.queryParameter("tune"))
         } finally {
             server.shutdown()
@@ -102,7 +102,7 @@ class PrayerTimesApiTest {
     }
 
     @Test
-    fun hijriMonthRequestUsesDiyanetCalendarMethodAndParsesDates() = runTest {
+    fun hijriMonthRequestUsesHjCoSaCalendarMethodAndParsesDates() = runTest {
         val server = MockWebServer()
         server.enqueue(
             MockResponse().setResponseCode(200).setBody(
@@ -115,7 +115,7 @@ class PrayerTimesApiTest {
             val request = server.takeRequest()
             assertEquals(listOf(LocalDate.of(2027, 2, 8), LocalDate.of(2027, 2, 9)), dates)
             assertEquals("/v1/hToGCalendar/9/1448", request.requestUrl?.encodedPath)
-            assertEquals("DIYANET", request.requestUrl?.queryParameter("calendarMethod"))
+            assertEquals("HJCoSA", request.requestUrl?.queryParameter("calendarMethod"))
         } finally {
             server.shutdown()
         }

@@ -8,6 +8,7 @@ import android.view.View
 import android.widget.RemoteViews
 import com.example.namazvakti.R
 import com.example.namazvakti.domain.model.CachedPrayerDay
+import com.example.namazvakti.domain.model.displayHijriText
 import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.PrayerTimes
 import com.example.namazvakti.domain.model.RamadanRange
@@ -68,7 +69,7 @@ class PrayerWidgetRenderer {
         val staleSuffix = if (dataState == PrayerWidgetDataState.Stale) {
             " • ${context.getString(R.string.widget_stale_label)}"
         } else ""
-        val hijriText = cache?.hijriText?.trim().orEmpty()
+        val hijriText = cache?.displayHijriText()?.trim().orEmpty()
         val cityText = when (sizeClass) {
             PrayerWidgetSizeClass.LARGE -> location.displayCity + staleSuffix
             PrayerWidgetSizeClass.MEDIUM -> listOf(location.displayCity, hijriText)
