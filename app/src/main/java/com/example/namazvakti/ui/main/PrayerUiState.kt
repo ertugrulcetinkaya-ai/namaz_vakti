@@ -13,7 +13,8 @@ sealed interface PrayerUiState {
         val operation: OperationState = OperationState.Idle,
         val cache: CachedPrayerDay? = null,
         val refreshOrigin: RefreshOrigin? = null,
-        val lastError: PrayerError? = null
+        val lastError: PrayerError? = null,
+        val tomorrowCache: CachedPrayerDay? = null
     ) : PrayerUiState
     data class Error(
         val location: PrayerLocation?,

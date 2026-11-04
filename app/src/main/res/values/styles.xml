@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.NamazVakti" parent="Theme.AppCompat.Light.NoActionBar">
+    <style name="Theme.NamazVakti" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">@color/widget_active_text</item>
-        <item name="android:navigationBarColor">@android:color/white</item>
     </style>
 </resources>

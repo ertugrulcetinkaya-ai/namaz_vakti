@@ -1,12 +1,8 @@
 <resources>
     <string name="app_name">Namaz Vakti</string>
-    <string name="select_city">Şehir seçin</string>
-    <string name="current_city">Seçili şehir: %1$s</string>
     <string name="search_city">Şehir ara</string>
-    <string name="refresh_prayer_times">Vakitleri yenile</string>
     <string name="precise_widget_updates_disabled">Widget ve bildirimlerin dakik çalışması için alarm erişimini etkinleştirin; erişim olmadan bildirimler birkaç dakika gecikebilir.</string>
     <string name="enable_precise_widget_updates">Dakik alarm güncellemelerini etkinleştir</string>
-    <string name="notification_settings">Bildirim ayarları</string>
     <string name="notification_settings_title">Namaz vakti bildirimleri</string>
     <string name="notifications_enabled">Namaz vakti bildirimlerini aç</string>
     <string name="notification_lead_time">Önceden hatırlat</string>
@@ -56,4 +52,38 @@
     <string name="prayer_times_unavailable">Vakitler alınamadı</string>
     <string name="widget_stale_suffix"> • Eski veri</string>
     <string name="widget_content_description">%1$s için namaz vakitleri. Durum: %2$s. Aktif vakit: %3$s.</string>
+    <string name="home_city_hint">Şehir</string>
+    <string name="next_prayer_title">Sıradaki vakit</string>
+    <string name="prayer_time_with_time">%1$s %2$s</string>
+    <string name="tomorrow_prayer_time_with_time">Yarın %1$s %2$s</string>
+    <string name="tomorrow_prayer_accessibility_label">Yarın %1$s</string>
+    <string name="current_prayer_value">Şu an: %1$s vakti</string>
+    <string name="next_prayer_unknown">Sıradaki vakit henüz bilinmiyor</string>
+    <string name="tomorrow_times_loading">Yarının vakitleri alınıyor.</string>
+    <string name="today_prayer_times">Bugünün vakitleri</string>
+    <string name="no_prayer_data">Bugünün vakitleri henüz yok.</string>
+    <string name="retry">Tekrar dene</string>
+    <string name="prayer_countdown_display">%1$d sa %2$02d dk %3$02d sn</string>
+    <string name="prayer_countdown_display_days">%1$d gün %2$d sa %3$02d dk %4$02d sn</string>
+    <string name="prayer_countdown_accessibility_hours">%1$s vaktine %2$s kaldı</string>
+    <string name="prayer_countdown_accessibility_minutes">%1$s vaktine %2$s kaldı</string>
+    <string name="prayer_countdown_duration_hours">%1$s %2$s</string>
+    <string name="prayer_source_aladhan">AlAdhan</string>
+    <string name="prayer_source_legacy_cache">Eski yerel önbellek</string>
+    <string name="active_prayer">Aktif vakit</string>
+    <string name="city_selection_title">Şehir seçin</string>
+    <string name="back">Geri</string>
+    <string name="city_search_no_results">Bu aramayla eşleşen şehir yok.</string>
+    <string name="city_selected">Seçili şehir</string>
+    <string name="notification_settings_open">Bildirim ayarlarını aç</string>
+    <string name="notification_settings_save_failed">Bildirim ayarları kaydedilemedi.</string>
+    <string name="prayer_countdown_unknown_accessibility">Sıradaki vakit bilinmiyor</string>
+    <plurals name="countdown_hours">
+        <item quantity="one">%d saat</item>
+        <item quantity="other">%d saat</item>
+    </plurals>
+    <plurals name="countdown_minutes">
+        <item quantity="one">%d dakika</item>
+        <item quantity="other">%d dakika</item>
+    </plurals>
 </resources>

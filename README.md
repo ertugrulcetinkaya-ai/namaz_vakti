@@ -5,12 +5,15 @@ Namaz Vakti, Türkiye'deki şehirler için günlük namaz vakitlerini gösteren 
 ## Özellikler
 
 - Şehir seçimi ve Türkçe karakterlerden bağımsız arama
+- Jetpack Compose ve Material 3 ile bugünün vakitleri, Türkçe tarih, hicri tarih ve canlı geri sayım
+- Geçmiş, aktif ve gelecek vakitleri ayırt eden kaydırılabilir ana ekran; Android 12+ dinamik renkler ve sistem açık/koyu teması
+- Ana ekrandan şehir arama ve bildirim ayarlarına erişim
 - İkindi vakti için varsayılan Şafii/standart hesaplama (`school=0`)
 - Room üzerinde timezone duyarlı ve çevrimdışı namaz vakti takvimi
 - Cache retention: bugünden 90 gün öncesi ile 60 gün sonrası dışındaki kayıtlar temizlenir
 - Ayın son yedi gününde sonraki ayı otomatik önceden indirme
 - Veri kaynağı, hesaplama yöntemi ve son güncelleme bilgisini gösterme
-- Güncellik ve hata durumlarını gösteren uygulama arayüzü
+- Kaynak, yöntem, güncellik ve hata durumlarını gösteren Compose arayüzü
 - Aktif vakti vurgulayan, stale veriyi belirten ana ekran widget'ı
 - Vakit sınırlarında ve sistem saati değişikliklerinde otomatik widget güncellemesi
 - İsteğe bağlı, vakit başına açılabilen namaz vakti bildirimleri ve önceden hatırlatma
@@ -23,7 +26,7 @@ Kod sınırları paketlerle görünür hale getirilmiştir:
 - `app`: application ve composition root (`AppContainer`)
 - `domain/model`, `domain/policy`, `domain/port`: platformdan bağımsız modeller, karar politikaları ve uygulama sözleşmeleri
 - `data/local`, `data/remote`, `data/repository`: DataStore/Room, yalnız aylık takvim API'si ve repository
-- `ui/main`: Activity, ViewModel ve typed UI state
+- `ui/main`: Compose Activity/ekranları, ViewModel ve typed UI state
 - `widget/alarm`, `widget/renderer`, `widget/worker`: alarm/scheduler, `RemoteViews` render'ı ve WorkManager
 
 `PrayerTimesRepository` aylık API sonucunu doğrular, bugünün kaydını seçer ve sonraki ay ön-getirmesini koordine eder. `PrayerTimesStore` konumu DataStore'da, günlük vakitleri Room'da `konum + tarih + yöntem + mezhep` anahtarıyla saklar. Eski tek günlük DataStore cache'i ilk kullanımda otomatik olarak Room'a taşınır. `PrayerCachePolicy` timezone duyarlı cache güncelliğinin tek karar noktasıdır.
@@ -73,15 +76,18 @@ Gradle Managed Device emulator'ında CI ile aynı instrumented testleri çalış
 
 Managed-device testleri debug keystore ile imzalanan, R8/resource shrinking etkin `minified` varyantında çalışır. Böylece legacy Gson cache migration'ı ve widget reflection yolları küçültülmüş runtime üzerinde de doğrulanır. Instrumentation testleri fresh, stale ve cache bulunmayan widget durumlarını kontrol eder. Render smoke testi ise gerçek `RemoteViews` ağacını inflate eder, ölçer ve bitmap üzerine çizerek görünümün cihazda oluşturulabildiğini doğrular.
 
-Unit testler ayrıca cache şema dönüşümünü, retention penceresini, API timezone'una göre tarih üretimini, coroutine iptalini ve eşzamanlı kullanıcı işlemlerinde son seçimin kazanmasını doğrular.
+Unit testler ayrıca cache şema dönüşümünü, retention penceresini, API timezone'una göre tarih üretimini, geri sayım sınırlarını ve saniye hassasiyetini, coroutine iptalini ve eşzamanlı kullanıcı işlemlerinde son seçimin kazanmasını doğrular. Compose UI smoke testi eklenmedi: managed minified testte Compose test rule, uygulama APK'sında R8 tarafından yeniden adlandırılan/kaldırılan `InfiniteAnimationPolicy`, `IntObjectMapKt.mutableIntObjectMapOf` ve `ViewTreeLifecycleOwner` API'lerine erişemedi.
 
-Güncel HEAD'de unsigned release APK, R8 ve resource shrinking etkin halde `1,267,761` byte;
-release AAB ise `2,252,595` byte ölçülmüştür. Önceki küçültme karşılaştırmasındaki 4,734,982
-byte baseline tarihsel ölçümdür. Release build'inde `isMinifyEnabled` ve `isShrinkResources`
+Compose ana ekranı öncesindeki unsigned release APK `1,296,326` byte, sonrasındaki APK
+`3,648,289` byte ölçüldü (`+2,351,963` byte, yaklaşık `%181`). Her iki ölçümde de R8 ve
+resource shrinking açıktır. Release build'inde `isMinifyEnabled` ve `isShrinkResources`
 açıktır; WorkManager worker'ı için gerekli keep kuralı `app/proguard-rules.pro` dosyasındadır.
 Minified instrumented test APK'sı için test runner ve reflection destek kuralları ayrıca
 `app/proguard-minified-test-rules.pro` dosyasındadır; production release bu test-only
 kurallarını kullanmaz.
+
+Compose ekran görüntüleri (açık/koyu tema, şehir seçimi, bildirim ayarları, yatsı sonrası ve
+%200 yazı ölçeği) `review_bundles/compose_home_20261104/` altındadır; klasör gitignore'dadır.
 
 Legacy DataStore JSON alanları `@SerializedName` ile sabitlenmiştir; eski, küçültülmemiş
 sürümlerden gelen cache kayıtlarının migration sırasında R8 nedeniyle kaybolmaması için
