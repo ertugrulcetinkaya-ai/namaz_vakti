@@ -123,7 +123,10 @@ data class CachedPrayerDay(
     val prayerTimes: PrayerTimes,
     val hijriText: String?,
     val fetchedAt: Instant,
-    val source: PrayerDataSource = PrayerDataSource.ALADHAN
+    val source: PrayerDataSource = PrayerDataSource.ALADHAN,
+    val hijriDay: Int? = null,
+    val hijriMonth: Int? = null,
+    val hijriYear: Int? = null
 ) {
     fun matches(
         date: LocalDate,

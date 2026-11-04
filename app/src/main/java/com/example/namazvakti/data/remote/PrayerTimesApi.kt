@@ -79,6 +79,8 @@ interface PrayerTimesRemoteDataSource {
         longitude: Double? = null,
         timezone: String = PrayerTimeProvider.DEFAULT_ZONE.id
     ): PrayerTimesCalendarResult
+
+    suspend fun fetchHijriMonth(month: Int, hijriYear: Int): List<LocalDate> = emptyList()
 }
 
 class PrayerTimesApi(
@@ -111,6 +113,7 @@ class PrayerTimesApi(
             .addPathSegment(month.toString())
             .addQueryParameter("method", settings.method.toString())
             .addQueryParameter("school", settings.school.toString())
+            .addQueryParameter("calendarMethod", "DIYANET")
             .addQueryParameter("tune", PrayerTimeAdjustments.ALADHAN_TUNE)
         if (hasCoordinates) {
             urlBuilder
@@ -125,6 +128,39 @@ class PrayerTimesApi(
         val url = urlBuilder.build()
         val request = Request.Builder().url(url).get().build()
         return parseCalendarResponse(execute(request))
+    }
+
+    override suspend fun fetchHijriMonth(month: Int, hijriYear: Int): List<LocalDate> {
+        require(month in 1..12) { "Hijri month must be between 1 and 12" }
+        require(hijriYear > 0) { "Hijri year must be positive" }
+        val request = Request.Builder()
+            .url(
+                baseUrl.newBuilder()
+                    .addPathSegment("hToGCalendar")
+                    .addPathSegment(month.toString())
+                    .addPathSegment(hijriYear.toString())
+                    .addQueryParameter("calendarMethod", "DIYANET")
+                    .build()
+            )
+            .get()
+            .build()
+        val parsed = runCatching {
+            gson.fromJson(execute(request), PrayerHijriCalendarResponse::class.java)
+        }.getOrElse { throw PrayerTimesApiException("Invalid Hijri calendar response", it) }
+        if (parsed.code !in 200..299 || parsed.status != "OK") {
+            throw PrayerTimesApiException(
+                parsed.message ?: parsed.status ?: "Hijri calendar request failed",
+                statusCode = parsed.code
+            )
+        }
+        val dates = parsed.data.orEmpty().mapNotNull { data ->
+            data.gregorian?.date?.let { raw ->
+                runCatching { LocalDate.parse(raw, CALENDAR_DATE_FORMATTER) }
+                    .getOrElse { throw PrayerTimesApiException("Invalid Hijri calendar date: $raw", it) }
+            }
+        }.distinct().sorted()
+        if (dates.isEmpty()) throw PrayerTimesApiException("Hijri calendar response has no dates")
+        return dates
     }
 
     private suspend fun execute(request: Request): String = suspendCancellableCoroutine { continuation ->
@@ -197,10 +233,14 @@ class PrayerTimesApi(
         } catch (error: IllegalArgumentException) {
             throw PrayerTimesApiException("Invalid prayer time ordering", error)
         }
+        val hijri = date?.hijri?.validated()
         return PrayerTimesApiResult(
             prayerTimes = prayerTimes,
-            hijriText = date?.hijri?.toDisplayText(),
-            timezone = meta?.timezone
+            hijriText = hijri?.toDisplayText(),
+            timezone = meta?.timezone,
+            hijriDay = hijri?.day?.toIntOrNull(),
+            hijriMonth = hijri?.month?.number,
+            hijriYear = hijri?.year?.toIntOrNull()
         )
     }
 
@@ -223,7 +263,10 @@ class PrayerTimesApi(
 data class PrayerTimesApiResult(
     val prayerTimes: PrayerTimes,
     val hijriText: String?,
-    val timezone: String?
+    val timezone: String?,
+    val hijriDay: Int? = null,
+    val hijriMonth: Int? = null,
+    val hijriYear: Int? = null
 )
 
 data class PrayerTimesApiDayResult(
@@ -233,9 +276,31 @@ data class PrayerTimesApiDayResult(
 
 data class PrayerTimesCalendarResult(val days: List<PrayerTimesApiDayResult>)
 
+private data class PrayerHijriCalendarResponse(
+    @field:SerializedName("code") val code: Int? = null,
+    @field:SerializedName("status") val status: String? = null,
+    @field:SerializedName("message") val message: String? = null,
+    @field:SerializedName("data") val data: List<PrayerHijriCalendarDay>? = null
+)
+
+private data class PrayerHijriCalendarDay(
+    @field:SerializedName("gregorian") val gregorian: GregorianDate? = null
+)
+
+private fun HijriDate.validated(): HijriDate? {
+    val dayValue = day?.trim()?.toIntOrNull()
+    val monthValue = month?.number
+    val yearValue = year?.trim()?.toIntOrNull()
+    if (
+        dayValue == null || dayValue !in 1..30 ||
+        monthValue == null || monthValue !in 1..12 ||
+        yearValue == null || yearValue !in 1..9999
+    ) return null
+    return this.copy(day = dayValue.toString(), year = yearValue.toString())
+}
+
 private fun HijriDate.toDisplayText(): String? {
-    val dayValue = day?.trim().orEmpty()
-    if (dayValue.isBlank()) return null
+    val dayValue = day ?: return null
 
     val monthText = hijriMonthName(number = month?.number, en = month?.en, ar = month?.ar)
     val yearValue = year?.trim().orEmpty()

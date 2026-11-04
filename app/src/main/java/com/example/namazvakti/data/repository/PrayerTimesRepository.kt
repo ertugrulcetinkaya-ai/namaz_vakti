@@ -9,11 +9,15 @@ import com.example.namazvakti.data.remote.PrayerTimesRemoteDataSource
 import com.example.namazvakti.domain.model.CachedPrayerDay
 import com.example.namazvakti.domain.model.DefaultPrayerEventLogger
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
+import com.example.namazvakti.domain.model.DiyanetRamadanCalendar
+import com.example.namazvakti.domain.model.MonthDataSource
+import com.example.namazvakti.domain.model.MonthResult
 import com.example.namazvakti.domain.model.PrayerDataSource
 import com.example.namazvakti.domain.model.PrayerEventLogger
 import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.PrayerTimeProvider
 import com.example.namazvakti.domain.model.PrayerTimesApiException
+import com.example.namazvakti.domain.model.RamadanRange
 import com.example.namazvakti.domain.model.RefreshResult
 import com.example.namazvakti.domain.model.RefreshOrigin
 import com.example.namazvakti.domain.model.classifyPrayerStorageError
@@ -22,7 +26,10 @@ import com.example.namazvakti.domain.model.code
 import com.example.namazvakti.domain.port.PrayerRefreshRepository
 import java.time.ZoneId
 import java.time.YearMonth
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class PrayerTimesRepository(
     private val api: PrayerTimesRemoteDataSource = PrayerTimesApi(),
@@ -31,6 +38,8 @@ class PrayerTimesRepository(
     private val timeProvider: PrayerTimeProvider = PrayerTimeProvider(),
     private val eventLogger: PrayerEventLogger = DefaultPrayerEventLogger
 ) : PrayerRefreshRepository {
+    private val monthMutexes = ConcurrentHashMap<MonthRequestKey, Mutex>()
+
     override suspend fun refreshAndCache(): RefreshResult {
         val location = try {
             store.readLocation()
@@ -86,7 +95,10 @@ class PrayerTimesRepository(
                 prayerTimes = day.result.prayerTimes,
                 hijriText = day.result.hijriText,
                 fetchedAt = fetchedAt,
-                source = PrayerDataSource.ALADHAN
+                source = PrayerDataSource.ALADHAN,
+                hijriDay = day.result.hijriDay,
+                hijriMonth = day.result.hijriMonth,
+                hijriYear = day.result.hijriYear
             )
         }
         store.saveCaches(caches)
@@ -147,6 +159,83 @@ class PrayerTimesRepository(
 
     suspend fun selectedLocation(): PrayerLocation = store.readLocation()
 
+    override suspend fun ensureMonth(yearMonth: YearMonth): MonthResult {
+        val location = store.readLocation()
+        val key = MonthRequestKey(yearMonth, location.city, location.country, settings)
+        val mutex = monthMutexes.computeIfAbsent(key) { Mutex() }
+        return mutex.withLock {
+            val start = yearMonth.atDay(1)
+            val end = yearMonth.atEndOfMonth()
+            val cached = store.readCaches(start, end, location, settings)
+            if (store.hasCoverage(start, end, location, settings)) {
+                return@withLock MonthResult(yearMonth, cached, MonthDataSource.CACHE)
+            }
+            try {
+                MonthResult(yearMonth, fetchAndCacheMonth(location, yearMonth), MonthDataSource.NETWORK)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val partial = store.readCaches(start, end, location, settings)
+                MonthResult(yearMonth, partial, MonthDataSource.PARTIAL, e)
+            }
+        }
+    }
+
+    override suspend fun ramadanRange(): RamadanRange? {
+        val location = store.readLocation()
+        val today = timeProvider.today(location.timezone)
+        val current = store.readCache(today, location, settings)
+            ?: store.readCache()?.takeIf { it.date == today }
+        val targetHijriYear = when {
+            current?.hijriMonth != null && current.hijriYear != null ->
+                current.hijriYear + if (current.hijriMonth <= 9) 0 else 1
+            else -> DiyanetRamadanCalendar.entries.values
+                .sortedBy { it.firstRamadan }
+                .firstOrNull { it.firstShawwal.isAfter(today) }
+                ?.hijriYear ?: today.year - 578
+        }
+
+        DiyanetRamadanCalendar.find(targetHijriYear)?.let { return it.toRange() }
+
+        return try {
+            val firstRamadan = api.fetchHijriMonth(9, targetHijriYear).minOrNull() ?: return null
+            val firstShawwal = api.fetchHijriMonth(10, targetHijriYear).minOrNull() ?: return null
+            val range = RamadanRange(
+                hijriYear = targetHijriYear,
+                startDate = firstRamadan,
+                endDate = firstShawwal.minusDays(1),
+                eidDate = firstShawwal,
+                estimated = true
+            )
+            val firstMonth = YearMonth.from(range.startDate)
+            val lastMonth = YearMonth.from(range.endDate)
+            val monthRows = mutableListOf<CachedPrayerDay>()
+            var month = firstMonth
+            while (!month.isAfter(lastMonth)) {
+                monthRows += ensureMonth(month).days
+                month = month.plusMonths(1)
+            }
+            val inconsistent = monthRows.any { day ->
+                val expectedDay = range.dayNumber(day.date) ?: return@any false
+                day.hijriDay?.let { it != expectedDay } == true ||
+                    day.hijriMonth?.let { it != 9 } == true ||
+                    day.hijriYear?.let { it != targetHijriYear } == true
+            }
+            if (inconsistent) {
+                throw PrayerTimesApiException(
+                    "AlAdhan Hijri range does not match the prayer calendar for $targetHijriYear"
+                )
+            }
+            range
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: PrayerTimesApiException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     suspend fun cachedWidget(): CachedPrayerDay? {
         val location = store.readLocation()
         val today = timeProvider.today(location.timezone)
@@ -181,4 +270,11 @@ class PrayerTimesRepository(
     private companion object {
         const val PREFETCH_DAYS = 7
     }
+
+    private data class MonthRequestKey(
+        val yearMonth: YearMonth,
+        val city: String,
+        val country: String,
+        val settings: PrayerCalculationSettings
+    )
 }

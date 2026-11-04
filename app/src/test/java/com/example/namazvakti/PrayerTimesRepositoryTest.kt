@@ -8,10 +8,12 @@ import com.example.namazvakti.data.remote.PrayerTimesRemoteDataSource
 import com.example.namazvakti.data.repository.PrayerTimesRepository
 import com.example.namazvakti.domain.model.CachedPrayerDay
 import com.example.namazvakti.domain.model.DefaultPrayerEventLogger
+import com.example.namazvakti.domain.model.MonthDataSource
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.PrayerEventLogger
 import com.example.namazvakti.domain.model.PrayerStorageException
+import com.example.namazvakti.domain.model.PrayerTimesApiException
 import com.example.namazvakti.domain.model.PrayerTimeProvider
 import com.example.namazvakti.domain.model.PrayerTimes
 import com.example.namazvakti.domain.model.RefreshOrigin
@@ -25,6 +27,8 @@ import java.time.LocalTime
 import java.time.YearMonth
 import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
@@ -229,6 +233,216 @@ class PrayerTimesRepositoryTest {
         assertSame(cancellation, thrown)
     }
 
+    @Test
+    fun ensureMonthUsesCompleteCacheWithoutCallingNetwork() = runTest {
+        val month = YearMonth.of(2026, 8)
+        val today = LocalDate.of(2026, 8, 6)
+        val initial = (1..month.lengthOfMonth()).map { sampleCache(month.atDay(it), location) }
+        val store = FakeStore(location, settings, today, initial)
+        val api = FakeApi { _, _ -> error("covered month must not use network") }
+
+        val result = repository(api, store).ensureMonth(month)
+
+        assertEquals(MonthDataSource.CACHE, result.source)
+        assertEquals(31, result.days.size)
+        assertTrue(api.requestedMonths.isEmpty())
+    }
+
+    @Test
+    fun ensureMonthFetchesAndCachesMissingMonth() = runTest {
+        val month = YearMonth.of(2026, 8)
+        val store = FakeStore(location, settings, LocalDate.of(2026, 8, 6))
+        val api = FakeApi { year, value -> calendar(YearMonth.of(year, value)) }
+
+        val result = repository(api, store).ensureMonth(month)
+
+        assertEquals(MonthDataSource.NETWORK, result.source)
+        assertEquals(31, result.days.size)
+        assertEquals(listOf(month), api.requestedMonths)
+    }
+
+    @Test
+    fun ensureMonthReturnsAvailableRowsWhenNetworkFails() = runTest {
+        val month = YearMonth.of(2026, 8)
+        val first = sampleCache(month.atDay(1), location)
+        val store = FakeStore(location, settings, LocalDate.of(2026, 8, 6), listOf(first))
+        val api = FakeApi { _, _ -> throw IOException("offline") }
+
+        val result = repository(api, store).ensureMonth(month)
+
+        assertEquals(MonthDataSource.PARTIAL, result.source)
+        assertEquals(listOf(first), result.days)
+        assertTrue(result.error is IOException)
+    }
+
+    @Test
+    fun concurrentEnsureMonthCallsShareOneNetworkRequest() = runTest {
+        val month = YearMonth.of(2026, 8)
+        val store = FakeStore(location, settings, LocalDate.of(2026, 8, 6))
+        var requests = 0
+        val api = object : PrayerTimesRemoteDataSource {
+            override suspend fun fetchMonth(
+                city: String,
+                country: String,
+                year: Int,
+                month: Int,
+                settings: PrayerCalculationSettings,
+                latitude: Double?,
+                longitude: Double?,
+                timezone: String
+            ): PrayerTimesCalendarResult {
+                requests++
+                delay(10)
+                return calendar(YearMonth.of(year, month))
+            }
+        }
+        val repository = repository(api, store)
+        val first = async { repository.ensureMonth(month) }
+        val second = async { repository.ensureMonth(month) }
+
+        first.await()
+        second.await()
+
+        assertEquals(1, requests)
+    }
+
+    @Test
+    fun official1447RangeOverridesAlAdhanOneDayEarlyStart() = runTest {
+        val today = LocalDate.of(2026, 2, 18)
+        val store = FakeStore(
+            location,
+            settings,
+            today,
+            listOf(sampleCache(today, location).copy(hijriDay = 1, hijriMonth = 9, hijriYear = 1447))
+        )
+        val api = FakeApi { _, _ -> error("official calendar must win") }
+
+        val range = repository(api, store, Instant.parse("2026-02-18T10:00:00Z")).ramadanRange()
+
+        assertEquals(LocalDate.of(2026, 2, 19), range?.startDate)
+        assertEquals(false, range?.estimated)
+        assertTrue(api.hijriMonthsRequested.isEmpty())
+    }
+
+    @Test
+    fun hijriMonthAfterRamadanSelectsNextHijriYear() = runTest {
+        val today = LocalDate.of(2026, 11, 4)
+        val store = FakeStore(
+            location,
+            settings,
+            today,
+            listOf(sampleCache(today, location).copy(hijriDay = 23, hijriMonth = 10, hijriYear = 1447))
+        )
+
+        val range = repository(
+            FakeApi { _, _ -> error("official 1448 dates are available") },
+            store,
+            Instant.parse("2026-11-04T10:00:00Z")
+        ).ramadanRange()
+
+        assertEquals(1448, range?.hijriYear)
+        assertEquals(LocalDate.of(2027, 2, 8), range?.startDate)
+    }
+
+    @Test
+    fun unlistedHijriYearUsesAlAdhanAndMarksRangeEstimated() = runTest {
+        val today = LocalDate.of(2036, 5, 1)
+        val store = FakeStore(
+            location,
+            settings,
+            today,
+            listOf(sampleCache(today, location).copy(hijriDay = 20, hijriMonth = 8, hijriYear = 1458))
+        )
+        val api = FakeApi(
+            calendarOutcome = { year, month ->
+                val response = calendar(YearMonth.of(year, month))
+                response.copy(
+                    days = response.days.map { day ->
+                        val ramadanDay = java.time.temporal.ChronoUnit.DAYS.between(
+                            LocalDate.of(2036, 10, 21), day.date
+                        ).toInt() + 1
+                        if (ramadanDay in 1..30) {
+                            day.copy(
+                                result = day.result.copy(
+                                    hijriDay = ramadanDay,
+                                    hijriMonth = 9,
+                                    hijriYear = 1458
+                                )
+                            )
+                        } else {
+                            day
+                        }
+                    }
+                )
+            },
+            hijriOutcome = { month, _ ->
+                when (month) {
+                    9 -> (0..29).map { LocalDate.of(2036, 10, 21).plusDays(it.toLong()) }
+                    10 -> (0..28).map { LocalDate.of(2036, 11, 20).plusDays(it.toLong()) }
+                    else -> emptyList()
+                }
+            }
+        )
+
+        val range = repository(api, store, Instant.parse("2036-05-01T10:00:00Z")).ramadanRange()
+
+        assertEquals(1458, range?.hijriYear)
+        assertEquals(LocalDate.of(2036, 10, 21), range?.startDate)
+        assertEquals(LocalDate.of(2036, 11, 19), range?.endDate)
+        assertEquals(LocalDate.of(2036, 11, 20), range?.eidDate)
+        assertEquals(true, range?.estimated)
+        assertEquals(listOf(9, 10), api.hijriMonthsRequested.map { it.first })
+        assertEquals(listOf(YearMonth.of(2036, 10), YearMonth.of(2036, 11)), api.requestedMonths)
+    }
+
+    @Test
+    fun unlistedHijriYearFailsWhenRoomHijriDatesConflictWithAlAdhanRange() = runTest {
+        val today = LocalDate.of(2036, 5, 1)
+        val store = FakeStore(
+            location,
+            settings,
+            today,
+            listOf(sampleCache(today, location).copy(hijriDay = 20, hijriMonth = 8, hijriYear = 1458))
+        )
+        val api = FakeApi(
+            calendarOutcome = { year, month ->
+                val response = calendar(YearMonth.of(year, month))
+                response.copy(
+                    days = response.days.map { day ->
+                        val ramadanDay = java.time.temporal.ChronoUnit.DAYS.between(
+                            LocalDate.of(2036, 10, 21), day.date
+                        ).toInt() + 1
+                        if (ramadanDay in 1..30) {
+                            day.copy(
+                                result = day.result.copy(
+                                    hijriDay = if (ramadanDay == 1) 2 else ramadanDay,
+                                    hijriMonth = 9,
+                                    hijriYear = 1458
+                                )
+                            )
+                        } else {
+                            day
+                        }
+                    }
+                )
+            },
+            hijriOutcome = { month, _ ->
+                when (month) {
+                    9 -> (0..29).map { LocalDate.of(2036, 10, 21).plusDays(it.toLong()) }
+                    10 -> (0..28).map { LocalDate.of(2036, 11, 20).plusDays(it.toLong()) }
+                    else -> emptyList()
+                }
+            }
+        )
+
+        try {
+            repository(api, store, Instant.parse("2036-05-01T10:00:00Z")).ramadanRange()
+            fail("a Hijri calendar mismatch should be reported")
+        } catch (error: PrayerTimesApiException) {
+            assertTrue(error.message.orEmpty().contains("does not match"))
+        }
+    }
+
     private fun repository(
         api: PrayerTimesRemoteDataSource,
         store: FakeStore,
@@ -251,9 +465,11 @@ class PrayerTimesRepositoryTest {
     }
 
     private class FakeApi(
+        private val hijriOutcome: (Int, Int) -> List<LocalDate> = { _, _ -> emptyList() },
         private val calendarOutcome: (Int, Int) -> PrayerTimesCalendarResult
     ) : PrayerTimesRemoteDataSource {
         val requestedMonths = mutableListOf<YearMonth>()
+        val hijriMonthsRequested = mutableListOf<Pair<Int, Int>>()
 
         override suspend fun fetchMonth(
             city: String,
@@ -267,6 +483,11 @@ class PrayerTimesRepositoryTest {
         ): PrayerTimesCalendarResult {
             requestedMonths += YearMonth.of(year, month)
             return calendarOutcome(year, month)
+        }
+
+        override suspend fun fetchHijriMonth(month: Int, hijriYear: Int): List<LocalDate> {
+            hijriMonthsRequested += month to hijriYear
+            return hijriOutcome(month, hijriYear)
         }
     }
 

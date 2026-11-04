@@ -10,8 +10,11 @@ Namaz Vakti, Türkiye'deki şehirler için günlük namaz vakitlerini gösteren 
 - Ana ekrandan şehir arama ve bildirim ayarlarına erişim
 - İkindi vakti için varsayılan Şafii/standart hesaplama (`school=0`)
 - Room üzerinde timezone duyarlı ve çevrimdışı namaz vakti takvimi
-- Cache retention: bugünden 90 gün öncesi ile 60 gün sonrası dışındaki kayıtlar temizlenir
-- Ayın son yedi gününde sonraki ayı otomatik önceden indirme
+- AlAdhan method 13 vakitleri ve hicri takvim isteklerinde `calendarMethod=DIYANET`
+- Resmi olarak yayınlanmış Ramazan başlangıcı/bayram tarihlerine öncelik, yayınlanmayan yıllar için tahmini aralık
+- Günlük ve aylık vakit tablosu ile Ramazan imsakiyesi, iftar sütunu, Kadir Gecesi ve bayram tarihi
+- Cache retention: bugünden 90 gün öncesi ile 13 ay sonrası dışındaki kayıtlar temizlenir
+- Ayın son yedi gününde sonraki ayı otomatik önceden indirme; aylık tablo aylarını isteğe bağlı indirme
 - Veri kaynağı, hesaplama yöntemi ve son güncelleme bilgisini gösterme
 - Kaynak, yöntem, güncellik ve hata durumlarını gösteren Compose arayüzü
 - Aktif vakti vurgulayan, stale veriyi belirten ana ekran widget'ı
@@ -29,7 +32,7 @@ Kod sınırları paketlerle görünür hale getirilmiştir:
 - `ui/main`: Compose Activity/ekranları, ViewModel ve typed UI state
 - `widget/alarm`, `widget/renderer`, `widget/worker`: alarm/scheduler, `RemoteViews` render'ı ve WorkManager
 
-`PrayerTimesRepository` aylık API sonucunu doğrular, bugünün kaydını seçer ve sonraki ay ön-getirmesini koordine eder. `PrayerTimesStore` konumu DataStore'da, günlük vakitleri Room'da `konum + tarih + yöntem + mezhep` anahtarıyla saklar. Eski tek günlük DataStore cache'i ilk kullanımda otomatik olarak Room'a taşınır. `PrayerCachePolicy` timezone duyarlı cache güncelliğinin tek karar noktasıdır.
+`PrayerTimesRepository` aylık API sonucunu doğrular, isteğe bağlı ay indirmelerini ve sonraki ay ön-getirmesini koordine eder. Hicri Ramazan aralıklarında resmi Diyanet kayıtları AlAdhan `hToGCalendar` tahminlerinin önüne geçer. `PrayerTimesStore` konumu DataStore'da, günlük vakitleri ve sayısal hicri alanları Room'da `konum + tarih + yöntem + mezhep` anahtarıyla saklar. Room sürüm 1'den 2'ye açık migration kullanır; namaz veri sürümü 3 olduğundan eski hesaplama ve hicri metin cache'leri ilk kullanımda bir kez silinir. `PrayerCachePolicy` timezone duyarlı cache güncelliğinin tek karar noktasıdır.
 
 ## Gereksinimler
 
@@ -76,7 +79,7 @@ Gradle Managed Device emulator'ında CI ile aynı instrumented testleri çalış
 
 Managed-device testleri debug keystore ile imzalanan, R8/resource shrinking etkin `minified` varyantında çalışır. Böylece legacy Gson cache migration'ı ve widget reflection yolları küçültülmüş runtime üzerinde de doğrulanır. Instrumentation testleri fresh, stale ve cache bulunmayan widget durumlarını kontrol eder. Render smoke testi ise gerçek `RemoteViews` ağacını inflate eder, ölçer ve bitmap üzerine çizerek görünümün cihazda oluşturulabildiğini doğrular.
 
-Unit testler ayrıca cache şema dönüşümünü, retention penceresini, API timezone'una göre tarih üretimini, geri sayım sınırlarını ve saniye hassasiyetini, coroutine iptalini ve eşzamanlı kullanıcı işlemlerinde son seçimin kazanmasını doğrular. Compose UI smoke testi eklenmedi: managed minified testte Compose test rule, uygulama APK'sında R8 tarafından yeniden adlandırılan/kaldırılan `InfiniteAnimationPolicy`, `IntObjectMapKt.mutableIntObjectMapOf` ve `ViewTreeLifecycleOwner` API'lerine erişemedi.
+Unit testler ayrıca cache şema dönüşümünü, Room migration'ını, 13 aylık retention penceresini, resmi Ramazan tarih önceliğini ve tahmini fallback'ı, API hicri alan doğrulamasını, timezone'a göre tarih üretimini, geri sayım sınırlarını, coroutine iptalini ve eşzamanlı kullanıcı işlemlerinde son seçimin kazanmasını doğrular. Compose UI smoke testi eklenmedi: managed minified testte Compose test rule, uygulama APK'sında R8 tarafından yeniden adlandırılan/kaldırılan `InfiniteAnimationPolicy`, `IntObjectMapKt.mutableIntObjectMapOf` ve `ViewTreeLifecycleOwner` API'lerine erişemedi.
 
 Compose ana ekranı öncesindeki unsigned release APK `1,296,326` byte, sonrasındaki APK
 `3,648,289` byte ölçüldü (`+2,351,963` byte, yaklaşık `%181`). Her iki ölçümde de R8 ve

@@ -15,6 +15,8 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -41,6 +43,9 @@ data class PrayerDayEntity(
     val maghrib: String,
     val isha: String,
     val hijriText: String?,
+    val hijriDay: Int?,
+    val hijriMonth: Int?,
+    val hijriYear: Int?,
     val fetchedAtEpochMillis: Long,
     val source: String
 )
@@ -91,6 +96,22 @@ interface PrayerDayDao {
         school: Int
     ): Int
 
+    @Query(
+        """SELECT * FROM prayer_days
+            WHERE date BETWEEN :startDate AND :endDate
+              AND city = :city AND country = :country
+              AND method = :method AND school = :school
+            ORDER BY date"""
+    )
+    suspend fun findBetween(
+        startDate: String,
+        endDate: String,
+        city: String,
+        country: String,
+        method: Int,
+        school: Int
+    ): List<PrayerDayEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(days: List<PrayerDayEntity>)
 
@@ -101,7 +122,7 @@ interface PrayerDayDao {
     suspend fun clearAll()
 }
 
-@Database(entities = [PrayerDayEntity::class], version = 1, exportSchema = true)
+@Database(entities = [PrayerDayEntity::class], version = 2, exportSchema = true)
 abstract class PrayerTimesDatabase : RoomDatabase() {
     abstract fun prayerDayDao(): PrayerDayDao
 
@@ -110,7 +131,15 @@ abstract class PrayerTimesDatabase : RoomDatabase() {
             context.applicationContext,
             PrayerTimesDatabase::class.java,
             "prayer_times.db"
-        ).build()
+        ).addMigrations(MIGRATION_1_2).build()
+
+        val MIGRATION_1_2: Migration = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE prayer_days ADD COLUMN hijriDay INTEGER")
+                db.execSQL("ALTER TABLE prayer_days ADD COLUMN hijriMonth INTEGER")
+                db.execSQL("ALTER TABLE prayer_days ADD COLUMN hijriYear INTEGER")
+            }
+        }
     }
 }
 
@@ -130,6 +159,9 @@ internal fun CachedPrayerDay.toEntity() = PrayerDayEntity(
     maghrib = prayerTimes.maghrib.toString(),
     isha = prayerTimes.isha.toString(),
     hijriText = hijriText,
+    hijriDay = hijriDay,
+    hijriMonth = hijriMonth,
+    hijriYear = hijriYear,
     fetchedAtEpochMillis = fetchedAt.toEpochMilli(),
     source = source.name
 )
@@ -154,6 +186,9 @@ internal fun PrayerDayEntity.toDomain() = CachedPrayerDay(
     ),
     hijriText = hijriText,
     fetchedAt = Instant.ofEpochMilli(fetchedAtEpochMillis),
+    hijriDay = hijriDay,
+    hijriMonth = hijriMonth,
+    hijriYear = hijriYear,
     source = runCatching { PrayerDataSource.valueOf(source) }
         .getOrDefault(PrayerDataSource.LEGACY_CACHE)
 )

@@ -10,7 +10,7 @@ import org.junit.Test
 class PrayerDataVersionGateTest {
     @Test
     fun olderVersionClearsPrayerCachesOnceAndPreservesSelectedLocation() = runTest {
-        var version: Int? = 1
+        var version: Int? = 2
         val roomDays = mutableListOf("old room day")
         val legacyCaches = mutableListOf("old datastore cache")
         val city = "Ankara"
