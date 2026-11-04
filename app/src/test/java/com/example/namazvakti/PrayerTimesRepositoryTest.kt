@@ -260,7 +260,10 @@ class PrayerTimesRepositoryTest {
             country: String,
             year: Int,
             month: Int,
-            settings: PrayerCalculationSettings
+            settings: PrayerCalculationSettings,
+            latitude: Double?,
+            longitude: Double?,
+            timezone: String
         ): PrayerTimesCalendarResult {
             requestedMonths += YearMonth.of(year, month)
             return calendarOutcome(year, month)

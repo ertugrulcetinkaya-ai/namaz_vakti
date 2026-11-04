@@ -98,7 +98,10 @@ class PrayerViewModelTest {
     fun selectingCityRunsRefreshAndDoesNotRemainRefreshing() = runTest {
         val store = FakeStore()
         val selected = PrayerLocationConfig.cityOptions.first { it.city == "Istanbul" }
-        val newLocation = PrayerLocation(selected.city, selected.country, selected.displayCity)
+        val newLocation = PrayerLocation(
+            selected.city, selected.country, selected.displayCity,
+            latitude = selected.latitude, longitude = selected.longitude
+        )
         val viewModel = viewModel(store, FakeRepository(RefreshResult.Success(sampleCache(newLocation))), CoroutineScope(StandardTestDispatcher(testScheduler)))
         advanceUntilIdle()
         viewModel.selectCity(selected)
@@ -115,7 +118,10 @@ class PrayerViewModelTest {
     fun selectingCityCancelsAnOlderRefreshSoLatestSelectionWins() = runTest {
         val store = FakeStore()
         val selected = PrayerLocationConfig.cityOptions.first { it.city == "Istanbul" }
-        val newLocation = PrayerLocation(selected.city, selected.country, selected.displayCity)
+        val newLocation = PrayerLocation(
+            selected.city, selected.country, selected.displayCity,
+            latitude = selected.latitude, longitude = selected.longitude
+        )
         val repository = CancelThenSucceedRepository { sampleCache(newLocation) }
         val viewModel = viewModel(store, repository, CoroutineScope(StandardTestDispatcher(testScheduler)))
         advanceUntilIdle()

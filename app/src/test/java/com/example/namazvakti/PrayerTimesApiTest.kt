@@ -4,6 +4,7 @@ import com.example.namazvakti.data.remote.PrayerTimesApi
 import com.example.namazvakti.data.remote.PrayerTimesApiDayResult
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.PrayerError
+import com.example.namazvakti.domain.model.PrayerTimeAdjustments
 import com.example.namazvakti.domain.model.PrayerTimesApiException
 import com.example.namazvakti.domain.model.classifyPrayerError
 import org.junit.Assert.assertEquals
@@ -57,14 +58,39 @@ class PrayerTimesApiTest {
         try {
             PrayerTimesApi(baseUrl = server.url("/v1/")).fetchMonth(
                 "Ankara", "Turkey", 2026, 8,
-                PrayerCalculationSettings(method = 3, school = PrayerCalculationSettings.SCHOOL_HANAFI)
+                PrayerCalculationSettings(method = 3, school = PrayerCalculationSettings.SCHOOL_HANAFI),
+                latitude = 39.9199,
+                longitude = 32.8543,
+                timezone = "Europe/Istanbul"
+            )
+            val request = server.takeRequest()
+            assertEquals("GET", request.method)
+            assertEquals("/v1/calendar/2026/8", request.requestUrl?.encodedPath)
+            assertEquals("39.9199", request.requestUrl?.queryParameter("latitude"))
+            assertEquals("32.8543", request.requestUrl?.queryParameter("longitude"))
+            assertEquals("3", request.requestUrl?.queryParameter("method"))
+            assertEquals("1", request.requestUrl?.queryParameter("school"))
+            assertEquals("Europe/Istanbul", request.requestUrl?.queryParameter("timezonestring"))
+            assertEquals(PrayerTimeAdjustments.ALADHAN_TUNE, request.requestUrl?.queryParameter("tune"))
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
+    fun monthlyRequestFallsBackToCityWhenCoordinatesAreUnavailable() = runTest {
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setResponseCode(200).setBody(calendarBody()))
+        server.start()
+        try {
+            PrayerTimesApi(baseUrl = server.url("/v1/")).fetchMonth(
+                "Baku", "Azerbaijan", 2026, 8, PrayerCalculationSettings()
             )
             val request = server.takeRequest()
             assertEquals("/v1/calendarByCity/2026/8", request.requestUrl?.encodedPath)
-            assertEquals("Ankara", request.requestUrl?.queryParameter("city"))
-            assertEquals("Turkey", request.requestUrl?.queryParameter("country"))
-            assertEquals("3", request.requestUrl?.queryParameter("method"))
-            assertEquals("1", request.requestUrl?.queryParameter("school"))
+            assertEquals("Baku", request.requestUrl?.queryParameter("city"))
+            assertEquals("Azerbaijan", request.requestUrl?.queryParameter("country"))
+            assertEquals(PrayerTimeAdjustments.ALADHAN_TUNE, request.requestUrl?.queryParameter("tune"))
         } finally {
             server.shutdown()
         }

@@ -2,6 +2,7 @@ package com.example.namazvakti.data.local
 
 import android.content.Context
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.namazvakti.domain.model.CachedPrayerDay
@@ -68,9 +69,15 @@ class PrayerTimesStore(
     private val cityKey = stringPreferencesKey("selected_city")
     private val countryKey = stringPreferencesKey("selected_country")
     private val locationTimezoneKey = stringPreferencesKey("selected_timezone")
+    private val latitudeKey = stringPreferencesKey("selected_latitude")
+    private val longitudeKey = stringPreferencesKey("selected_longitude")
+    private val prayerDataVersionKey = intPreferencesKey("prayer_data_version")
     private val codec = CachedPrayerDayCodec()
     private val migrationMutex = Mutex()
+    private val dataVersionMutex = Mutex()
+    private val dataVersionGate = PrayerDataVersionGate(PrayerDataVersionGate.CURRENT_VERSION)
     @Volatile private var migrationComplete = false
+    @Volatile private var dataVersionCheckComplete = false
     @Volatile private var lastRetentionDate: LocalDate? = null
 
     override suspend fun saveCache(cache: CachedPrayerDay) = storageOperation {
@@ -91,6 +98,8 @@ class PrayerTimesStore(
             prefs[cityKey] = location.city
             prefs[countryKey] = location.country
             prefs[locationTimezoneKey] = location.timezone.id
+            location.latitude?.let { prefs[latitudeKey] = it.toString() } ?: prefs.remove(latitudeKey)
+            location.longitude?.let { prefs[longitudeKey] = it.toString() } ?: prefs.remove(longitudeKey)
         }
         Unit
     }
@@ -111,10 +120,23 @@ class PrayerTimesStore(
         val prefs = context.dataStore.data.first()
         val city = prefs[cityKey] ?: PrayerLocationConfig.defaultCity.city
         val country = prefs[countryKey] ?: PrayerLocationConfig.defaultCity.country
-        val displayCity = PrayerLocationConfig.optionForCityAndCountry(city, country).displayCity
+        val option = PrayerLocationConfig.optionForCityAndCountry(city, country)
         val timezone = prefs[locationTimezoneKey]?.let { runCatching { ZoneId.of(it) }.getOrNull() }
             ?: PrayerTimeProvider.DEFAULT_ZONE
-        PrayerLocation(city, country, displayCity, timezone)
+        val storedCoordinates = prefs[latitudeKey]?.toDoubleOrNull()?.let { latitude ->
+            prefs[longitudeKey]?.toDoubleOrNull()?.let { longitude -> latitude to longitude }
+        }
+        val coordinates = storedCoordinates ?: option.latitude?.let { latitude ->
+            option.longitude?.let { longitude -> latitude to longitude }
+        }
+        PrayerLocation(
+            city = city,
+            country = country,
+            displayCity = option.displayCity,
+            timezone = timezone,
+            latitude = coordinates?.first,
+            longitude = coordinates?.second
+        )
     }
 
     override suspend fun readCache(): CachedPrayerDay? = storageOperation {
@@ -185,7 +207,27 @@ class PrayerTimesStore(
         }
     }
 
+    private suspend fun ensurePrayerDataVersion() {
+        if (dataVersionCheckComplete) return
+        dataVersionMutex.withLock {
+            if (dataVersionCheckComplete) return@withLock
+            val storedVersion = context.dataStore.data.first()[prayerDataVersionKey]
+            dataVersionGate.ensureCurrent(storedVersion) { currentVersion ->
+                prayerDayDao.clearAll()
+                context.dataStore.edit { prefs ->
+                    prefs.remove(cacheKey)
+                    prefs.remove(legacyWidgetTextKey)
+                    prefs.remove(legacyWidgetDateKey)
+                    prefs.remove(legacyWidgetHijriKey)
+                    prefs[prayerDataVersionKey] = currentVersion
+                }
+            }
+            dataVersionCheckComplete = true
+        }
+    }
+
     private suspend fun <T> storageOperation(block: suspend () -> T): T = try {
+        ensurePrayerDataVersion()
         block()
     } catch (e: CancellationException) {
         throw e

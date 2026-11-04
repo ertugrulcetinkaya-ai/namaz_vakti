@@ -4,6 +4,13 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "com.android.application"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "gradle"
+        update-types:
+          - "version-update:semver-major"
   - package-ecosystem: github-actions
     directory: /
     schedule:

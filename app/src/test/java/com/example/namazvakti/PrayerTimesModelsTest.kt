@@ -102,27 +102,22 @@ class PrayerTimesModelsTest {
     }
 
     @Test
-    fun schedulerUsesTomorrowCacheForTheNextFajr() {
+    fun schedulerUsesMidnightWhenTomorrowCacheExists() {
         val cache = sampleCache()
-        val tomorrow = sampleCache(
-            date = LocalDate.of(2026, 8, 7),
-            times = sampleTimes().copy(fajr = LocalTime.of(4, 10))
-        )
 
         assertEquals(
-            LocalDate.of(2026, 8, 7).atTime(4, 10),
+            LocalDate.of(2026, 8, 7).atTime(0, 0, 30),
             PrayerBoundaryCalculator.calculateNextBoundary(
                 cache,
-                ZonedDateTime.of(2026, 8, 6, 22, 30, 0, 0, PrayerTimeProvider.DEFAULT_ZONE),
-                tomorrow
+                ZonedDateTime.of(2026, 8, 6, 22, 30, 0, 0, PrayerTimeProvider.DEFAULT_ZONE)
             ).toLocalDateTime()
         )
     }
 
     @Test
-    fun schedulerFallsBackToAfterMidnightWhenTomorrowCacheIsMissing() {
+    fun schedulerSchedulesMidnightPlusThirtySecondsWhenTomorrowCacheIsMissing() {
         assertEquals(
-            LocalDate.of(2026, 8, 7).atTime(0, 1),
+            LocalDate.of(2026, 8, 7).atTime(0, 0, 30),
             PrayerBoundaryCalculator.calculateNextBoundary(
                 sampleCache(),
                 ZonedDateTime.of(
