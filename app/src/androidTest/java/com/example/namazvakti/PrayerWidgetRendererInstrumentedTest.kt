@@ -12,6 +12,7 @@ import android.os.SystemClock
 import android.provider.MediaStore
 import android.util.Log
 import android.view.View
+import android.widget.Chronometer
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.test.core.app.ApplicationProvider
@@ -50,11 +51,23 @@ class PrayerWidgetRendererInstrumentedTest {
             val fresh = render(cache(), PrayerWidgetDataState.Fresh, size)
             assertTrue(fresh.root.contentDescription.contains("Sıradaki vakit İkindi"))
             assertEquals(View.VISIBLE, fresh.root.findViewById<View>(R.id.prayer_widget_chronometer).visibility)
+            assertEquals(
+                if (size == PrayerWidgetSizeClass.SMALL) null else "%s kaldı",
+                fresh.root.findViewById<Chronometer>(R.id.prayer_widget_chronometer).format
+            )
             assertTrue(bitmapHasVisiblePixels(fresh.bitmap))
             saveBitmap(fresh.bitmap, "fresh_${size.fileName()}")
 
             val stale = render(cache(), PrayerWidgetDataState.Stale, size)
             assertTrue(stale.root.text(R.id.prayer_widget_city).contains("Eski veri"))
+            assertEquals(
+                when (size) {
+                    PrayerWidgetSizeClass.SMALL -> "Eski veri"
+                    PrayerWidgetSizeClass.MEDIUM -> "İSTANBUL • 22 Safer 1448 • Eski veri"
+                    PrayerWidgetSizeClass.LARGE -> "İSTANBUL • Eski veri"
+                },
+                stale.root.text(R.id.prayer_widget_city)
+            )
             assertTrue(stale.root.contentDescription.contains("Eski veri gösteriliyor"))
             assertEquals(View.GONE, stale.root.findViewById<View>(R.id.prayer_widget_chronometer).visibility)
             assertTrue(bitmapHasVisiblePixels(stale.bitmap))
@@ -82,7 +95,7 @@ class PrayerWidgetRendererInstrumentedTest {
                     size = size,
                     renderContext = themedContext
                 )
-                saveBitmap(rendered.bitmap, "${size.fileName()}_$themeName")
+                saveBitmap(rendered.bitmap, "fresh_${size.fileName()}_$themeName")
             }
             val textColor = themedContext.getColor(R.color.widget_text)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -167,7 +180,7 @@ class PrayerWidgetRendererInstrumentedTest {
     }
 
     private fun saveBitmap(bitmap: Bitmap, name: String) {
-        val directory = File(context.getExternalFilesDir(null), "widget_refresh_2026-11-05")
+        val directory = File(context.getExternalFilesDir(null), "widget_refresh_20261105_v2")
         check(directory.mkdirs() || directory.isDirectory) { "Could not create ${directory.absolutePath}" }
         val file = File(directory, "$name.png")
         FileOutputStream(file).use { output ->
@@ -181,7 +194,7 @@ class PrayerWidgetRendererInstrumentedTest {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
         val resolver = context.contentResolver
         val collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-        val relativePath = "${Environment.DIRECTORY_PICTURES}/widget_refresh_2026-11-05/"
+        val relativePath = "${Environment.DIRECTORY_PICTURES}/widget_refresh_20261105_v2/"
         val existingUri = resolver.query(
             collection,
             arrayOf(MediaStore.Images.Media._ID),

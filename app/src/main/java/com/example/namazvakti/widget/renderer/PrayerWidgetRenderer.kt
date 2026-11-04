@@ -66,7 +66,7 @@ class PrayerWidgetRenderer {
         )
 
         val staleSuffix = if (dataState == PrayerWidgetDataState.Stale) {
-            context.getString(R.string.widget_stale_suffix)
+            " • ${context.getString(R.string.widget_stale_label)}"
         } else ""
         val hijriText = cache?.hijriText?.trim().orEmpty()
         val cityText = when (sizeClass) {
@@ -134,7 +134,11 @@ class PrayerWidgetRenderer {
             views.setChronometer(
                 R.id.prayer_widget_chronometer,
                 countdown.chronometerBase,
-                null,
+                if (sizeClass == PrayerWidgetSizeClass.SMALL) {
+                    null
+                } else {
+                    context.getString(R.string.widget_chronometer_format)
+                },
                 true
             )
             views.setChronometerCountDown(R.id.prayer_widget_chronometer, true)
