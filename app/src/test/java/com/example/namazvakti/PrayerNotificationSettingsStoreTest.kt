@@ -22,6 +22,7 @@ class PrayerNotificationSettingsStoreTest {
 
         assertEquals(PrayerNotificationSettings(), store.read())
         assertEquals(false, store.read().notificationsEnabled)
+        assertEquals(false, store.read().religiousDaysEnabled)
         assertEquals(0, store.read().leadMinutes)
         assertEquals(5, store.read().enabledPrayers.size)
         assertEquals(false, PrayerNotificationPrayer.SUNRISE in store.read().enabledPrayers)
@@ -34,7 +35,8 @@ class PrayerNotificationSettingsStoreTest {
         val expected = PrayerNotificationSettings(
             notificationsEnabled = true,
             enabledPrayers = setOf(PrayerNotificationPrayer.SUNRISE, PrayerNotificationPrayer.ISHA),
-            leadMinutes = 15
+            leadMinutes = 15,
+            religiousDaysEnabled = true
         )
 
         store.save(expected)

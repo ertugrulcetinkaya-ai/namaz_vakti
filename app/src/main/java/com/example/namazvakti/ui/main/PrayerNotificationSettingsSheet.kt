@@ -53,6 +53,7 @@ fun PrayerNotificationSettingsSheet(
     var notificationsEnabled by remember(settings) { mutableStateOf(settings.notificationsEnabled) }
     var enabledPrayers by remember(settings) { mutableStateOf(settings.enabledPrayers) }
     var leadMinutes by remember(settings) { mutableIntStateOf(settings.leadMinutes) }
+    var religiousDaysEnabled by remember(settings) { mutableStateOf(settings.religiousDaysEnabled) }
     var leadMenuExpanded by rememberSaveable { mutableStateOf(false) }
     val leadValues = listOf(0, 5, 10, 15, 30, 45)
     val leadLabels = stringArrayResource(R.array.notification_lead_choices)
@@ -84,6 +85,19 @@ fun PrayerNotificationSettingsSheet(
                 Switch(
                     checked = notificationsEnabled,
                     onCheckedChange = { notificationsEnabled = it }
+                )
+            }
+
+            HorizontalDivider()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(stringResource(R.string.religious_day_notifications_enabled), modifier = Modifier.weight(1f))
+                Switch(
+                    checked = religiousDaysEnabled,
+                    onCheckedChange = { religiousDaysEnabled = it }
                 )
             }
 
@@ -143,7 +157,7 @@ fun PrayerNotificationSettingsSheet(
                 }
             }
 
-            if (exactAlarmNeeded) {
+            if (exactAlarmNeeded && notificationsEnabled) {
                 Text(
                     text = stringResource(R.string.precise_widget_updates_disabled),
                     style = MaterialTheme.typography.bodyMedium,
@@ -179,7 +193,8 @@ fun PrayerNotificationSettingsSheet(
                             PrayerNotificationSettings(
                                 notificationsEnabled = notificationsEnabled,
                                 enabledPrayers = enabledPrayers,
-                                leadMinutes = leadMinutes
+                                leadMinutes = leadMinutes,
+                                religiousDaysEnabled = religiousDaysEnabled
                             )
                         )
                     }

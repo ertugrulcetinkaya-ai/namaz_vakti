@@ -43,6 +43,10 @@
             android:exported="false" />
 
         <receiver
+            android:name=".notification.ReligiousDayNotificationReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".widget.alarm.PrayerWidgetSystemReceiver"
             android:exported="false">
             <intent-filter>
