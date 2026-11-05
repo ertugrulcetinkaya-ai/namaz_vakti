@@ -43,7 +43,7 @@ class PrayerWidgetRenderer {
         tomorrowCache = snapshot.tomorrowCache,
         ramadanRange = snapshot.ramadanRange,
         elapsedRealtime = elapsedRealtime,
-        religiousDay = snapshot.religiousDay
+        religiousDays = snapshot.religiousDays
     )
 
     fun render(
@@ -56,7 +56,7 @@ class PrayerWidgetRenderer {
         tomorrowCache: CachedPrayerDay? = null,
         ramadanRange: RamadanRange? = null,
         elapsedRealtime: Long = android.os.SystemClock.elapsedRealtime(),
-        religiousDay: DiyanetReligiousDay? = null
+        religiousDays: List<DiyanetReligiousDay> = emptyList()
     ): RemoteViews {
         val views = RemoteViews(context.packageName, layoutFor(sizeClass))
         val localNow = now.withZoneSameInstant(cache?.timezone ?: location.timezone)
@@ -154,12 +154,7 @@ class PrayerWidgetRenderer {
         )
 
         val ramadanText = ramadanText(context, cache, tomorrowCache, ramadanRange, localNow, dataState)
-        val religiousText = religiousDay?.let { event ->
-            context.getString(
-                if (event.isNight) R.string.widget_religious_night else R.string.widget_religious_day,
-                event.displayName
-            )
-        }
+        val religiousText = religiousText(context, religiousDays)
         val bottomInfo = bottomInfoText(context, ramadanText, religiousText)
         views.setTextViewText(R.id.prayer_widget_ramadan, bottomInfo.orEmpty())
         views.setViewVisibility(
@@ -265,6 +260,32 @@ class PrayerWidgetRenderer {
             context.resources.displayMetrics
         )
         return if (paint.measureText(combined) <= availableWidth) combined else ramadanText
+    }
+
+    private fun religiousText(context: Context, events: List<DiyanetReligiousDay>): String? {
+        if (events.isEmpty()) return null
+        val paint = TextPaint().apply {
+            textSize = TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_SP,
+                11f,
+                context.resources.displayMetrics
+            )
+        }
+        val availableWidth = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            218f,
+            context.resources.displayMetrics
+        )
+        val selected = mutableListOf<String>()
+        events.sortedBy { if (it.isNight) 0 else 1 }.forEach { event ->
+            val text = context.getString(
+                if (event.isNight) R.string.widget_religious_night else R.string.widget_religious_day,
+                event.displayName
+            )
+            val candidate = (selected + text).joinToString(" · ")
+            if (paint.measureText(candidate) <= availableWidth) selected += text
+        }
+        return selected.takeIf { it.isNotEmpty() }?.joinToString(" · ")
     }
 
     private fun layoutFor(sizeClass: PrayerWidgetSizeClass): Int = when (sizeClass) {

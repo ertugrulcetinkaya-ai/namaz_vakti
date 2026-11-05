@@ -138,12 +138,30 @@ class PrayerWidgetRendererInstrumentedTest {
             state = PrayerWidgetDataState.Fresh,
             size = PrayerWidgetSizeClass.LARGE,
             now = eventDate.atTime(14, 0).atZone(ZONE),
-            religiousDay = event
+            religiousDays = listOf(event)
         )
 
         assertEquals("Bu akşam Mevlid Kandili", rendered.root.text(R.id.prayer_widget_ramadan))
         assertEquals(View.VISIBLE, rendered.root.findViewById<View>(R.id.prayer_widget_ramadan).visibility)
         saveBitmap(rendered.bitmap, "religious_day_large_light")
+    }
+
+    @Test
+    fun largeWidgetPrioritizesNightWhenMultipleObservancesShareDate() {
+        val eventDate = LocalDate.of(2026, 12, 10)
+        val events = DiyanetReligiousDays.on(eventDate)
+        val rendered = render(
+            cache = cache(date = eventDate),
+            state = PrayerWidgetDataState.Fresh,
+            size = PrayerWidgetSizeClass.LARGE,
+            now = eventDate.atTime(14, 0).atZone(ZONE),
+            religiousDays = events
+        )
+
+        val text = rendered.root.text(R.id.prayer_widget_ramadan)
+        assertTrue(text.startsWith("Bu akşam Regaip Kandili"))
+        assertTrue(text.split(" · ").size <= events.size)
+        saveBitmap(rendered.bitmap, "religious_day_same_date_large_light")
     }
 
     @Test
@@ -162,7 +180,7 @@ class PrayerWidgetRendererInstrumentedTest {
         renderContext: Context = context,
         now: ZonedDateTime = this.now,
         ramadanRange: com.example.namazvakti.domain.model.RamadanRange? = null,
-        religiousDay: DiyanetReligiousDay? = null
+        religiousDays: List<DiyanetReligiousDay> = emptyList()
     ): Rendered {
         val snapshot = com.example.namazvakti.widget.PrayerWidgetSnapshot(
             cache = cache,
@@ -170,7 +188,7 @@ class PrayerWidgetRendererInstrumentedTest {
             now = now,
             dataState = state,
             ramadanRange = ramadanRange,
-            religiousDay = religiousDay
+            religiousDays = religiousDays
         )
         val root = renderer.render(
             renderContext,

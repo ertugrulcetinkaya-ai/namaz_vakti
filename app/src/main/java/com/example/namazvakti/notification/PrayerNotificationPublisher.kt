@@ -72,7 +72,8 @@ object PrayerNotificationPublisher {
         )
     }
 
-    fun show(context: Context, event: DiyanetReligiousDay) {
+    fun show(context: Context, events: List<DiyanetReligiousDay>) {
+        if (events.isEmpty()) return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED
@@ -80,9 +81,11 @@ object PrayerNotificationPublisher {
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
 
         createReligiousDayChannel(context)
+        val orderedEvents = events.sortedBy { if (it.isNight) 1 else 0 }
+        val firstEvent = orderedEvents.first()
         val title = context.getString(
-            if (event.isNight) R.string.religious_day_notification_night else R.string.religious_day_notification_day,
-            event.displayName
+            if (firstEvent.isNight) R.string.religious_day_notification_night else R.string.religious_day_notification_day,
+            firstEvent.displayName
         )
         val contentIntent = PendingIntent.getActivity(
             context,
@@ -92,13 +95,17 @@ object PrayerNotificationPublisher {
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val content = event.date.format(
-            DateTimeFormatter.ofPattern("d MMMM", Locale.forLanguageTag("tr-TR"))
-        )
+        val content = orderedEvents.drop(1).takeIf { it.isNotEmpty() }?.joinToString(" · ") { event ->
+            context.getString(
+                if (event.isNight) R.string.religious_day_notification_night else R.string.religious_day_notification_day,
+                event.displayName
+            )
+        } ?: firstEvent.date.format(DateTimeFormatter.ofPattern("d MMMM", Locale.forLanguageTag("tr-TR")))
         val notification = NotificationCompat.Builder(context, CHANNEL_RELIGIOUS_DAYS)
             .setSmallIcon(R.drawable.ic_notification_prayer)
             .setContentTitle(title)
             .setContentText(content)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(content))
             .setContentIntent(contentIntent)
             .setAutoCancel(true)
             .setCategory(NotificationCompat.CATEGORY_EVENT)

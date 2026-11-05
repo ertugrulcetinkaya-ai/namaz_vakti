@@ -38,9 +38,8 @@ class ReligiousDayNotificationReceiver : BroadcastReceiver() {
         val enabled = container.notificationSettingsStore.read().religiousDaysEnabled
         val date = intent.getStringExtra(ReligiousDayNotificationAlarm.EXTRA_EVENT_DATE)
             ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
-        val name = intent.getStringExtra(ReligiousDayNotificationAlarm.EXTRA_EVENT_NAME)
         val triggerMillis = intent.getLongExtra(ReligiousDayNotificationAlarm.EXTRA_TRIGGER_AT, Long.MIN_VALUE)
-        if (date == null || name == null || triggerMillis == Long.MIN_VALUE) {
+        if (date == null || triggerMillis == Long.MIN_VALUE) {
             ReligiousDayNotificationScheduler.scheduleNext(context)
             return
         }
@@ -48,8 +47,8 @@ class ReligiousDayNotificationReceiver : BroadcastReceiver() {
         val zone = ZoneId.systemDefault()
         val now = ZonedDateTime.now(zone)
         val scheduled = Instant.ofEpochMilli(triggerMillis)
-        val event = DiyanetReligiousDays.on(date).firstOrNull { it.name == name }
-        if (event != null) {
+        val events = DiyanetReligiousDays.on(date)
+        if (events.isNotEmpty()) {
             val allowed = ReligiousDayNotificationDeliveryPolicy.shouldShow(
                 now = now.toInstant(),
                 scheduledTriggerAt = scheduled,
@@ -57,7 +56,7 @@ class ReligiousDayNotificationReceiver : BroadcastReceiver() {
                 deviceZone = zone,
                 enabled = enabled
             )
-            if (allowed) PrayerNotificationPublisher.show(context, event)
+            if (allowed) PrayerNotificationPublisher.show(context, events)
         }
         ReligiousDayNotificationScheduler.scheduleNext(context)
     }

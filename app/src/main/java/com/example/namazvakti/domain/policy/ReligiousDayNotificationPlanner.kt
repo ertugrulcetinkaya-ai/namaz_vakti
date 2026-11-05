@@ -1,7 +1,6 @@
 package com.example.namazvakti.domain.policy
 
 import com.example.namazvakti.domain.model.DiyanetReligiousDay
-import com.example.namazvakti.domain.model.DiyanetReligiousDayType
 import com.example.namazvakti.domain.model.DiyanetReligiousDays
 import java.time.Instant
 import java.time.LocalDate
@@ -12,19 +11,25 @@ import java.time.temporal.ChronoUnit
 private val RELIGIOUS_DAY_NOTIFICATION_TIME: LocalTime = LocalTime.of(10, 0)
 
 data class ReligiousDayNotificationEvent(
-    val religiousDay: DiyanetReligiousDay,
+    val religiousDays: List<DiyanetReligiousDay>,
     val date: LocalDate,
     val triggerAt: ZonedDateTime
 ) {
+    val title: String
+        get() = religiousDays.first().announcementText()
+
     val text: String
-        get() = if (religiousDay.isNight) {
-            "Bu akşam ${religiousDay.displayName}"
-        } else {
-            "Bugün ${religiousDay.displayName}"
-        }
+        get() = title
+
+    val secondaryText: String?
+        get() = religiousDays.drop(1).takeIf { it.isNotEmpty() }
+            ?.joinToString(" · ") { it.announcementText() }
 }
 
-/** Plans one next 10:00 local-device reminder. Ambiguous source dates remain separate candidates. */
+private fun DiyanetReligiousDay.announcementText(): String =
+    if (isNight) "Bu akşam $displayName" else "Bugün $displayName"
+
+/** Plans one next 10:00 local-device reminder, combining all events on that date. */
 object ReligiousDayNotificationPlanner {
     fun nextEvent(
         now: ZonedDateTime,
@@ -32,22 +37,18 @@ object ReligiousDayNotificationPlanner {
         enabled: Boolean = true
     ): ReligiousDayNotificationEvent? {
         if (!enabled) return null
-        val candidates = events.asSequence()
+        return events.asSequence()
             .groupBy(DiyanetReligiousDay::date)
             .mapNotNull { (date, sameDayEvents) ->
                 val triggerAt = date.atTime(RELIGIOUS_DAY_NOTIFICATION_TIME).atZone(now.zone)
                 if (!triggerAt.isAfter(now)) return@mapNotNull null
-                val event = sameDayEvents.minByOrNull(::priority) ?: return@mapNotNull null
-                ReligiousDayNotificationEvent(event, date, triggerAt)
+                ReligiousDayNotificationEvent(
+                    religiousDays = sameDayEvents.sortedBy { if (it.isNight) 1 else 0 },
+                    date = date,
+                    triggerAt = triggerAt
+                )
             }
-        return candidates.minByOrNull { it.triggerAt.toInstant() }
-    }
-
-    private fun priority(event: DiyanetReligiousDay): Int = when {
-        event.isNight -> 0
-        event.type == DiyanetReligiousDayType.BAYRAM -> 1
-        event.type == DiyanetReligiousDayType.AREFE -> 2
-        else -> 3
+            .minByOrNull { it.triggerAt.toInstant() }
     }
 }
 

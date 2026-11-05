@@ -381,7 +381,7 @@ private fun PrayerCalendarRow(
         if (ramadan) append(", Ramazan")
         religiousDays.forEach { event ->
             append(", ")
-            append(event.name)
+            append(event.displayName)
         }
         PrayerTimeName.entries.forEachIndexed { index, prayer ->
             append(", ")
@@ -424,7 +424,7 @@ private fun PrayerCalendarRow(
                 ) {
                     Text(if (event.isNight) "☾" else "✦", style = MaterialTheme.typography.labelSmall)
                     Text(
-                        event.name,
+                        event.displayName,
                         color = MaterialTheme.colorScheme.tertiary,
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,

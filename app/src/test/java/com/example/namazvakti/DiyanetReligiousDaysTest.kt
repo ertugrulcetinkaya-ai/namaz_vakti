@@ -15,12 +15,19 @@ import org.junit.Test
 class DiyanetReligiousDaysTest {
     @Test
     fun allPublishedYearPagesAndNightKindsAreRepresented() {
-        assertEquals((2025..2035).toSet(), DiyanetReligiousDays.entries.flatMap { it.dates }.map { it.year }.toSet())
+        assertEquals((2025..2035).toSet(), DiyanetReligiousDays.entries.map { it.date.year }.toSet())
         assertEquals(208, DiyanetReligiousDays.entries.size)
         DiyanetReligiousDays.entries.forEach { event ->
             assertEquals(event.type == DiyanetReligiousDayType.KANDIL, event.isNight)
+            assertTrue("Missing display name for ${event.name}", event.displayName.isNotBlank())
+            assertTrue("Unexpected display name for ${event.name}: ${event.displayName}", event.displayName in DISPLAY_NAMES)
         }
-        assertTrue(DiyanetReligiousDays.forYear(2028).any { it.dates.size == 2 })
+        val slashRows = DiyanetReligiousDays.entries.filter { "/" in it.sourceGregorianDateLabel }
+        assertEquals(42, slashRows.size)
+        slashRows.forEach { event ->
+            assertTrue("Slash observance must be a night: ${event.name}", event.isNight)
+            assertEquals("Slash observance is dated on its first listed day", event.date, DiyanetReligiousDays.on(event.date).single { it.name == event.name }.date)
+        }
         assertTrue(DiyanetReligiousDays.forYear(2036).isEmpty())
     }
 
@@ -89,12 +96,18 @@ class DiyanetReligiousDaysTest {
     }
 
     @Test
-    fun slashSeparatedOfficialDatesArePreservedWithoutGuessing() {
+    fun slashSeparatedDateIsOneNightOnTheFirstListedDate() {
+        val berat2028 = DiyanetReligiousDays.forYear(2028).single { it.name == "BERAT KANDİLİ" && it.date.monthValue == 1 }
+        assertEquals(LocalDate.of(2028, 1, 11), berat2028.date)
+        assertEquals("Berat Kandili", berat2028.displayName)
+        assertEquals("11/12 OCAK -2028", berat2028.sourceGregorianDateLabel)
+        assertEquals("14/15 ŞABAN 1449", berat2028.sourceHijriDateLabel)
+        assertTrue(DiyanetReligiousDays.on(LocalDate.of(2028, 1, 12)).none { it.displayName == "Berat Kandili" })
+
         val regaip2031 = DiyanetReligiousDays.forYear(2031).single { it.name.contains("REGAİB") }
         assertEquals(LocalDate.of(2031, 10, 16), regaip2031.date)
-        assertEquals(listOf(LocalDate.of(2031, 10, 17)), regaip2031.alternateDates)
         assertEquals("29/01 C.AHİR/RECEB 1453", regaip2031.sourceHijriDateLabel)
-        assertTrue(regaip2031 in DiyanetReligiousDays.on(LocalDate.of(2031, 10, 17)))
+        assertTrue(DiyanetReligiousDays.on(LocalDate.of(2031, 10, 17)).none { it.displayName == "Regaip Kandili" })
     }
 
     private fun assertHijri(event: DiyanetReligiousDay, day: Int, month: Int) {
@@ -107,5 +120,16 @@ class DiyanetReligiousDaysTest {
 
     private fun assertEventAt(date: LocalDate, predicate: (DiyanetReligiousDay) -> Boolean) {
         assertNotNull("Missing Diyanet event for $date", DiyanetReligiousDays.on(date).firstOrNull(predicate))
+    }
+
+    private companion object {
+        val DISPLAY_NAMES = setOf(
+            "Üç Ayların Başlangıcı", "Regaip Kandili", "Miraç Kandili", "Berat Kandili",
+            "Ramazan Başlangıcı", "Kadir Gecesi", "Ramazan Bayramı Arefesi",
+            "Ramazan Bayramı (1. gün)", "Ramazan Bayramı (2. gün)", "Ramazan Bayramı (3. gün)",
+            "Kurban Bayramı Arefesi", "Kurban Bayramı (1. gün)", "Kurban Bayramı (2. gün)",
+            "Kurban Bayramı (3. gün)", "Kurban Bayramı (4. gün)", "Hicri Yılbaşı", "Aşure Günü",
+            "Mevlid Kandili"
+        )
     }
 }

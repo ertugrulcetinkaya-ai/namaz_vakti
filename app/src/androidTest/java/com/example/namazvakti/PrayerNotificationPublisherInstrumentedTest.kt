@@ -88,7 +88,7 @@ class PrayerNotificationPublisherInstrumentedTest {
         }
         val manager = context.getSystemService(NotificationManager::class.java)
         val notificationId = RELIGIOUS_DAY_NOTIFICATION_ID
-        val event = DiyanetReligiousDays.on(java.time.LocalDate.of(2026, 8, 24)).first { it.isNight }
+        val events = DiyanetReligiousDays.on(java.time.LocalDate.of(2026, 12, 10))
         val notificationsEnabled = try {
             NotificationManagerCompat.from(context).areNotificationsEnabled()
         } catch (_: NoSuchMethodError) {
@@ -98,7 +98,7 @@ class PrayerNotificationPublisherInstrumentedTest {
 
         manager.cancel(notificationId)
         try {
-            PrayerNotificationPublisher.show(context, event)
+            PrayerNotificationPublisher.show(context, events)
             val deadline = SystemClock.elapsedRealtime() + NOTIFICATION_TIMEOUT_MILLIS
             var notification = manager.activeNotifications.firstOrNull { it.id == notificationId }
             while (notification == null && SystemClock.elapsedRealtime() < deadline) {
@@ -108,7 +108,11 @@ class PrayerNotificationPublisherInstrumentedTest {
             assertTrue("Timed out waiting for a religious-day notification", notification != null)
             assertTrue(
                 notification!!.notification.extras.getCharSequence("android.title").toString()
-                    .contains("Bu akşam Mevlid Kandili")
+                    .contains("Bugün Üç Ayların Başlangıcı")
+            )
+            assertTrue(
+                notification.notification.extras.getCharSequence("android.text").toString()
+                    .contains("Bu akşam Regaip Kandili")
             )
             assertEquals(NotificationManager.IMPORTANCE_DEFAULT, manager.getNotificationChannel("religious_days")?.importance)
         } finally {

@@ -31,14 +31,12 @@ object ReligiousDayNotificationScheduler {
 internal object ReligiousDayNotificationAlarm {
     const val ACTION = "com.example.namazvakti.action.RELIGIOUS_DAY_NOTIFICATION"
     const val EXTRA_EVENT_DATE = "religious_day_event_date"
-    const val EXTRA_EVENT_NAME = "religious_day_event_name"
     const val EXTRA_TRIGGER_AT = "religious_day_trigger_at"
     const val REQUEST_CODE = 6104
 
     fun schedule(context: Context, event: ReligiousDayNotificationEvent) {
         val intent = intent(context).apply {
             putExtra(EXTRA_EVENT_DATE, event.date.toString())
-            putExtra(EXTRA_EVENT_NAME, event.religiousDay.name)
             putExtra(EXTRA_TRIGGER_AT, event.triggerAt.toInstant().toEpochMilli())
         }
         val appContext = context.applicationContext

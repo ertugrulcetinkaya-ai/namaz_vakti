@@ -22,7 +22,8 @@ class ReligiousDayNotificationPlannerTest {
         )
         assertEquals(LocalDate.of(2026, 12, 10), before?.date)
         assertEquals(ZonedDateTime.of(2026, 12, 10, 10, 0, 0, 0, istanbul), before?.triggerAt)
-        assertEquals("Bu akşam Regaip Kandili", before?.text)
+        assertEquals("Bugün Üç Ayların Başlangıcı", before?.title)
+        assertEquals("Bu akşam Regaip Kandili", before?.secondaryText)
 
         val after = ReligiousDayNotificationPlanner.nextEvent(
             ZonedDateTime.of(2026, 12, 10, 10, 1, 0, 0, istanbul)
@@ -40,11 +41,30 @@ class ReligiousDayNotificationPlannerTest {
     }
 
     @Test
-    fun usesFirstOfficialDateForReminderWhenSourceListsAlternatives() {
+    fun slashListedKandilPlansOnlyOneReminderOnTheFirstDate() {
         val event = ReligiousDayNotificationPlanner.nextEvent(
-            ZonedDateTime.of(2031, 10, 15, 10, 0, 0, 0, istanbul)
+            ZonedDateTime.of(2028, 1, 11, 9, 0, 0, 0, istanbul)
         )
-        assertEquals(LocalDate.of(2031, 10, 16), event?.date)
+        assertEquals(LocalDate.of(2028, 1, 11), event?.date)
+        assertEquals(listOf("Berat Kandili"), event?.religiousDays?.map { it.displayName })
+        assertEquals("Bu akşam Berat Kandili", event?.title)
+
+        val nextDay = ReligiousDayNotificationPlanner.nextEvent(
+            ZonedDateTime.of(2028, 1, 12, 9, 0, 0, 0, istanbul)
+        )
+        assertTrue(nextDay?.religiousDays?.none { it.displayName == "Berat Kandili" } != false)
+    }
+
+    @Test
+    fun combinesSameDateObservancesInOneReminderWithDaytimeFirst() {
+        val event = ReligiousDayNotificationPlanner.nextEvent(
+            ZonedDateTime.of(2026, 12, 10, 9, 0, 0, 0, istanbul)
+        )
+
+        assertEquals(LocalDate.of(2026, 12, 10), event?.date)
+        assertEquals(listOf("Üç Ayların Başlangıcı", "Regaip Kandili"), event?.religiousDays?.map { it.displayName })
+        assertEquals("Bugün Üç Ayların Başlangıcı", event?.title)
+        assertEquals("Bu akşam Regaip Kandili", event?.secondaryText)
     }
 
     @Test

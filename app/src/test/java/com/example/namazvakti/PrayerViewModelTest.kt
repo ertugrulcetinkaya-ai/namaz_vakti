@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
@@ -59,7 +60,7 @@ class PrayerViewModelTest {
 
         val regaip = viewModel.religiousDaysFor(2031).single { it.name.contains("REGAİB") }
         assertEquals(LocalDate.of(2031, 10, 16), regaip.date)
-        assertEquals(listOf(LocalDate.of(2031, 10, 17)), regaip.alternateDates)
+        assertFalse(com.example.namazvakti.domain.model.DiyanetReligiousDays.on(LocalDate.of(2031, 10, 17)).any { it.displayName == "Regaip Kandili" })
     }
 
     @Test

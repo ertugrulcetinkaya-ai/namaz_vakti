@@ -24,7 +24,7 @@ data class PrayerWidgetSnapshot(
     val dataState: PrayerWidgetDataState,
     val tomorrowCache: CachedPrayerDay? = null,
     val ramadanRange: RamadanRange? = null,
-    val religiousDay: DiyanetReligiousDay? = null
+    val religiousDays: List<DiyanetReligiousDay> = emptyList()
 )
 
 fun PrayerWidgetSnapshot.withCache(
@@ -73,7 +73,6 @@ class PrayerWidgetSnapshotSource(
             ?.takeIf { it.month == 9 }
             ?.let { DiyanetRamadanCalendar.find(it.year)?.toRange() }
         val religiousDays = DiyanetReligiousDays.on(today)
-        val religiousDay = religiousDays.firstOrNull { it.isNight } ?: religiousDays.firstOrNull()
         return PrayerWidgetSnapshot(
             cache = cache,
             location = location,
@@ -81,7 +80,7 @@ class PrayerWidgetSnapshotSource(
             dataState = dataState,
             tomorrowCache = tomorrowCache,
             ramadanRange = ramadanRange,
-            religiousDay = religiousDay
+            religiousDays = religiousDays
         )
     }
 }

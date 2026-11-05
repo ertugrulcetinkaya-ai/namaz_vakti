@@ -22,24 +22,29 @@ class ReligiousDayAnnouncementPolicyTest {
     @Test
     fun tomorrowAndSevenDayWindowUseCorrectWording() {
         assertEquals(
-            "Yarın akşam Regaip Kandili",
+            "Yarın: Üç Ayların Başlangıcı · Yarın akşam Regaip Kandili",
             ReligiousDayAnnouncementPolicy.select(LocalDate.of(2026, 12, 9))?.text
         )
         assertEquals(
-            "7 gün sonra akşam: Regaip Kandili",
+            "7 gün sonra: Üç Ayların Başlangıcı · 7 gün sonra akşam: Regaip Kandili",
             ReligiousDayAnnouncementPolicy.select(LocalDate.of(2026, 12, 3))?.text
         )
         assertEquals(
-            "3 gün sonra: Arefe",
+            "3 gün sonra: Kurban Bayramı Arefesi",
             ReligiousDayAnnouncementPolicy.select(LocalDate.of(2025, 6, 2))?.text
         )
     }
 
     @Test
-    fun nearestNightTakesPriorityWhenMultipleDaysShareDate() {
+    fun sameDayShowsDaytimeBeforeNightAndSlashEventOnlyOnItsFirstDate() {
         val announcement = ReligiousDayAnnouncementPolicy.select(LocalDate.of(2026, 12, 10))
 
-        assertEquals("Bu akşam Regaip Kandili", announcement?.text)
+        assertEquals(
+            "Bugün Üç Ayların Başlangıcı · Bu akşam Regaip Kandili",
+            announcement?.text
+        )
+        assertEquals("Bu akşam Berat Kandili", ReligiousDayAnnouncementPolicy.select(LocalDate.of(2028, 1, 11))?.text)
+        assertNull(ReligiousDayAnnouncementPolicy.select(LocalDate.of(2028, 1, 12)))
     }
 
     @Test

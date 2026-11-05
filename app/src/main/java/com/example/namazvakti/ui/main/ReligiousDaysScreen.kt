@@ -46,6 +46,18 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
 
+private sealed interface ReligiousDayListRow {
+    val key: String
+
+    data class YearHeader(val year: Int) : ReligiousDayListRow {
+        override val key: String = "year-$year"
+    }
+
+    data class Event(val value: DiyanetReligiousDay) : ReligiousDayListRow {
+        override val key: String = "${value.name}-${value.date}"
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReligiousDaysScreen(
@@ -70,12 +82,25 @@ fun ReligiousDaysScreen(
             .distinctBy { it.name to it.date }
             .sortedBy { it.date }
     }
+    val rows = remember(selectedYear, events) {
+        buildList {
+            var lastYear: Int? = null
+            events.forEach { event ->
+                val eventYear = event.date.year
+                if (eventYear != selectedYear && lastYear != eventYear) {
+                    add(ReligiousDayListRow.YearHeader(eventYear))
+                }
+                add(ReligiousDayListRow.Event(event))
+                lastYear = eventYear
+            }
+        }
+    }
     val listState = rememberLazyListState()
     LaunchedEffect(events, today) {
         if (events.isEmpty()) return@LaunchedEffect
-        val index = events.indexOfFirst { today in it.dates }
+        val index = rows.indexOfFirst { it is ReligiousDayListRow.Event && it.value.date == today }
             .takeIf { it >= 0 }
-            ?: events.indexOfFirst { event -> event.dates.any { !it.isBefore(today) } }.coerceAtLeast(0)
+            ?: rows.indexOfFirst { it is ReligiousDayListRow.Event && !it.value.date.isBefore(today) }.coerceAtLeast(0)
         listState.animateScrollToItem(index)
     }
 
@@ -119,8 +144,17 @@ fun ReligiousDaysScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(events, key = { "${it.name}-${it.date}" }) { event ->
-                    ReligiousDayListItem(event = event, today = today)
+                items(rows, key = { it.key }) { row ->
+                    when (row) {
+                        is ReligiousDayListRow.YearHeader -> Text(
+                            row.year.toString(),
+                            modifier = Modifier.fillMaxWidth().padding(top = 6.dp, start = 4.dp),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.tertiary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        is ReligiousDayListRow.Event -> ReligiousDayListItem(event = row.value, today = today)
+                    }
                 }
             }
         }
@@ -129,12 +163,12 @@ fun ReligiousDaysScreen(
 
 @Composable
 private fun ReligiousDayListItem(event: DiyanetReligiousDay, today: LocalDate) {
-    val isToday = today in event.dates
-    val nextDate = event.dates.filter { !it.isBefore(today) }.minOrNull()
+    val isToday = today == event.date
+    val nextDate = event.date.takeIf { !it.isBefore(today) }
     val isPast = nextDate == null
     val daysUntil = nextDate?.let { ChronoUnit.DAYS.between(today, it).toInt() }
     val alpha = if (isPast && !isToday) 0.55f else 1f
-    val dateText = event.dates.joinToString(" / ") { it.format(EVENT_DATE_FORMATTER) }
+    val dateText = event.date.format(EVENT_DATE_FORMATTER)
     val status = when {
         isToday -> stringResource(R.string.religious_days_today)
         daysUntil != null && daysUntil > 0 -> stringResource(R.string.religious_days_remaining, daysUntil)
@@ -157,7 +191,7 @@ private fun ReligiousDayListItem(event: DiyanetReligiousDay, today: LocalDate) {
                 Text("☾", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.tertiary)
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(event.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(event.displayName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text(dateText, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             status?.let {
@@ -173,4 +207,4 @@ private fun ReligiousDayListItem(event: DiyanetReligiousDay, today: LocalDate) {
     }
 }
 
-private val EVENT_DATE_FORMATTER = DateTimeFormatter.ofPattern("d MMMM EEEE", Locale.forLanguageTag("tr-TR"))
+private val EVENT_DATE_FORMATTER = DateTimeFormatter.ofPattern("d MMMM yyyy EEEE", Locale.forLanguageTag("tr-TR"))

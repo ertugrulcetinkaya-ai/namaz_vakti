@@ -6,7 +6,7 @@ from __future__ import annotations
 from html.parser import HTMLParser
 import re
 import sys
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from urllib.request import Request, urlopen
 
@@ -19,6 +19,20 @@ MONTHS = {
     "OCAK": 1, "SUBAT": 2, "MART": 3, "NISAN": 4, "MAYIS": 5,
     "HAZIRAN": 6, "TEMMUZ": 7, "AGUSTOS": 8, "EYLUL": 9,
     "EKIM": 10, "KASIM": 11, "ARALIK": 12,
+}
+HIJRI_MONTHS = {
+    "MUHARREM": 1, "MUHARRAM": 1,
+    "SAFER": 2,
+    "REBIÜLEVVEL": 3, "REBİÜLEVVEL": 3, "R.EVVEL": 3, "R.VVEL": 3,
+    "REBIÜLAHIR": 4, "REBİÜLAHİR": 4, "R.AHIR": 4, "R.AHİR": 4,
+    "CEMAZİYELEVVEL": 5, "CEMAZIYELEVVEL": 5, "C.EVVEL": 5,
+    "CEMAZİYELAHİR": 6, "CEMAZIYELAHIR": 6, "C.AHİR": 6,
+    "RECEB": 7, "RECEP": 7,
+    "ŞABAN": 8, "SABAN": 8,
+    "RAMAZAN": 9,
+    "ŞEVVAL": 10, "SEVVAL": 10,
+    "ZİLKADE": 11, "ZILKADE": 11,
+    "ZİLHİCCE": 12, "ZILHICCE": 12,
 }
 
 
@@ -52,11 +66,11 @@ def ascii_month(value: str) -> str:
     return value.upper().translate(str.maketrans({"İ": "I", "Ş": "S", "Ğ": "G", "Ü": "U", "Ö": "O", "Ç": "C"}))
 
 
-def parse_day_candidates(value: str) -> list[int]:
+def parse_label_days(value: str) -> list[int]:
     compact = re.sub(r"(?<=\d)\s+(?=\d)", "", value)
     pieces = compact.split("/")
     if not pieces or any(not piece.isdigit() for piece in pieces):
-        raise ValueError(f"Could not parse day candidates: {value!r}")
+        raise ValueError(f"Could not parse day label: {value!r}")
     return [int(piece) for piece in pieces]
 
 
@@ -76,13 +90,98 @@ def parse_month_year(value: str) -> tuple[list[int], int]:
 
 def type_for(name: str) -> str:
     upper = name.upper()
+    if "AREFE" in upper:
+        return "AREFE"
     if "KANDİL" in upper or "KANDIL" in upper or "GECESİ" in upper or "GECESI" in upper:
         return "KANDIL"
     if "BAYRAM" in upper:
         return "BAYRAM"
-    if "AREFE" in upper:
-        return "AREFE"
     return "SPECIAL_DAY"
+
+
+def parse_hijri_pair(day_label: str, month_label: str, year_label: str) -> tuple[tuple[int, int, int], ...]:
+    days = parse_label_days(day_label)
+    month_names = [part.strip() for part in month_label.split("/")]
+    months = []
+    for month in month_names:
+        key = month.upper()
+        if key not in HIJRI_MONTHS:
+            raise ValueError(f"Could not parse Hijri month: {month!r}")
+        months.append(HIJRI_MONTHS[key])
+    if len(months) == 1 and len(days) == 2:
+        months *= 2
+    if len(days) != len(months):
+        raise ValueError(f"Slash Hijri day/month pair does not match: {day_label!r} {month_label!r}")
+    year_match = re.search(r"\d{4}", year_label)
+    if not year_match:
+        raise ValueError(f"Could not parse Hijri year: {year_label!r}")
+    year = int(year_match.group())
+    return tuple((day, month, year) for day, month in zip(days, months))
+
+
+def validate_slash_pair(
+    gregorian_label: str,
+    gregorian_dates: list[date],
+    hijri_label: str,
+    is_night: bool,
+) -> None:
+    gregorian_slash = "/" in gregorian_label
+    hijri_day, hijri_month, hijri_year = hijri_label.split()
+    hijri_pair = parse_hijri_pair(hijri_day, hijri_month, hijri_year)
+    hijri_slash = "/" in hijri_day or "/" in hijri_month
+    if not (gregorian_slash or hijri_slash):
+        return
+    if not gregorian_slash or not hijri_slash:
+        raise ValueError(f"Slash date must appear in both official labels: {gregorian_label!r} / {hijri_label!r}")
+    if len(gregorian_dates) != 2 or gregorian_dates[1] != gregorian_dates[0] + timedelta(days=1):
+        raise ValueError(f"Slash Gregorian dates are not consecutive: {gregorian_label!r}")
+    if len(hijri_pair) != 2:
+        raise ValueError(f"Slash Hijri dates must contain exactly two days: {hijri_label!r}")
+    (day1, month1, year1), (day2, month2, year2) = hijri_pair
+    same_month_next_day = year1 == year2 and month1 == month2 and day1 in range(1, 30) and day2 == day1 + 1
+    next_month_first_day = (
+        day2 == 1 and month2 == (month1 % 12) + 1 and
+        year2 == year1 + (1 if month1 == 12 else 0) and day1 in {29, 30}
+    )
+    if not (same_month_next_day or next_month_first_day):
+        raise ValueError(f"Slash Hijri dates are not consecutive: {hijri_label!r}")
+    if not is_night:
+        raise ValueError(f"Slash religious-day record must be an evening observance: {gregorian_label!r}")
+
+
+def display_name(name: str, date_value: date, all_events: list[dict[str, object]]) -> str:
+    upper = name.upper()
+    aliases = {
+        "REGAİB KANDİLİ": "Regaip Kandili", "REGAİP KANDİLİ": "Regaip Kandili",
+        "MİRAC KANDİLİ": "Miraç Kandili", "MİRAÇ KANDİLİ": "Miraç Kandili",
+        "MEVLİD KANDİLİ": "Mevlid Kandili", "MEVLİT KANDİLİ": "Mevlid Kandili",
+        "BERAT KANDİLİ": "Berat Kandili", "KADİR GECESİ": "Kadir Gecesi",
+        "ÜÇ AYLARIN BAŞLANGICI": "Üç Ayların Başlangıcı",
+        "RAMAZAN BAŞLANGICI": "Ramazan Başlangıcı",
+        "HİCRİ YILBAŞI": "Hicri Yılbaşı", "HİCRÎ YILBAŞI": "Hicri Yılbaşı",
+        "AŞURE GÜNÜ": "Aşure Günü",
+    }
+    if upper in aliases:
+        return aliases[upper]
+
+    if upper in {"RAMAZAN BAY. AREFESİ", "RAMAZAN BAYRAMI AREFESİ"}:
+        return "Ramazan Bayramı Arefesi"
+    if upper in {"KURBAN BAY. AREFESİ", "KURBAN BAYRAMI AREFESİ"}:
+        return "Kurban Bayramı Arefesi"
+    if upper == "AREFE":
+        following = [event for event in all_events if event["date"] == date_value + timedelta(days=1)]
+        if any(str(event["name"]).upper().startswith("RAMAZAN BAYRAMI") for event in following):
+            return "Ramazan Bayramı Arefesi"
+        if any(str(event["name"]).upper().startswith("KURBAN BAYRAMI") for event in following):
+            return "Kurban Bayramı Arefesi"
+        raise ValueError(f"Could not determine which bayram follows AREFE on {date_value}")
+
+    bayram = re.fullmatch(r"(RAMAZAN|KURBAN) BAYRAMI(?: \((\d)\. GÜN\)| (\d)\. GÜN)", upper)
+    if bayram:
+        prefix = "Ramazan" if bayram.group(1) == "RAMAZAN" else "Kurban"
+        day = bayram.group(2) or bayram.group(3)
+        return f"{prefix} Bayramı ({day}. gün)"
+    raise ValueError(f"No visible-name mapping for official Diyanet name {name!r} on {date_value}")
 
 
 def parse_source(year: int, source_id: int) -> list[dict[str, object]]:
@@ -103,24 +202,30 @@ def parse_source(year: int, source_id: int) -> list[dict[str, object]]:
         name = " ".join(name.split())
         if not name or set(name) <= {".", "-", "…"}:
             continue
-        days = parse_day_candidates(gregorian_day)
+        gregorian_days = parse_label_days(gregorian_day)
         months, gregorian_year = parse_month_year(gregorian_month_year)
-        dates = []
-        for index, day in enumerate(days):
+        date_values = []
+        for index, day in enumerate(gregorian_days):
             month = months[min(index, len(months) - 1)]
-            dates.append(date(gregorian_year, month, day).isoformat())
+            date_values.append(date(gregorian_year, month, day))
         hijri_label = " ".join((hijri_day, hijri_month, hijri_year))
         source_gregorian_label = " ".join((gregorian_day, gregorian_month_year))
+        is_night = type_for(name) == "KANDIL"
+        validate_slash_pair(source_gregorian_label, date_values, hijri_label, is_night)
         events.append({
-            "dates": dates,
+            "date": date_values[0],
             "name": name,
             "type": type_for(name),
             "hijri": hijri_label,
             "gregorian": source_gregorian_label,
-            "is_night": type_for(name) == "KANDIL",
+            "is_night": is_night,
         })
     if not events:
         raise ValueError(f"No religious-day rows parsed for {year} from {url}")
+    for event in events:
+        event["display_name"] = display_name(
+            str(event["name"]), event["date"], events
+        )
     return events
 
 
@@ -141,36 +246,14 @@ def generate() -> str:
         "    val type: DiyanetReligiousDayType,",
         "    /** Exact Turkish name in Diyanet's source table. */",
         "    val name: String,",
-        "    /** First date as listed; remaining candidates preserve slash-separated Diyanet dates. */",
+        "    /** First date in Diyanet's label; slash pairs describe one evening observance. */",
         "    val date: LocalDate,",
-        "    val alternateDates: List<LocalDate>,",
+        "    /** Consistent Turkish UI label generated from the source name and its context. */",
+        "    val displayName: String,",
         "    val sourceGregorianDateLabel: String,",
         "    val sourceHijriDateLabel: String?,",
         "    val isNight: Boolean",
-        ") {",
-        "    val dates: List<LocalDate> get() = listOf(date) + alternateDates",
-        "    val displayName: String get() = when {",
-        "        name.contains(\"REGAİB\") -> \"Regaip Kandili\"",
-        "        name.contains(\"MİRAC\") -> \"Miraç Kandili\"",
-        "        name.contains(\"MEVLİD\") -> \"Mevlid Kandili\"",
-        "        name.contains(\"MEVLİT\") -> \"Mevlit Kandili\"",
-        "        name.contains(\"BERAT\") -> \"Berat Kandili\"",
-        "        name.contains(\"KADİR\") -> \"Kadir Gecesi\"",
-        "        name.contains(\"RAMAZAN BAYRAMI\") -> bayramDisplayName(\"Ramazan Bayramı\")",
-        "        name.contains(\"KURBAN BAYRAMI\") -> bayramDisplayName(\"Kurban Bayramı\")",
-        "        name.contains(\"RAMAZAN BAY.\") -> \"Ramazan Bayramı Arefesi\"",
-        "        name.contains(\"KURBAN BAY.\") -> \"Kurban Bayramı Arefesi\"",
-        "        name == \"AREFE\" -> \"Arefe\"",
-        "        name.contains(\"ÜÇ AYLARIN BAŞLANGICI\") -> \"Üç Ayların Başlangıcı\"",
-        "        name.contains(\"HİCRİ YILBAŞI\") -> \"Hicrî Yılbaşı\"",
-        "        name.contains(\"AŞURE GÜNÜ\") -> \"Aşure Günü\"",
-        "        else -> name.lowercase(java.util.Locale.forLanguageTag(\"tr-TR\")).replaceFirstChar { it.titlecase(java.util.Locale.forLanguageTag(\"tr-TR\")) }",
-        "    }",
-        "    private fun bayramDisplayName(prefix: String): String {",
-        "        val day = name.dropWhile { !it.isDigit() }.takeWhile(Char::isDigit).toIntOrNull()",
-        "        return if (day == null) prefix else \"$prefix ($day. gün)\"",
-        "    }",
-        "}",
+        ")",
         "",
         "object DiyanetReligiousDays {",
         "    const val FIRST_YEAR = 2025",
@@ -182,15 +265,13 @@ def generate() -> str:
         url = BASE_URL.format(source_id)
         lines.append(f"        // {year} source: {url}")
         for event in parse_source(year, source_id):
-            dates = event["dates"]
-            primary = dates[0]
-            alternates = dates[1:]
+            primary = event["date"].isoformat()
             lines.extend([
                 "        DiyanetReligiousDay(",
                 f"            type = DiyanetReligiousDayType.{event['type']},",
                 f"            name = {kotlin_string(str(event['name']))},",
                 f"            date = LocalDate.parse({kotlin_string(str(primary))}),",
-                "            alternateDates = listOf(" + ", ".join(f"LocalDate.parse({kotlin_string(str(value))})" for value in alternates) + "),",
+                f"            displayName = {kotlin_string(str(event['display_name']))},",
                 f"            sourceGregorianDateLabel = {kotlin_string(str(event['gregorian']))},",
                 f"            sourceHijriDateLabel = {kotlin_string(str(event['hijri']))},",
                 f"            isNight = {str(bool(event['is_night'])).lower()},",
@@ -200,13 +281,13 @@ def generate() -> str:
         "    ).sortedBy(DiyanetReligiousDay::date)",
         "",
         "    fun forYear(year: Int): List<DiyanetReligiousDay> =",
-        "        entries.filter { event -> event.dates.any { it.year == year } }",
+        "        entries.filter { it.date.year == year }",
         "",
         "    fun on(date: LocalDate): List<DiyanetReligiousDay> =",
-        "        entries.filter { date in it.dates }",
+        "        entries.filter { it.date == date }",
         "",
         "    fun inMonth(year: Int, month: Int): List<DiyanetReligiousDay> =",
-        "        entries.filter { event -> event.dates.any { it.year == year && it.monthValue == month } }",
+        "        entries.filter { it.date.year == year && it.date.monthValue == month }",
         "}",
         "",
     ])
