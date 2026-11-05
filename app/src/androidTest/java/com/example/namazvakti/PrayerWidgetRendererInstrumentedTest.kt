@@ -19,6 +19,8 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.namazvakti.domain.model.CachedPrayerDay
 import com.example.namazvakti.domain.model.DiyanetRamadanCalendar
+import com.example.namazvakti.domain.model.DiyanetReligiousDay
+import com.example.namazvakti.domain.model.DiyanetReligiousDays
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.PrayerTimes
@@ -128,6 +130,23 @@ class PrayerWidgetRendererInstrumentedTest {
     }
 
     @Test
+    fun largeWidgetRendersTodaysReligiousDayInBottomInformationRow() {
+        val eventDate = LocalDate.of(2026, 8, 24)
+        val event = DiyanetReligiousDays.on(eventDate).first { it.isNight }
+        val rendered = render(
+            cache = cache(date = eventDate),
+            state = PrayerWidgetDataState.Fresh,
+            size = PrayerWidgetSizeClass.LARGE,
+            now = eventDate.atTime(14, 0).atZone(ZONE),
+            religiousDay = event
+        )
+
+        assertEquals("Bu akşam Mevlid Kandili", rendered.root.text(R.id.prayer_widget_ramadan))
+        assertEquals(View.VISIBLE, rendered.root.findViewById<View>(R.id.prayer_widget_ramadan).visibility)
+        saveBitmap(rendered.bitmap, "religious_day_large_light")
+    }
+
+    @Test
     fun api30DeviceExportsFallbackColorSample() {
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.R) {
             val rendered = render(cache(), PrayerWidgetDataState.Fresh, PrayerWidgetSizeClass.LARGE)
@@ -142,14 +161,16 @@ class PrayerWidgetRendererInstrumentedTest {
         size: PrayerWidgetSizeClass,
         renderContext: Context = context,
         now: ZonedDateTime = this.now,
-        ramadanRange: com.example.namazvakti.domain.model.RamadanRange? = null
+        ramadanRange: com.example.namazvakti.domain.model.RamadanRange? = null,
+        religiousDay: DiyanetReligiousDay? = null
     ): Rendered {
         val snapshot = com.example.namazvakti.widget.PrayerWidgetSnapshot(
             cache = cache,
             location = location,
             now = now,
             dataState = state,
-            ramadanRange = ramadanRange
+            ramadanRange = ramadanRange,
+            religiousDay = religiousDay
         )
         val root = renderer.render(
             renderContext,
