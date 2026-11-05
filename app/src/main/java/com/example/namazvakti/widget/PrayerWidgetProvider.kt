@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.util.Log
 import android.util.SizeF
 import android.widget.RemoteViews
+import androidx.annotation.RequiresApi
 import com.example.namazvakti.widget.alarm.PrayerWidgetScheduler
 import com.example.namazvakti.widget.renderer.PrayerWidgetRenderer
 import kotlinx.coroutines.CoroutineScope
@@ -113,17 +114,28 @@ class PrayerWidgetProvider : AppWidgetProvider() {
             val appContext = context.applicationContext
             appWidgetIds.forEach { appWidgetId ->
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    val responsiveViews = mapOf(
-                        SizeF(110f, 60f) to renderer.render(
-                            appContext, snapshot, PrayerWidgetSizeClass.SMALL
-                        ),
-                        SizeF(250f, 80f) to renderer.render(
-                            appContext, snapshot, PrayerWidgetSizeClass.MEDIUM
-                        ),
-                        SizeF(250f, 140f) to renderer.render(
-                            appContext, snapshot, PrayerWidgetSizeClass.LARGE
+                    val options = manager.getAppWidgetOptions(appWidgetId)
+                    val sizes = options.getAppWidgetSizes()
+                        ?.takeIf { it.isNotEmpty() }
+                        ?: listOf(
+                            SizeF(
+                                maxOf(
+                                    options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH),
+                                    options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH)
+                                ).toFloat(),
+                                maxOf(
+                                    options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT),
+                                    options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT)
+                                ).toFloat()
+                            )
                         )
-                    )
+                    val responsiveViews = sizes.associateWith { size ->
+                        renderer.render(
+                            appContext,
+                            snapshot,
+                            PrayerWidgetSizeClass.from(size.width.toInt(), size.height.toInt())
+                        )
+                    }
                     manager.updateAppWidget(appWidgetId, RemoteViews(responsiveViews))
                 } else {
                     val options = manager.getAppWidgetOptions(appWidgetId)
@@ -149,3 +161,12 @@ class PrayerWidgetProvider : AppWidgetProvider() {
         }
     }
 }
+
+@RequiresApi(Build.VERSION_CODES.S)
+@Suppress("DEPRECATION")
+private fun Bundle.getAppWidgetSizes(): ArrayList<SizeF>? =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        getParcelableArrayList(AppWidgetManager.OPTION_APPWIDGET_SIZES, SizeF::class.java)
+    } else {
+        getParcelableArrayList(AppWidgetManager.OPTION_APPWIDGET_SIZES)
+    }
