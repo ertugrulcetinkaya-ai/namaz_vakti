@@ -6,6 +6,8 @@ import com.example.namazvakti.data.local.PrayerPreferences
 import com.example.namazvakti.domain.model.CachedPrayerDay
 import com.example.namazvakti.domain.model.DiyanetHijriCalendar
 import com.example.namazvakti.domain.model.DiyanetRamadanCalendar
+import com.example.namazvakti.domain.model.DiyanetReligiousDay
+import com.example.namazvakti.domain.model.DiyanetReligiousDays
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.RamadanRange
@@ -21,7 +23,8 @@ data class PrayerWidgetSnapshot(
     val now: ZonedDateTime,
     val dataState: PrayerWidgetDataState,
     val tomorrowCache: CachedPrayerDay? = null,
-    val ramadanRange: RamadanRange? = null
+    val ramadanRange: RamadanRange? = null,
+    val religiousDays: List<DiyanetReligiousDay> = emptyList()
 )
 
 fun PrayerWidgetSnapshot.withCache(
@@ -69,13 +72,15 @@ class PrayerWidgetSnapshotSource(
         val ramadanRange = todayHijri
             ?.takeIf { it.month == 9 }
             ?.let { DiyanetRamadanCalendar.find(it.year)?.toRange() }
+        val religiousDays = DiyanetReligiousDays.on(today)
         return PrayerWidgetSnapshot(
             cache = cache,
             location = location,
             now = now,
             dataState = dataState,
             tomorrowCache = tomorrowCache,
-            ramadanRange = ramadanRange
+            ramadanRange = ramadanRange,
+            religiousDays = religiousDays
         )
     }
 }

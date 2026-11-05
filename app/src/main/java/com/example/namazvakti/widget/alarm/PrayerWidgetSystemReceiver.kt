@@ -3,6 +3,7 @@ package com.example.namazvakti.widget.alarm
 import com.example.namazvakti.widget.PrayerWidgetUpdater
 import com.example.namazvakti.widget.PrayerWidgetSnapshotLoader
 import com.example.namazvakti.notification.PrayerNotificationScheduler
+import com.example.namazvakti.notification.ReligiousDayNotificationScheduler
 import com.example.namazvakti.domain.policy.needsBackgroundRefresh
 import com.example.namazvakti.app.appContainer
 import android.content.BroadcastReceiver
@@ -23,7 +24,9 @@ class PrayerWidgetSystemReceiver : BroadcastReceiver() {
                 val appContext = context.applicationContext
                 val container = appContext.appContainer()
                 val widgetsExist = PrayerWidgetScheduler.hasWidgets(appContext)
-                val notificationsEnabled = container.notificationSettingsStore.read().notificationsEnabled
+                val notificationSettings = container.notificationSettingsStore.read()
+                val notificationsEnabled = notificationSettings.notificationsEnabled
+                ReligiousDayNotificationScheduler.scheduleNext(appContext)
                 if (!needsBackgroundRefresh(widgetsExist, notificationsEnabled)) {
                     PrayerWidgetScheduler.cancelAll(appContext)
                     return@launch

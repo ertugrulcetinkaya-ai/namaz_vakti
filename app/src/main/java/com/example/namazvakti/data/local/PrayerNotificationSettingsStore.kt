@@ -31,9 +31,15 @@ class PrayerNotificationSettingsStore(
     private val enabledKey = booleanPreferencesKey("notifications_enabled")
     private val prayerMaskKey = intPreferencesKey("enabled_prayers_mask")
     private val leadMinutesKey = intPreferencesKey("lead_minutes")
+    private val religiousDaysEnabledKey = booleanPreferencesKey("religious_days_enabled")
 
     override val settings: Flow<PrayerNotificationSettings> = dataStore.data.map { prefs ->
-        decode(prefs[enabledKey], prefs[prayerMaskKey], prefs[leadMinutesKey])
+        decode(
+            prefs[enabledKey],
+            prefs[prayerMaskKey],
+            prefs[leadMinutesKey],
+            prefs[religiousDaysEnabledKey]
+        )
     }
 
     override suspend fun read(): PrayerNotificationSettings = settings.first()
@@ -45,10 +51,16 @@ class PrayerNotificationSettingsStore(
                 mask or (1 shl prayer.ordinal)
             }
             prefs[leadMinutesKey] = settings.leadMinutes
+            prefs[religiousDaysEnabledKey] = settings.religiousDaysEnabled
         }
     }
 
-    private fun decode(enabled: Boolean?, prayerMask: Int?, leadMinutes: Int?): PrayerNotificationSettings {
+    private fun decode(
+        enabled: Boolean?,
+        prayerMask: Int?,
+        leadMinutes: Int?,
+        religiousDaysEnabled: Boolean?
+    ): PrayerNotificationSettings {
         val mask = prayerMask ?: defaultPrayerMask()
         val prayers = PrayerNotificationPrayer.entries
             .filterTo(mutableSetOf()) { mask and (1 shl it.ordinal) != 0 }
@@ -57,7 +69,8 @@ class PrayerNotificationSettingsStore(
             enabledPrayers = prayers,
             leadMinutes = leadMinutes?.takeIf {
                 it in PrayerNotificationSettings.ALLOWED_LEAD_MINUTES
-            } ?: PrayerNotificationSettings.DEFAULT_LEAD_MINUTES
+            } ?: PrayerNotificationSettings.DEFAULT_LEAD_MINUTES,
+            religiousDaysEnabled = religiousDaysEnabled ?: false
         )
     }
 

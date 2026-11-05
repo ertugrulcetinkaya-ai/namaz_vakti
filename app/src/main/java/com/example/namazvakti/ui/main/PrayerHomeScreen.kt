@@ -56,6 +56,7 @@ import com.example.namazvakti.domain.policy.PrayerCountdown
 import com.example.namazvakti.domain.policy.PrayerCountdownCalculator
 import com.example.namazvakti.domain.policy.RamadanCountdownCalculator
 import com.example.namazvakti.domain.policy.RamadanCountdownKind
+import com.example.namazvakti.domain.policy.ReligiousDayAnnouncementPolicy
 import java.time.Duration
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -70,6 +71,7 @@ fun PrayerHomeScreen(
     onOpenCities: () -> Unit,
     onOpenMonthly: () -> Unit,
     onOpenImsakiye: () -> Unit,
+    onOpenReligiousDays: () -> Unit,
     ramadanRange: RamadanRange?,
     onOpenNotificationSettings: () -> Unit,
     exactAlarmNeeded: Boolean,
@@ -80,6 +82,7 @@ fun PrayerHomeScreen(
     val zone = location?.timezone ?: now.zone
     val localNow = now.withZoneSameInstant(zone)
     val today = localNow.toLocalDate()
+    val religiousDayAnnouncement = ReligiousDayAnnouncementPolicy.select(today)
     val todayCache = ready?.cache?.takeIf { it.date == today }
     val countdown = todayCache?.let { cache ->
         PrayerCountdownCalculator.calculate(
@@ -218,6 +221,21 @@ fun PrayerHomeScreen(
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.tertiary,
                                 fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                    religiousDayAnnouncement?.let { announcement ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                            onClick = onOpenReligiousDays,
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                        ) {
+                            Text(
+                                announcement.text,
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
                             )
                         }
                     }

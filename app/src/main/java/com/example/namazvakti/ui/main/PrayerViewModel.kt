@@ -9,6 +9,8 @@ import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.PrayerLocationConfig
 import com.example.namazvakti.domain.model.PrayerNotificationSettings
 import com.example.namazvakti.domain.model.RamadanRange
+import com.example.namazvakti.domain.model.DiyanetReligiousDay
+import com.example.namazvakti.domain.model.DiyanetReligiousDays
 import com.example.namazvakti.domain.model.PrayerTimeProvider
 import com.example.namazvakti.domain.model.RefreshResult
 import com.example.namazvakti.domain.model.classifyPrayerError
@@ -145,6 +147,8 @@ class PrayerViewModel @JvmOverloads constructor(
     }
 
     private fun scope(): CoroutineScope = testScope ?: viewModelScope
+
+    fun religiousDaysFor(year: Int): List<DiyanetReligiousDay> = DiyanetReligiousDays.forYear(year)
 
     fun loadMonth(month: YearMonth) {
         requestedMonth = month

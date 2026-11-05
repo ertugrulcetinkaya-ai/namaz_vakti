@@ -17,7 +17,8 @@ enum class PrayerNotificationType {
 data class PrayerNotificationSettings(
     val notificationsEnabled: Boolean = false,
     val enabledPrayers: Set<PrayerNotificationPrayer> = DEFAULT_ENABLED_PRAYERS,
-    val leadMinutes: Int = DEFAULT_LEAD_MINUTES
+    val leadMinutes: Int = DEFAULT_LEAD_MINUTES,
+    val religiousDaysEnabled: Boolean = false
 ) {
     init {
         require(leadMinutes in ALLOWED_LEAD_MINUTES) {

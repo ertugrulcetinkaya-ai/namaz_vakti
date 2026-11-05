@@ -56,6 +56,8 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
     var showCities by rememberSaveable { mutableStateOf(false) }
     var showMonthly by rememberSaveable { mutableStateOf(false) }
     var showImsakiye by rememberSaveable { mutableStateOf(false) }
+    var showReligiousDays by rememberSaveable { mutableStateOf(false) }
+    var religiousDaysFromMonthly by rememberSaveable { mutableStateOf(false) }
     var showNotificationSettings by rememberSaveable { mutableStateOf(false) }
     var pendingNotificationSettings by remember { mutableStateOf<PrayerNotificationSettings?>(null) }
     var resumeVersion by remember { mutableIntStateOf(0) }
@@ -110,7 +112,12 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
             viewModel.updateNotificationSettings(pending)
             showNotificationSettings = false
         } else {
-            viewModel.updateNotificationSettings(pending.copy(notificationsEnabled = false))
+            viewModel.updateNotificationSettings(
+                pending.copy(
+                    notificationsEnabled = pending.notificationsEnabled && notificationSettings.notificationsEnabled,
+                    religiousDaysEnabled = pending.religiousDaysEnabled && notificationSettings.religiousDaysEnabled
+                )
+            )
             Toast.makeText(
                 context,
                 R.string.notification_prayer_permission_denied,
@@ -133,9 +140,14 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
         context.startActivity(PrayerExactAlarmAccess.requestAccessIntent(context))
     }
 
-    BackHandler(enabled = showCities || showMonthly || showImsakiye) {
+    BackHandler(enabled = showCities || showMonthly || showImsakiye || showReligiousDays) {
         when {
             showCities -> showCities = false
+            showReligiousDays -> {
+                showReligiousDays = false
+                if (religiousDaysFromMonthly) showMonthly = true
+                religiousDaysFromMonthly = false
+            }
             showMonthly -> showMonthly = false
             showImsakiye -> showImsakiye = false
         }
@@ -150,12 +162,27 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
                 viewModel.selectCity(option)
             }
         )
+    } else if (showReligiousDays) {
+        ReligiousDaysScreen(
+            today = today,
+            eventsForYear = viewModel::religiousDaysFor,
+            onBack = {
+                showReligiousDays = false
+                if (religiousDaysFromMonthly) showMonthly = true
+                religiousDaysFromMonthly = false
+            }
+        )
     } else if (showMonthly) {
         MonthlyPrayerScreen(
             state = monthlyState,
             ramadanRange = ramadanRange,
             today = today,
             onBack = { showMonthly = false },
+            onOpenReligiousDays = {
+                showMonthly = false
+                showReligiousDays = true
+                religiousDaysFromMonthly = true
+            },
             onOpenImsakiye = {
                 viewModel.loadImsakiye()
                 showMonthly = false
@@ -181,6 +208,10 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
                 viewModel.loadMonth(YearMonth.from(today))
                 showMonthly = true
             },
+            onOpenReligiousDays = {
+                religiousDaysFromMonthly = false
+                showReligiousDays = true
+            },
             onOpenImsakiye = {
                 viewModel.loadImsakiye()
                 showImsakiye = true
@@ -201,7 +232,7 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
             onRequestExactAlarm = requestExactAlarm,
             onSave = { settings ->
                 if (
-                    settings.notificationsEnabled &&
+                    (settings.notificationsEnabled || settings.religiousDaysEnabled) &&
                     Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                     ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
                     PackageManager.PERMISSION_GRANTED

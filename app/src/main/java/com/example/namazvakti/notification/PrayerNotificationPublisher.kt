@@ -14,6 +14,7 @@ import androidx.core.content.ContextCompat
 import com.example.namazvakti.R
 import com.example.namazvakti.domain.model.PrayerNotificationPrayer
 import com.example.namazvakti.domain.model.PrayerNotificationType
+import com.example.namazvakti.domain.model.DiyanetReligiousDay
 import com.example.namazvakti.ui.main.MainActivity
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -22,7 +23,9 @@ import java.util.Locale
 object PrayerNotificationPublisher {
     private const val CHANNEL_AT_TIME = "prayer_time_entered"
     private const val CHANNEL_REMINDER = "prayer_time_reminder"
+    private const val CHANNEL_RELIGIOUS_DAYS = "religious_days"
     private const val NOTIFICATION_ID_BASE = 6200
+    private const val RELIGIOUS_DAY_NOTIFICATION_ID = 6304
     private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
     fun show(
@@ -66,6 +69,59 @@ object PrayerNotificationPublisher {
         NotificationManagerCompat.from(context).notify(
             NOTIFICATION_ID_BASE + prayer.ordinal,
             notification
+        )
+    }
+
+    fun show(context: Context, events: List<DiyanetReligiousDay>) {
+        if (events.isEmpty()) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) return
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
+
+        createReligiousDayChannel(context)
+        val orderedEvents = events.sortedBy { if (it.isNight) 1 else 0 }
+        val firstEvent = orderedEvents.first()
+        val title = context.getString(
+            if (firstEvent.isNight) R.string.religious_day_notification_night else R.string.religious_day_notification_day,
+            firstEvent.displayName
+        )
+        val contentIntent = PendingIntent.getActivity(
+            context,
+            0,
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val content = orderedEvents.drop(1).takeIf { it.isNotEmpty() }?.joinToString(" · ") { event ->
+            context.getString(
+                if (event.isNight) R.string.religious_day_notification_night else R.string.religious_day_notification_day,
+                event.displayName
+            )
+        } ?: firstEvent.date.format(DateTimeFormatter.ofPattern("d MMMM", Locale.forLanguageTag("tr-TR")))
+        val notification = NotificationCompat.Builder(context, CHANNEL_RELIGIOUS_DAYS)
+            .setSmallIcon(R.drawable.ic_notification_prayer)
+            .setContentTitle(title)
+            .setContentText(content)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(content))
+            .setContentIntent(contentIntent)
+            .setAutoCancel(true)
+            .setCategory(NotificationCompat.CATEGORY_EVENT)
+            .build()
+        NotificationManagerCompat.from(context).notify(RELIGIOUS_DAY_NOTIFICATION_ID, notification)
+    }
+
+    private fun createReligiousDayChannel(context: Context) {
+        context.getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_RELIGIOUS_DAYS,
+                context.getString(R.string.notification_channel_religious_days_name),
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = context.getString(R.string.notification_channel_religious_days_description)
+            }
         )
     }
 
