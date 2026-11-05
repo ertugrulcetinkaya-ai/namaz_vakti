@@ -47,6 +47,21 @@ import kotlin.coroutines.ContinuationInterceptor
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PrayerViewModelTest {
+
+    @Test
+    fun religiousDaysViewModelReturnsOfficialRowsForSelectedYear() = runTest {
+        val viewModel = viewModel(
+            FakeStore(),
+            FakeRepository(RefreshResult.Failure(Exception())),
+            CoroutineScope(StandardTestDispatcher(testScheduler))
+        )
+        advanceUntilIdle()
+
+        val regaip = viewModel.religiousDaysFor(2031).single { it.name.contains("REGAİB") }
+        assertEquals(LocalDate.of(2031, 10, 16), regaip.date)
+        assertEquals(listOf(LocalDate.of(2031, 10, 17)), regaip.alternateDates)
+    }
+
     @Test
     fun androidViewModelFactoryConstructorIsAvailable() {
         PrayerViewModel::class.java.getConstructor(Application::class.java)
