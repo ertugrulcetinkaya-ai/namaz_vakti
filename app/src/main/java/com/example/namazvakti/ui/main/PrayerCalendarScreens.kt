@@ -35,6 +35,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -53,6 +54,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import com.example.namazvakti.R
 import com.example.namazvakti.domain.model.CachedPrayerDay
+import com.example.namazvakti.domain.model.DiyanetReligiousDay
+import com.example.namazvakti.domain.model.DiyanetReligiousDays
 import com.example.namazvakti.domain.model.displayHijriDate
 import com.example.namazvakti.domain.model.displayHijriText
 import com.example.namazvakti.domain.model.PrayerTimeName
@@ -72,6 +75,7 @@ fun MonthlyPrayerScreen(
     today: LocalDate,
     onBack: () -> Unit,
     onOpenImsakiye: () -> Unit,
+    onOpenReligiousDays: () -> Unit,
     onMonthChange: (YearMonth) -> Unit,
     onRetry: () -> Unit
 ) {
@@ -115,6 +119,9 @@ fun MonthlyPrayerScreen(
                             Icons.Default.DateRange,
                             contentDescription = stringResource(R.string.imsakiye_open)
                         )
+                    }
+                    TextButton(onClick = onOpenReligiousDays) {
+                        Text(stringResource(R.string.religious_days_open))
                     }
                     IconButton(
                         enabled = month > minimum,
@@ -177,7 +184,8 @@ fun MonthlyPrayerScreen(
                     horizontalScrollState = horizontalScrollState,
                     dayColumnWidth = dayColumnWidth,
                     ramadan = inOfficialRange || hijriDate?.month == 9,
-                    ramadanDay = ramadanDay
+                    ramadanDay = ramadanDay,
+                    religiousDays = DiyanetReligiousDays.on(cache.date)
                 )
             }
             if (state.error != null && state.days.isNotEmpty()) {
@@ -276,6 +284,7 @@ fun ImsakiyeScreen(
             }
             items(state.days, key = { it.date.toString() }) { cache ->
                 val dayNumber = range?.dayNumber(cache.date)
+                val religiousDays = DiyanetReligiousDays.on(cache.date)
                 Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
                     PrayerCalendarRow(
                         cache = cache,
@@ -297,31 +306,19 @@ fun ImsakiyeScreen(
                         dayColumnWidth = dayColumnWidth,
                         ramadanDay = dayNumber,
                         isIftar = true,
-                        qadrNight = dayNumber == 26
+                        religiousDays = religiousDays
                     )
-                    if (dayNumber == 26) {
-                        Row(
-                            modifier = Modifier.padding(start = 12.dp + dayColumnWidth, bottom = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Text("🌙", style = MaterialTheme.typography.labelSmall)
-                            Text(
-                                stringResource(R.string.qadr_night_marker),
-                                color = MaterialTheme.colorScheme.tertiary,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
                 }
             }
             if (range != null) {
-                item {
+                val eidEvent = DiyanetReligiousDays.on(range.eidDate).firstOrNull {
+                    it.name.contains("RAMAZAN BAYRAMI") && it.name.contains("1. Gün")
+                }
+                if (eidEvent != null) item {
                     Text(
                         stringResource(
                             R.string.eid_date,
-                            range.eidDate.format(ACCESSIBLE_DATE_FORMATTER)
+                            eidEvent.date.format(ACCESSIBLE_DATE_FORMATTER)
                         ),
                         modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
                         style = MaterialTheme.typography.titleMedium,
@@ -368,7 +365,7 @@ private fun PrayerCalendarRow(
     ramadan: Boolean = false,
     ramadanDay: Int? = null,
     isIftar: Boolean = false,
-    qadrNight: Boolean = false
+    religiousDays: List<DiyanetReligiousDay> = emptyList()
 ) {
     val prayerLabels = PrayerTimeName.entries.map { name ->
         val time = cache.prayerTimes.timeAt(name).format(PrayerTimes.TIME_FORMATTER)
@@ -382,7 +379,10 @@ private fun PrayerCalendarRow(
         }
         ramadanDay?.let { append(", Ramazan'ın $it. günü") }
         if (ramadan) append(", Ramazan")
-        if (qadrNight) append(", Kadir Gecesi, 26. günün akşamı 27. güne bağlanır")
+        religiousDays.forEach { event ->
+            append(", ")
+            append(event.name)
+        }
         PrayerTimeName.entries.forEachIndexed { index, prayer ->
             append(", ")
             append(prayer.accessibleName())
@@ -403,18 +403,37 @@ private fun PrayerCalendarRow(
         colors = CardDefaults.cardColors(containerColor = rowBackground),
         border = if (highlighted) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
     ) {
-        PrayerTableRowShell(
-            dayLabel = buildString {
-                append(dateLabel)
-                if (ramadan && ramadanDay == null) append("\n☾")
-            },
-            prayerLabels = prayerLabels,
-            columnWidths = columnWidths,
-            horizontalScrollState = horizontalScrollState,
-            dayColumnWidth = dayColumnWidth,
-            bold = highlighted,
-            iftarColumn = isIftar
-        )
+        Column {
+            PrayerTableRowShell(
+                dayLabel = buildString {
+                    append(dateLabel)
+                    if (ramadan && ramadanDay == null) append("\n☾")
+                },
+                prayerLabels = prayerLabels,
+                columnWidths = columnWidths,
+                horizontalScrollState = horizontalScrollState,
+                dayColumnWidth = dayColumnWidth,
+                bold = highlighted,
+                iftarColumn = isIftar
+            )
+            religiousDays.forEach { event ->
+                Row(
+                    modifier = Modifier.padding(start = 8.dp, end = 8.dp, bottom = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(if (event.isNight) "☾" else "✦", style = MaterialTheme.typography.labelSmall)
+                    Text(
+                        event.name,
+                        color = MaterialTheme.colorScheme.tertiary,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
     }
 }
 
