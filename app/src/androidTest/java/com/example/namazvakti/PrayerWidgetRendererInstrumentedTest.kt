@@ -12,6 +12,7 @@ import android.os.SystemClock
 import android.provider.MediaStore
 import android.util.Log
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Chronometer
 import android.widget.FrameLayout
 import android.widget.TextView
@@ -29,6 +30,7 @@ import com.example.namazvakti.widget.renderer.PrayerWidgetDataState
 import com.example.namazvakti.widget.renderer.PrayerWidgetRenderer
 import java.io.File
 import java.io.FileOutputStream
+import java.util.ArrayDeque
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -52,31 +54,71 @@ class PrayerWidgetRendererInstrumentedTest {
         for (size in PrayerWidgetSizeClass.values()) {
             val fresh = render(cache(), PrayerWidgetDataState.Fresh, size)
             assertTrue(fresh.root.contentDescription.contains("Sıradaki vakit İkindi"))
-            assertEquals(View.VISIBLE, fresh.root.findViewById<View>(R.id.prayer_widget_chronometer).visibility)
             assertEquals(
-                if (size == PrayerWidgetSizeClass.SMALL) null else "%s kaldı",
+                if (size == PrayerWidgetSizeClass.MEDIUM) View.GONE else View.VISIBLE,
+                fresh.root.findViewById<View>(R.id.prayer_widget_chronometer).visibility
+            )
+            assertEquals(
+                if (size == PrayerWidgetSizeClass.LARGE) "%s kaldı" else null,
                 fresh.root.findViewById<Chronometer>(R.id.prayer_widget_chronometer).format
             )
+            if (size == PrayerWidgetSizeClass.MEDIUM) {
+                assertEquals(View.GONE, fresh.root.findViewById<View>(R.id.prayer_widget_next_prayer).visibility)
+                assertEquals("İSTANBUL • 23 Safer 1448", fresh.root.text(R.id.prayer_widget_city))
+                assertEquals(View.VISIBLE, fresh.root.findViewById<View>(R.id.prayer_widget_prayer_grid).visibility)
+            }
+            if (size == PrayerWidgetSizeClass.LARGE) {
+                assertEquals("İSTANBUL • 23 Safer 1448", fresh.root.text(R.id.prayer_widget_city))
+                assertEquals("İkindi 17:02", fresh.root.text(R.id.prayer_widget_next_prayer))
+                assertEquals(View.GONE, fresh.root.findViewById<View>(R.id.prayer_widget_date).visibility)
+            }
+            if (size == PrayerWidgetSizeClass.SMALL) {
+                assertEquals("İSTANBUL", fresh.root.text(R.id.prayer_widget_city))
+                assertEquals("İkindi 17:02", fresh.root.text(R.id.prayer_widget_next_prayer))
+            }
+            if (size != PrayerWidgetSizeClass.SMALL) {
+                val activePrayer = fresh.root.findViewById<TextView>(R.id.prayer_widget_item_3)
+                assertTrue(activePrayer.text.startsWith("►Öğle"))
+                assertEquals(context.getColor(R.color.widget_active_text), activePrayer.currentTextColor)
+            }
             assertTrue(bitmapHasVisiblePixels(fresh.bitmap))
             saveBitmap(fresh.bitmap, "fresh_${size.fileName()}")
 
             val stale = render(cache(), PrayerWidgetDataState.Stale, size)
-            assertTrue(stale.root.text(R.id.prayer_widget_city).contains("Eski veri"))
+            assertTrue(
+                when (size) {
+                    PrayerWidgetSizeClass.SMALL -> stale.root.text(R.id.prayer_widget_chronometer).contains("Eski veri")
+                    PrayerWidgetSizeClass.MEDIUM -> stale.root.text(R.id.prayer_widget_city).contains("Eski veri")
+                    PrayerWidgetSizeClass.LARGE -> stale.root.text(R.id.prayer_widget_ramadan).contains("Eski veri")
+                }
+            )
             assertEquals(
                 when (size) {
-                    PrayerWidgetSizeClass.SMALL -> "Eski veri"
+                    PrayerWidgetSizeClass.SMALL -> "İSTANBUL"
                     PrayerWidgetSizeClass.MEDIUM -> "İSTANBUL • 23 Safer 1448 • Eski veri"
-                    PrayerWidgetSizeClass.LARGE -> "İSTANBUL • Eski veri"
+                    PrayerWidgetSizeClass.LARGE -> "İSTANBUL • 23 Safer 1448"
                 },
                 stale.root.text(R.id.prayer_widget_city)
             )
             assertTrue(stale.root.contentDescription.contains("Eski veri gösteriliyor"))
-            assertEquals(View.GONE, stale.root.findViewById<View>(R.id.prayer_widget_chronometer).visibility)
+            if (size == PrayerWidgetSizeClass.LARGE) {
+                assertEquals("Eski veri", stale.root.text(R.id.prayer_widget_ramadan))
+            }
+            assertEquals(
+                if (size == PrayerWidgetSizeClass.SMALL) View.VISIBLE else View.GONE,
+                stale.root.findViewById<View>(R.id.prayer_widget_chronometer).visibility
+            )
+            if (size == PrayerWidgetSizeClass.SMALL) {
+                assertEquals("Eski veri", stale.root.text(R.id.prayer_widget_chronometer))
+            }
             assertTrue(bitmapHasVisiblePixels(stale.bitmap))
             saveBitmap(stale.bitmap, "stale_${size.fileName()}")
 
             val unavailable = render(null, PrayerWidgetDataState.Unavailable, size)
-            assertEquals("Vakitler alınamadı", unavailable.root.text(R.id.prayer_widget_next_prayer))
+            assertEquals(
+                if (size == PrayerWidgetSizeClass.SMALL) "Vakit yok" else "Vakitler alınamadı",
+                unavailable.root.text(R.id.prayer_widget_next_prayer)
+            )
             assertTrue(unavailable.root.contentDescription.contains("Vakitler alınamadı"))
             assertEquals(View.GONE, unavailable.root.findViewById<View>(R.id.prayer_widget_chronometer).visibility)
             assertEquals(View.GONE, unavailable.root.findViewById<View>(R.id.prayer_widget_prayer_grid).visibility)
@@ -106,6 +148,22 @@ class PrayerWidgetRendererInstrumentedTest {
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             assertNotEquals(lightTextColor, darkTextColor)
+        }
+    }
+
+    @Test
+    fun wideLayoutsFitTheLongestActivePrayerAtMeasuredWidths() {
+        val sunriseNow = LocalDate.of(2026, 8, 6).atTime(6, 0).atZone(ZONE)
+        for (size in listOf(PrayerWidgetSizeClass.MEDIUM, PrayerWidgetSizeClass.LARGE)) {
+            val rendered = render(
+                cache = cache(),
+                state = PrayerWidgetDataState.Fresh,
+                size = size,
+                now = sunriseNow
+            )
+            val sunrise = rendered.root.findViewById<TextView>(R.id.prayer_widget_item_2)
+            assertTrue(sunrise.text.startsWith("►Güneş"))
+            assertEquals(context.getColor(R.color.widget_active_text), sunrise.currentTextColor)
         }
     }
 
@@ -197,6 +255,12 @@ class PrayerWidgetRendererInstrumentedTest {
             elapsedRealtime = SystemClock.elapsedRealtime()
         )
             .apply(renderContext, FrameLayout(renderContext))
+        val chronometer = root.findViewById<Chronometer>(R.id.prayer_widget_chronometer)
+        if (size == PrayerWidgetSizeClass.SMALL && state == PrayerWidgetDataState.Fresh) {
+            chronometer.text = "5:08:14"
+        } else if (size == PrayerWidgetSizeClass.LARGE) {
+            chronometer.text = "5:08:14 kaldı"
+        }
         val density = renderContext.resources.displayMetrics.density
         val (widthDp, heightDp) = size.dimensionsDp()
         val width = (widthDp * density).toInt()
@@ -206,6 +270,7 @@ class PrayerWidgetRendererInstrumentedTest {
             View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY)
         )
         root.layout(0, 0, width, height)
+        assertNoTextClipping(root)
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         root.draw(Canvas(bitmap))
         return Rendered(root, bitmap)
@@ -295,9 +360,45 @@ class PrayerWidgetRendererInstrumentedTest {
     }
 
     private fun PrayerWidgetSizeClass.dimensionsDp(): Pair<Int, Int> = when (this) {
-        PrayerWidgetSizeClass.SMALL -> 110 to 60
-        PrayerWidgetSizeClass.MEDIUM -> 250 to 80
-        PrayerWidgetSizeClass.LARGE -> 250 to 140
+        PrayerWidgetSizeClass.SMALL -> 159 to 81
+        PrayerWidgetSizeClass.MEDIUM -> 515 to 126
+        PrayerWidgetSizeClass.LARGE -> 515 to 278
+    }
+
+    private fun assertNoTextClipping(root: View) {
+        val stack = ArrayDeque<Pair<View, ViewGroup?>>()
+        stack.add(root to null)
+        while (stack.isNotEmpty()) {
+            val (view, parent) = stack.removeLast()
+            if (view.visibility != View.VISIBLE) continue
+            if (parent != null) {
+                assertTrue("${view.javaClass.simpleName} exceeds parent width", view.left >= 0 && view.right <= parent.width)
+                assertTrue("${view.javaClass.simpleName} exceeds parent height", view.top >= 0 && view.bottom <= parent.height)
+            }
+            if (view is TextView) {
+                val metrics = view.resources.displayMetrics
+                val sizeSp = view.textSize / (metrics.density * view.resources.configuration.fontScale)
+                // TextView rounds the requested 16sp to device pixels (e.g. 15.9sp at 600dpi).
+                assertTrue("${view.text} uses only ${sizeSp}sp", sizeSp >= 15.5f)
+                assertTrue("${view.text} exceeds its assigned height", view.measuredHeight <= view.height)
+                val layout = view.layout ?: error("TextView layout missing for ${view.text}")
+                if (view.text.isNotEmpty()) {
+                    assertTrue("${view.text} exceeds its line limit", layout.lineCount <= view.maxLines)
+                    for (line in 0 until layout.lineCount) {
+                        assertEquals("${view.text} is ellipsized", 0, layout.getEllipsisCount(line))
+                        assertTrue("${view.text} is cut off at the right edge", layout.getLineRight(line) <= layout.width)
+                    }
+                    assertEquals(view.text.length, layout.getLineEnd(layout.lineCount - 1))
+                    assertTrue(
+                        "${view.text} is cut off at the bottom edge",
+                        layout.getLineBottom(layout.lineCount - 1) <= layout.height
+                    )
+                }
+            }
+            if (view is ViewGroup) {
+                for (index in 0 until view.childCount) stack.add(view.getChildAt(index) to view)
+            }
+        }
     }
 
     private fun PrayerWidgetSizeClass.fileName(): String = name.lowercase()
