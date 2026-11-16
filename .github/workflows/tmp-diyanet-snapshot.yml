@@ -1,0 +1,47 @@
+# Temporary: snapshots namazvakti.mtopal.dev data for fixtures. Removed before merge.
+name: Diyanet API snapshot (temporary)
+
+on:
+  push:
+    branches: [data/diyanet-snapshot]
+
+permissions:
+  contents: write
+
+jobs:
+  snapshot:
+    if: "!contains(github.event.head_commit.message, '[snapshot]')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Fetch
+        run: |
+          set -euo pipefail
+          B=https://namazvakti.mtopal.dev
+          D=tools/diyanet_snapshot
+          mkdir -p $D/ilceler $D/vakitler
+          get() { for t in 1 2 3 4; do code=$(curl -sS -D "$2.headers" -o "$2" -w '%{http_code}' "$1" || echo 000); [ "$code" = 200 ] && return 0; echo "retry $1 ($code)"; sleep 65; done; return 1; }
+          get $B/ulkeler $D/ulkeler.json; sleep 7
+          get $B/sehirler/2 $D/sehirler_2.json; sleep 7
+          cp $D/sehirler_2.json.headers $D/sample_headers.txt
+          for id in $(jq -r '.[].SehirID' $D/sehirler_2.json); do get $B/ilceler/$id $D/ilceler/$id.json; sleep 7; done
+          # Sample prayer times: Istanbul, Ankara, Izmir merkez + Kadikoy + one foreign city
+          for name in ISTANBUL ANKARA IZMIR; do
+            sid=$(jq -r --arg n "$name" '.[] | select(.SehirAdiEn==$n or .SehirAdi==$n) | .SehirID' $D/sehirler_2.json | head -1)
+            iid=$(jq -r --arg n "$name" '.[] | select(.IlceAdiEn==$n or .IlceAdi==$n) | .IlceID' $D/ilceler/$sid.json | head -1)
+            [ -n "$iid" ] && { get $B/vakitler/$iid $D/vakitler/$iid.json; sleep 7; }
+          done
+          get $B/vakitler/9541 $D/vakitler/9541.json; sleep 7
+          get "$B/vakitler?ilce=9206" $D/vakitler/query_9206.json || true; sleep 7
+          curl -sS -o $D/error_404.json -w '%{http_code}\n' $B/vakitler/1 > $D/error_404.status || true
+          curl -sS -o $D/error_422.json -w '%{http_code}\n' "$B/vakitler" > $D/error_422.status || true
+          rm -f $D/ilceler/*.headers $D/vakitler/*.headers $D/*.json.headers
+          ls -la $D $D/vakitler; du -sh $D
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tools/diyanet_snapshot
+          git commit -m "Add namazvakti.mtopal.dev data snapshot [snapshot]"
+          git push
