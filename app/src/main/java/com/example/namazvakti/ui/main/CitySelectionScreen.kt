@@ -138,6 +138,9 @@ fun CitySelectionScreen(
                     }
                 } else {
                     items(filteredCities, key = { it.country + it.city }) { city ->
+                        val selected = selectedLocation?.let {
+                            it.city == city.city && it.country == city.country
+                        } == true
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -146,7 +149,11 @@ fun CitySelectionScreen(
                                     onSelectProvince(city.city)
                                 },
                             colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface
+                                containerColor = if (selected) {
+                                    MaterialTheme.colorScheme.primaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.surface
+                                }
                             )
                         ) {
                             Row(
@@ -157,8 +164,16 @@ fun CitySelectionScreen(
                                 Text(
                                     text = city.displayCity,
                                     modifier = Modifier.weight(1f),
-                                    style = MaterialTheme.typography.titleMedium
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
                                 )
+                                if (selected) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = stringResource(R.string.city_selected),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
                             }
                         }
                     }
