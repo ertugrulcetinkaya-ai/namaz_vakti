@@ -88,7 +88,7 @@ class PrayerTimesRepository(
         }.map { it.date }.toSet()
         if ((0..java.time.temporal.ChronoUnit.DAYS.between(today, end)).all { today.plusDays(it) in freshDates }) return null
         try {
-            val response = source.fetch(province.centralDistrictId)
+            val response = source.fetch(location.diyanetDistrictId ?: province.centralDistrictId)
             val fetchedAt = timeProvider.now(location.timezone).toInstant()
             val timezone = ZoneId.of("Europe/Istanbul")
             val caches = response.days.map { day ->
@@ -212,7 +212,7 @@ class PrayerTimesRepository(
 
     override suspend fun ensureMonth(yearMonth: YearMonth): MonthResult {
         val location = store.readLocation()
-        val key = MonthRequestKey(yearMonth, location.city, location.country, settings)
+        val key = MonthRequestKey(yearMonth, location.cacheKey, location.country, settings)
         val mutex = monthMutexes.computeIfAbsent(key) { Mutex() }
         return mutex.withLock {
             val start = yearMonth.atDay(1)

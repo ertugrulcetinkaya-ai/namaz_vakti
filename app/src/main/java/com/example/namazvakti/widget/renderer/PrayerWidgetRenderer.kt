@@ -73,7 +73,7 @@ class PrayerWidgetRenderer {
         } else ""
         val hijriText = cache?.displayHijriText()?.trim().orEmpty()
         val cityText = when (sizeClass) {
-            PrayerWidgetSizeClass.LARGE -> listOf(location.displayCity, hijriText)
+            PrayerWidgetSizeClass.LARGE -> listOf(location.displayName, hijriText)
                 .filter(String::isNotBlank).joinToString(" • ")
             PrayerWidgetSizeClass.MEDIUM -> listOf(location.displayCity, hijriText)
                 .filter(String::isNotBlank).joinToString(" • ") + staleSuffix

@@ -110,8 +110,11 @@
     <string name="active_prayer">Aktif vakit</string>
     <string name="city_selection_title">Şehir seçin</string>
     <string name="back">Geri</string>
-    <string name="city_search_no_results">Bu aramayla eşleşen şehir yok.</string>
+    <string name="city_search_no_results">Bu aramayla eşleşen sonuç yok.</string>
     <string name="city_selected">Seçili şehir</string>
+    <string name="district_central">Merkez</string>
+    <string name="district_selection_hint">İlçe seçin</string>
+    <string name="district_selected">Seçili ilçe</string>
     <string name="notification_settings_open">Bildirim ayarlarını aç</string>
     <string name="notification_settings_save_failed">Bildirim ayarları kaydedilemedi.</string>
     <string name="prayer_countdown_unknown_accessibility">Sıradaki vakit bilinmiyor</string>

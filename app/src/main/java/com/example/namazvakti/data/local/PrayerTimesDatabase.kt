@@ -3,6 +3,7 @@ package com.example.namazvakti.data.local
 import android.content.Context
 import com.example.namazvakti.domain.model.CachedPrayerDay
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
+import com.example.namazvakti.domain.model.DiyanetDistricts
 import com.example.namazvakti.domain.model.PrayerDataSource
 import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.PrayerTimes
@@ -145,7 +146,7 @@ abstract class PrayerTimesDatabase : RoomDatabase() {
 
 internal fun CachedPrayerDay.toEntity() = PrayerDayEntity(
     date = date.toString(),
-    city = location.city,
+    city = location.cacheKey,
     country = location.country,
     method = settings.method,
     school = settings.school,
@@ -166,29 +167,40 @@ internal fun CachedPrayerDay.toEntity() = PrayerDayEntity(
     source = source.name
 )
 
-internal fun PrayerDayEntity.toDomain() = CachedPrayerDay(
-    date = LocalDate.parse(date),
-    location = PrayerLocation(
-        city = city,
-        country = country,
-        displayCity = displayCity,
-        timezone = ZoneId.of(locationTimezone)
-    ),
-    timezone = ZoneId.of(prayerTimezone),
-    settings = PrayerCalculationSettings(method, school),
-    prayerTimes = PrayerTimes(
-        fajr = LocalTime.parse(fajr),
-        sunrise = LocalTime.parse(sunrise),
-        dhuhr = LocalTime.parse(dhuhr),
-        asr = LocalTime.parse(asr),
-        maghrib = LocalTime.parse(maghrib),
-        isha = LocalTime.parse(isha)
-    ),
-    hijriText = hijriText,
-    fetchedAt = Instant.ofEpochMilli(fetchedAtEpochMillis),
-    hijriDay = hijriDay,
-    hijriMonth = hijriMonth,
-    hijriYear = hijriYear,
-    source = runCatching { PrayerDataSource.valueOf(source) }
-        .getOrDefault(PrayerDataSource.LEGACY_CACHE)
-)
+internal fun PrayerDayEntity.toDomain(): CachedPrayerDay {
+    val (locationCity, districtId) = PrayerLocation.fromCacheKey(city)
+    val province = DiyanetDistricts.forCity(locationCity, country)
+    val district = districtId?.let { id ->
+        DiyanetDistricts.districts.firstOrNull {
+            it.id == id && it.provinceId == province?.id
+        }
+    }?.takeUnless { it.id == province?.centralDistrictId }
+    return CachedPrayerDay(
+        date = LocalDate.parse(date),
+        location = PrayerLocation(
+            city = locationCity,
+            country = country,
+            displayCity = displayCity,
+            timezone = ZoneId.of(locationTimezone),
+            diyanetDistrictId = district?.id,
+            districtName = district?.name
+        ),
+        timezone = ZoneId.of(prayerTimezone),
+        settings = PrayerCalculationSettings(method, school),
+        prayerTimes = PrayerTimes(
+            fajr = LocalTime.parse(fajr),
+            sunrise = LocalTime.parse(sunrise),
+            dhuhr = LocalTime.parse(dhuhr),
+            asr = LocalTime.parse(asr),
+            maghrib = LocalTime.parse(maghrib),
+            isha = LocalTime.parse(isha)
+        ),
+        hijriText = hijriText,
+        fetchedAt = Instant.ofEpochMilli(fetchedAtEpochMillis),
+        hijriDay = hijriDay,
+        hijriMonth = hijriMonth,
+        hijriYear = hijriYear,
+        source = runCatching { PrayerDataSource.valueOf(source) }
+            .getOrDefault(PrayerDataSource.LEGACY_CACHE)
+    )
+}

@@ -4,6 +4,7 @@ import com.example.namazvakti.data.local.PrayerPreferences
 import com.example.namazvakti.data.local.PrayerNotificationSettingsSource
 import com.example.namazvakti.domain.model.CachedPrayerDay
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
+import com.example.namazvakti.domain.model.DiyanetDistricts
 import com.example.namazvakti.domain.model.PrayerError
 import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.PrayerLocationConfig
@@ -155,6 +156,38 @@ class PrayerViewModelTest {
         assertEquals(0, store.clearCalls)
         assertEquals(OperationState.Refreshed, state.operation)
         assertEquals(Freshness.Fresh, state.freshness)
+    }
+
+    @Test
+    fun selectingDistrictSavesTheChosenDistrictIdAndName() = runTest {
+        val store = FakeStore()
+        val option = PrayerLocationConfig.cityOptions.first { it.city == "Istanbul" }
+        val province = requireNotNull(DiyanetDistricts.forCity(option.city, option.country))
+        val district = DiyanetDistricts.districts.first {
+            it.provinceId == province.id && it.name == "MALTEPE"
+        }
+        val selectedLocation = PrayerLocation(
+            city = option.city,
+            country = option.country,
+            displayCity = option.displayCity,
+            latitude = option.latitude,
+            longitude = option.longitude,
+            diyanetDistrictId = district.id,
+            districtName = district.name
+        )
+        val viewModel = viewModel(
+            store,
+            FakeRepository(RefreshResult.Success(sampleCache(selectedLocation))),
+            CoroutineScope(StandardTestDispatcher(testScheduler))
+        )
+        advanceUntilIdle()
+
+        viewModel.selectDistrict(option, district.id)
+        advanceUntilIdle()
+
+        assertEquals(district.id, store.location.diyanetDistrictId)
+        assertEquals(district.name, store.location.districtName)
+        assertEquals(selectedLocation, store.location)
     }
 
     @Test

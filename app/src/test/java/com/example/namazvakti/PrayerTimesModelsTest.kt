@@ -2,12 +2,14 @@ package com.example.namazvakti
 
 import com.example.namazvakti.domain.model.CachedPrayerDay
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
+import com.example.namazvakti.domain.model.DiyanetDistricts
 import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.PrayerTimeProvider
 import com.example.namazvakti.domain.model.PrayerTimes
 import com.example.namazvakti.domain.model.parsePrayerTimesText
 import com.example.namazvakti.domain.policy.PrayerBoundaryCalculator
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.LocalDate
@@ -18,6 +20,69 @@ import java.time.Clock
 import java.time.ZonedDateTime
 
 class PrayerTimesModelsTest {
+    @Test
+    fun cacheKeyAndFromCacheKeyRoundTripForCentralAndIstanbulDistrict() {
+        val province = requireNotNull(DiyanetDistricts.forCity("Istanbul", "Turkey"))
+        val district = DiyanetDistricts.districts.first {
+            it.provinceId == province.id && it.name == "MALTEPE"
+        }
+        val centralLocation = PrayerLocation(
+            city = "Istanbul",
+            country = "Turkey",
+            diyanetDistrictId = province.centralDistrictId
+        )
+        val districtLocation = PrayerLocation(
+            city = "Istanbul",
+            country = "Turkey",
+            diyanetDistrictId = district.id,
+            districtName = district.name
+        )
+
+        assertEquals("Istanbul", centralLocation.cacheKey)
+        assertEquals("Istanbul" to null, PrayerLocation.fromCacheKey(centralLocation.cacheKey))
+        assertEquals("Istanbul#${district.id}", districtLocation.cacheKey)
+        assertEquals("Istanbul" to district.id, PrayerLocation.fromCacheKey(districtLocation.cacheKey))
+    }
+
+    @Test
+    fun districtLocationsDoNotMatchTheSameProvinceCache() {
+        val province = requireNotNull(DiyanetDistricts.forCity("Istanbul", "Turkey"))
+        val maltepe = DiyanetDistricts.districts.first {
+            it.provinceId == province.id && it.name == "MALTEPE"
+        }
+        val kartal = DiyanetDistricts.districts.first {
+            it.provinceId == province.id && it.name == "KARTAL"
+        }
+        val base = sampleCache().copy(
+            location = PrayerLocation("Istanbul", "Turkey", "İSTANBUL")
+        )
+        val maltepeCache = base.copy(
+            location = base.location.copy(diyanetDistrictId = maltepe.id, districtName = maltepe.name)
+        )
+        val kartalLocation = base.location.copy(diyanetDistrictId = kartal.id, districtName = kartal.name)
+
+        assertFalse(maltepeCache.matches(base.date, kartalLocation, base.settings))
+    }
+
+    @Test
+    fun displayNameUsesDistrictForNonCentralLocationAndProvinceForCentral() {
+        val province = requireNotNull(DiyanetDistricts.forCity("Istanbul", "Turkey"))
+        val maltepe = DiyanetDistricts.districts.first {
+            it.provinceId == province.id && it.name == "MALTEPE"
+        }
+        val central = PrayerLocation("Istanbul", "Turkey", "İSTANBUL")
+        val district = PrayerLocation(
+            city = "Istanbul",
+            country = "Turkey",
+            displayCity = "İSTANBUL",
+            diyanetDistrictId = maltepe.id,
+            districtName = maltepe.name
+        )
+
+        assertEquals("İSTANBUL", central.displayName)
+        assertEquals("MALTEPE, İSTANBUL", district.displayName)
+    }
+
     @Test
     fun defaultsToShafiSchoolForAsrCalculation() {
         assertEquals(

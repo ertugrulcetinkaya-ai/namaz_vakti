@@ -8,11 +8,13 @@ import com.example.namazvakti.data.remote.PrayerTimesCalendarResult
 import com.example.namazvakti.data.remote.PrayerTimesRemoteDataSource
 import com.example.namazvakti.data.repository.PrayerTimesRepository
 import com.example.namazvakti.domain.model.CachedPrayerDay
+import com.example.namazvakti.domain.model.DiyanetDistricts
 import com.example.namazvakti.domain.model.DefaultPrayerEventLogger
 import com.example.namazvakti.domain.model.MonthDataSource
 import com.example.namazvakti.domain.model.PrayerDataSource
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.PrayerLocation
+import com.example.namazvakti.domain.model.PrayerLocationConfig
 import com.example.namazvakti.domain.model.PrayerEventLogger
 import com.example.namazvakti.domain.model.PrayerStorageException
 import com.example.namazvakti.domain.model.PrayerTimesApiException
@@ -471,6 +473,83 @@ class PrayerTimesRepositoryTest {
     }
 
     @Test
+    fun diyanetRequestsTheSelectedNonCentralDistrictId() = runTest {
+        val today = LocalDate.of(2026, 8, 6)
+        val province = requireNotNull(DiyanetDistricts.forCity("Istanbul", "Turkey"))
+        val district = DiyanetDistricts.districts.first {
+            it.provinceId == province.id && it.name == "MALTEPE"
+        }
+        val option = PrayerLocationConfig.cityOptions.first { it.city == "Istanbul" }
+        val selectedLocation = PrayerLocation(
+            city = option.city,
+            country = option.country,
+            displayCity = option.displayCity,
+            latitude = option.latitude,
+            longitude = option.longitude,
+            diyanetDistrictId = district.id,
+            districtName = district.name
+        )
+        val store = FakeStore(selectedLocation, settings, today)
+        val api = FakeApi { year, month -> calendar(YearMonth.of(year, month)) }
+        val requestedIds = mutableListOf<String>()
+        val diyanet = object : DiyanetPrayerTimesRemoteDataSource {
+            override suspend fun fetch(districtId: String): PrayerTimesCalendarResult {
+                requestedIds += districtId
+                throw IOException("offline")
+            }
+        }
+        val repository = PrayerTimesRepository(
+            api,
+            store,
+            settings,
+            PrayerTimeProvider(Clock.fixed(Instant.parse("2026-08-06T10:00:00Z"), PrayerTimeProvider.DEFAULT_ZONE)),
+            diyanetApi = diyanet
+        )
+
+        repository.refreshAndCache()
+
+        assertEquals(listOf(district.id), requestedIds)
+    }
+
+    @Test
+    fun districtAmonthRowsAreNotReturnedForDistrictBOfTheSameProvince() = runTest {
+        val month = YearMonth.of(2026, 8)
+        val today = month.atDay(6)
+        val province = requireNotNull(DiyanetDistricts.forCity("Istanbul", "Turkey"))
+        val districtA = DiyanetDistricts.districts.first {
+            it.provinceId == province.id && it.name == "MALTEPE"
+        }
+        val districtB = DiyanetDistricts.districts.first {
+            it.provinceId == province.id && it.name == "KARTAL"
+        }
+        val option = PrayerLocationConfig.cityOptions.first { it.city == "Istanbul" }
+        fun location(district: DiyanetDistricts.District) = PrayerLocation(
+            city = option.city,
+            country = option.country,
+            displayCity = option.displayCity,
+            latitude = option.latitude,
+            longitude = option.longitude,
+            diyanetDistrictId = district.id,
+            districtName = district.name
+        )
+        val districtALocation = location(districtA)
+        val districtBLocation = location(districtB)
+        val districtATimes = sampleTimes().copy(fajr = LocalTime.of(3, 50))
+        val initialRows = (1..month.lengthOfMonth()).map { day ->
+            sampleCache(month.atDay(day), districtALocation).copy(prayerTimes = districtATimes)
+        }
+        val store = FakeStore(districtALocation, settings, today, initialRows)
+        store.saveLocation(districtBLocation)
+        val api = FakeApi { year, monthNumber -> calendar(YearMonth.of(year, monthNumber)) }
+
+        val result = repository(api, store).ensureMonth(month)
+
+        assertEquals(MonthDataSource.NETWORK, result.source)
+        assertEquals(sampleTimes(), result.days.first { it.date == today }.prayerTimes)
+        assertTrue(result.days.all { it.location.cacheKey == districtBLocation.cacheKey })
+    }
+
+    @Test
     fun diyanetRateLimitFallsBackToAladhan() = runTest {
         val today = LocalDate.of(2026, 8, 6)
         val store = FakeStore(location, settings, today)
@@ -618,7 +697,7 @@ class PrayerTimesRepositoryTest {
         ): CachedPrayerDay? {
             readCacheFailure?.let { throw it }
             return days[date]?.takeIf {
-                it.location.city == location.city &&
+                it.location.cacheKey == location.cacheKey &&
                     it.location.country == location.country &&
                     it.settings == settings
             }

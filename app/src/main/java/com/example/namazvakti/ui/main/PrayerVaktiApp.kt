@@ -54,6 +54,8 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
     val today = now.withZoneSameInstant(timezone).toLocalDate()
     var lastObservedDate by remember { mutableStateOf(today) }
     var showCities by rememberSaveable { mutableStateOf(false) }
+    var citySelectionStep by rememberSaveable { mutableIntStateOf(1) }
+    var selectedProvinceCity by rememberSaveable { mutableStateOf<String?>(null) }
     var showMonthly by rememberSaveable { mutableStateOf(false) }
     var showImsakiye by rememberSaveable { mutableStateOf(false) }
     var showReligiousDays by rememberSaveable { mutableStateOf(false) }
@@ -142,6 +144,10 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
 
     BackHandler(enabled = showCities || showMonthly || showImsakiye || showReligiousDays) {
         when {
+            showCities && citySelectionStep == 2 -> {
+                citySelectionStep = 1
+                selectedProvinceCity = null
+            }
             showCities -> showCities = false
             showReligiousDays -> {
                 showReligiousDays = false
@@ -156,10 +162,25 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
     if (showCities) {
         CitySelectionScreen(
             selectedLocation = location,
-            onBack = { showCities = false },
-            onSelectCity = { option ->
+            selectionStep = citySelectionStep,
+            selectedProvinceCity = selectedProvinceCity,
+            onBack = {
+                if (citySelectionStep == 2) {
+                    citySelectionStep = 1
+                    selectedProvinceCity = null
+                } else {
+                    showCities = false
+                }
+            },
+            onSelectProvince = { city ->
+                selectedProvinceCity = city
+                citySelectionStep = 2
+            },
+            onSelectDistrict = { option, districtId ->
                 showCities = false
-                viewModel.selectCity(option)
+                citySelectionStep = 1
+                selectedProvinceCity = null
+                viewModel.selectDistrict(option, districtId)
             }
         )
     } else if (showReligiousDays) {
@@ -203,7 +224,11 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
             state = state,
             now = now,
             onRefresh = viewModel::refresh,
-            onOpenCities = { showCities = true },
+            onOpenCities = {
+                citySelectionStep = 1
+                selectedProvinceCity = null
+                showCities = true
+            },
             onOpenMonthly = {
                 viewModel.loadMonth(YearMonth.from(today))
                 showMonthly = true
