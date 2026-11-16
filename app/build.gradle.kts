@@ -148,7 +148,7 @@ dependencies {
     implementation("com.google.code.gson:gson:2.15.0")
     implementation("com.squareup.okhttp3:okhttp:5.3.2")
     // Room 2.8.x schema migration helpers require 1.8.1; align the older lifecycle transitive.
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.13.0")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
