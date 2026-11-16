@@ -1,8 +1,7 @@
 <resources>
     <dimen name="widget_padding_horizontal">8dp</dimen>
-    <dimen name="widget_padding_vertical">6dp</dimen>
-    <dimen name="widget_city_text_size">14sp</dimen>
-    <dimen name="widget_prayer_text_size">12sp</dimen>
+    <dimen name="widget_city_text_size">24sp</dimen>
+    <dimen name="widget_prayer_text_size">22sp</dimen>
     <dimen name="widget_background_radius">16dp</dimen>
     <dimen name="widget_inner_corner_radius">12dp</dimen>
     <dimen name="widget_background_inset">1dp</dimen>

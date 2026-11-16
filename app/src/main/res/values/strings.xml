@@ -55,10 +55,10 @@
     <string name="school_standard">Standart</string>
     <string name="school_hanafi">Hanefi</string>
     <string name="prayer_times_unavailable">Vakitler alınamadı</string>
+    <string name="widget_times_unavailable_short">Vakit yok</string>
     <string name="widget_stale_label">Eski veri</string>
     <string name="widget_chronometer_format" formatted="false">%s kaldı</string>
     <string name="widget_content_description">%1$s için namaz vakitleri. %2$s</string>
-    <string name="widget_next_prayer">Sıradaki vakit: %1$s</string>
     <string name="widget_next_prayer_accessibility">Sıradaki vakit %1$s.</string>
     <string name="widget_ramadan_iftar">İftar %1$s</string>
     <string name="widget_ramadan_sahur">Sahur (İmsak) %1$s</string>

@@ -22,8 +22,6 @@ import com.example.namazvakti.widget.PrayerWidgetCountdownCalculator
 import com.example.namazvakti.widget.PrayerWidgetSizeClass
 import com.example.namazvakti.widget.PrayerWidgetSnapshot
 import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 enum class PrayerWidgetDataState { Fresh, Stale, Unavailable }
 
@@ -75,21 +73,14 @@ class PrayerWidgetRenderer {
         } else ""
         val hijriText = cache?.displayHijriText()?.trim().orEmpty()
         val cityText = when (sizeClass) {
-            PrayerWidgetSizeClass.LARGE -> location.displayCity + staleSuffix
+            PrayerWidgetSizeClass.LARGE -> listOf(location.displayCity, hijriText)
+                .filter(String::isNotBlank).joinToString(" • ")
             PrayerWidgetSizeClass.MEDIUM -> listOf(location.displayCity, hijriText)
                 .filter(String::isNotBlank).joinToString(" • ") + staleSuffix
-            PrayerWidgetSizeClass.SMALL -> if (dataState == PrayerWidgetDataState.Stale) {
-                context.getString(R.string.widget_stale_label)
-            } else location.displayCity
+            PrayerWidgetSizeClass.SMALL -> location.displayCity
         }
         views.setTextViewText(R.id.prayer_widget_city, cityText)
-        val gregorianDate = localNow.format(GREGORIAN_FORMATTER)
-        views.setTextViewText(
-            R.id.prayer_widget_date,
-            if (sizeClass == PrayerWidgetSizeClass.LARGE) {
-                listOf(gregorianDate, hijriText).filter(String::isNotBlank).joinToString(" • ")
-            } else ""
-        )
+        views.setTextViewText(R.id.prayer_widget_date, "")
 
         val activeItems = cache?.prayerTimes?.toHighlightedDisplayItems(localNow.toLocalTime())
         if (activeItems == null) {
@@ -98,7 +89,15 @@ class PrayerWidgetRenderer {
         } else {
             activeItems.forEachIndexed { index, item ->
                 val viewId = PRAYER_ITEM_IDS[index]
-                views.setTextViewText(viewId, item.render())
+                views.setTextViewText(
+                    viewId,
+                    buildString {
+                        if (item.highlighted) append('►')
+                        append(item.label)
+                        append(' ')
+                        append(item.time.format(PrayerTimes.TIME_FORMATTER))
+                    }
+                )
                 views.setTextColor(
                     viewId,
                     if (item.highlighted) context.getColor(R.color.widget_active_text)
@@ -118,23 +117,23 @@ class PrayerWidgetRenderer {
             elapsedRealtime = elapsedRealtime,
             dataState = dataState
         )
-        val nextText = countdown?.let { nextPrayerText(context, it, sizeClass) }
-            ?: fallbackNextPrayerText(context, cache, localNow, dataState, sizeClass)
+        val nextText = countdown?.let(::nextPrayerText)
+            ?: fallbackNextPrayerText(cache, localNow, dataState)
+        val displayNextText = if (
+            sizeClass == PrayerWidgetSizeClass.SMALL && dataState == PrayerWidgetDataState.Unavailable
+        ) context.getString(R.string.widget_times_unavailable_short) else nextText
         views.setTextViewText(
             R.id.prayer_widget_next_prayer,
-            nextText ?: if (dataState == PrayerWidgetDataState.Unavailable) {
+            displayNextText ?: if (dataState == PrayerWidgetDataState.Unavailable) {
                 context.getString(R.string.prayer_times_unavailable)
             } else ""
         )
         views.setTextColor(R.id.prayer_widget_next_prayer, context.getColor(R.color.widget_active_text))
-        if (sizeClass == PrayerWidgetSizeClass.SMALL && dataState == PrayerWidgetDataState.Unavailable) {
-            views.setTextViewTextSize(
-                R.id.prayer_widget_next_prayer,
-                TypedValue.COMPLEX_UNIT_SP,
-                11f
-            )
-        }
-        val showCountdown = countdown != null && dataState == PrayerWidgetDataState.Fresh
+        val showCountdown = countdown != null &&
+            dataState == PrayerWidgetDataState.Fresh &&
+            sizeClass != PrayerWidgetSizeClass.MEDIUM
+        val showSmallStaleLabel = sizeClass == PrayerWidgetSizeClass.SMALL &&
+            dataState == PrayerWidgetDataState.Stale
         if (showCountdown) {
             views.setChronometer(
                 R.id.prayer_widget_chronometer,
@@ -147,15 +146,21 @@ class PrayerWidgetRenderer {
                 true
             )
             views.setChronometerCountDown(R.id.prayer_widget_chronometer, true)
+        } else if (showSmallStaleLabel) {
+            views.setTextViewText(R.id.prayer_widget_chronometer, context.getString(R.string.widget_stale_label))
         }
         views.setViewVisibility(
             R.id.prayer_widget_chronometer,
-            if (showCountdown) View.VISIBLE else View.GONE
+            if (showCountdown || showSmallStaleLabel) View.VISIBLE else View.GONE
         )
 
         val ramadanText = ramadanText(context, cache, tomorrowCache, ramadanRange, localNow, dataState)
         val religiousText = religiousText(context, religiousDays)
-        val bottomInfo = bottomInfoText(context, ramadanText, religiousText)
+        val bottomInfo = if (dataState == PrayerWidgetDataState.Stale) {
+            context.getString(R.string.widget_stale_label)
+        } else {
+            bottomInfoText(context, ramadanText, religiousText)
+        }
         views.setTextViewText(R.id.prayer_widget_ramadan, bottomInfo.orEmpty())
         views.setViewVisibility(
             R.id.prayer_widget_ramadan,
@@ -191,30 +196,20 @@ class PrayerWidgetRenderer {
     }
 
     private fun fallbackNextPrayerText(
-        context: Context,
         cache: CachedPrayerDay?,
         now: ZonedDateTime,
-        dataState: PrayerWidgetDataState,
-        sizeClass: PrayerWidgetSizeClass
+        dataState: PrayerWidgetDataState
     ): String? {
         if (dataState == PrayerWidgetDataState.Unavailable || cache == null) return null
         val name = cache.prayerTimes.nextPrayerName(now.toLocalTime()) ?: return null
         val time = cache.prayerTimes.timeAt(name).format(PrayerTimes.TIME_FORMATTER)
-        val prayerAndTime = "${name.displayName} $time"
-        return if (sizeClass == PrayerWidgetSizeClass.LARGE) {
-            context.getString(R.string.widget_next_prayer, prayerAndTime)
-        } else prayerAndTime
+        return "${name.displayName} $time"
     }
 
     private fun nextPrayerText(
-        context: Context,
-        countdown: PrayerWidgetCountdown,
-        sizeClass: PrayerWidgetSizeClass
+        countdown: PrayerWidgetCountdown
     ): String {
-        val timeText = "${countdown.prayer.displayName} ${countdown.timeText}"
-        return if (sizeClass == PrayerWidgetSizeClass.LARGE) {
-            context.getString(R.string.widget_next_prayer, timeText)
-        } else timeText
+        return "${countdown.prayer.displayName} ${countdown.timeText}"
     }
 
     private fun ramadanText(
@@ -250,13 +245,13 @@ class PrayerWidgetRenderer {
         val paint = TextPaint().apply {
             textSize = TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_SP,
-                11f,
+                18f,
                 context.resources.displayMetrics
             )
         }
         val availableWidth = TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
-            218f,
+            204f,
             context.resources.displayMetrics
         )
         return if (paint.measureText(combined) <= availableWidth) combined else ramadanText
@@ -267,13 +262,13 @@ class PrayerWidgetRenderer {
         val paint = TextPaint().apply {
             textSize = TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_SP,
-                11f,
+                18f,
                 context.resources.displayMetrics
             )
         }
         val availableWidth = TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
-            218f,
+            204f,
             context.resources.displayMetrics
         )
         val selected = mutableListOf<String>()
@@ -295,8 +290,6 @@ class PrayerWidgetRenderer {
     }
 
     private companion object {
-        val GREGORIAN_FORMATTER: DateTimeFormatter =
-            DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.forLanguageTag("tr-TR"))
         val PRAYER_ITEM_IDS = listOf(
             R.id.prayer_widget_item_1,
             R.id.prayer_widget_item_2,

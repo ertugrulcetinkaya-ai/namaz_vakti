@@ -6,13 +6,14 @@ enum class PrayerWidgetSizeClass {
     LARGE;
 
     companion object {
-        const val SMALL_MAX_WIDTH_DP = 180
-        const val LARGE_MIN_WIDTH_DP = 220
-        const val LARGE_MIN_HEIGHT_DP = 100
+        // On the S24 Ultra, a 2x1 widget is ~159dp wide, a wide one-row widget
+        // is ~515x126dp, and two rows are at least ~278dp high.
+        const val WIDE_MIN_WIDTH_DP = 400
+        const val LARGE_MIN_HEIGHT_DP = 200
 
         fun from(widthDp: Int, heightDp: Int): PrayerWidgetSizeClass = when {
-            widthDp < SMALL_MAX_WIDTH_DP -> SMALL
-            widthDp >= LARGE_MIN_WIDTH_DP && heightDp >= LARGE_MIN_HEIGHT_DP -> LARGE
+            widthDp < WIDE_MIN_WIDTH_DP -> SMALL
+            heightDp >= LARGE_MIN_HEIGHT_DP -> LARGE
             else -> MEDIUM
         }
     }
