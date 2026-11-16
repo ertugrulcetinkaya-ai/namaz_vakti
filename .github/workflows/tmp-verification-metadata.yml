@@ -1,0 +1,32 @@
+# Temporary: regenerates gradle/verification-metadata.xml for this branch only.
+# Removed again before the pull request is merged.
+name: Regenerate verification metadata (temporary)
+
+on:
+  push:
+    branches: [chore/dependency-maintenance]
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate:
+    if: "!contains(github.event.head_commit.message, '[metadata]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+      - name: Write SHA-256 entries for resolved artifacts
+        run: ./gradlew --write-verification-metadata sha256 --continue lint test assembleDebug assembleMinified assembleMinifiedAndroidTest assembleRelease || echo "::warning::Build failed; metadata was still written"
+      - name: Commit metadata
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add gradle/verification-metadata.xml
+          git diff --cached --stat
+          git diff --cached --quiet || git commit -m "Update dependency verification metadata [metadata]"
+          git push
