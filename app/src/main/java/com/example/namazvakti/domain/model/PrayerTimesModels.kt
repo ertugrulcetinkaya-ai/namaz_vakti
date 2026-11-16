@@ -139,6 +139,7 @@ data class CachedPrayerDay(
 }
 
 enum class PrayerDataSource {
+    DIYANET,
     ALADHAN,
     LEGACY_CACHE
 }

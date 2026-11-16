@@ -2,6 +2,8 @@ package com.example.namazvakti.data.repository
 
 import com.example.namazvakti.data.local.PrayerPreferences
 import com.example.namazvakti.data.remote.PrayerTimesApi
+import com.example.namazvakti.data.remote.DiyanetPrayerTimesRemoteDataSource
+import com.example.namazvakti.domain.model.DiyanetDistricts
 import com.example.namazvakti.data.remote.PrayerTimesApiDayResult
 import com.example.namazvakti.data.remote.PrayerTimesApiResult
 import com.example.namazvakti.data.remote.PrayerTimesCalendarResult
@@ -38,22 +40,29 @@ class PrayerTimesRepository(
     private val store: PrayerPreferences,
     private val settings: PrayerCalculationSettings = PrayerCalculationSettings(),
     private val timeProvider: PrayerTimeProvider = PrayerTimeProvider(),
-    private val eventLogger: PrayerEventLogger = DefaultPrayerEventLogger
+    private val eventLogger: PrayerEventLogger = DefaultPrayerEventLogger,
+    private val diyanetApi: DiyanetPrayerTimesRemoteDataSource? = null
 ) : PrayerRefreshRepository {
+    private val cacheWriteMutex = Mutex()
+    private val refreshMutex = Mutex()
     private val monthMutexes = ConcurrentHashMap<MonthRequestKey, Mutex>()
 
-    override suspend fun refreshAndCache(): RefreshResult {
+    override suspend fun refreshAndCache(): RefreshResult = refreshMutex.withLock {
         val location = try {
             store.readLocation()
         } catch (e: CancellationException) {
             throw e
         } catch (t: Exception) {
-            return RefreshResult.Failure(t, classifyPrayerStorageError(t))
+            return@withLock RefreshResult.Failure(t, classifyPrayerStorageError(t))
         }
         val today = timeProvider.today(location.timezone)
-        return try {
+        try {
             val currentMonth = YearMonth.from(today)
-            val currentDays = fetchAndCacheMonth(location, currentMonth)
+            refreshDiyanet(location, today)
+            val currentDays = if (diyanetApi != null && store.hasCoverage(
+                    currentMonth.atDay(1), currentMonth.atEndOfMonth(), location, settings
+                )) store.readCaches(currentMonth.atDay(1), currentMonth.atEndOfMonth(), location, settings)
+                else fetchAndCacheMonth(location, currentMonth)
             prefetchNextMonthIfNeeded(location, today, currentMonth)
             val todayCache = currentDays.firstOrNull { it.date == today }
                 ?: store.readCache(today, location, settings)
@@ -63,6 +72,36 @@ class PrayerTimesRepository(
             throw e
         } catch (t: Exception) {
             failedRefresh(t, location, today)
+        }
+    }
+
+    private suspend fun refreshDiyanet(location: PrayerLocation, today: java.time.LocalDate) {
+        val source = diyanetApi ?: return
+        val province = DiyanetDistricts.forCity(location.city, location.country) ?: return
+        val end = minOf(YearMonth.from(today).plusMonths(1).atEndOfMonth(), today.withMonth(12).withDayOfMonth(31))
+        val existing = store.readCaches(today, end, location, settings)
+        val freshDates = existing.filter {
+            it.source == PrayerDataSource.DIYANET && it.fetchedAt.atZone(location.timezone).toLocalDate() == today
+        }.map { it.date }.toSet()
+        if ((0..java.time.temporal.ChronoUnit.DAYS.between(today, end)).all { today.plusDays(it) in freshDates }) return
+        try {
+            val response = source.fetch(province.centralDistrictId)
+            val fetchedAt = timeProvider.now(location.timezone).toInstant()
+            val timezone = ZoneId.of("Europe/Istanbul")
+            val caches = response.days.map { day ->
+                CachedPrayerDay(
+                    date = day.date, location = location.copy(timezone = timezone), timezone = timezone,
+                    settings = settings, prayerTimes = day.result.prayerTimes, hijriText = day.result.hijriText,
+                    fetchedAt = fetchedAt, source = PrayerDataSource.DIYANET,
+                    hijriDay = day.result.hijriDay, hijriMonth = day.result.hijriMonth, hijriYear = day.result.hijriYear
+                )
+            }
+            cacheWriteMutex.withLock { store.saveCaches(caches) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            eventLogger.warning("diyanet_failure error=${classifyPrayerError(e).code}",
+                PrayerTimesApiException("Diyanet request failed"))
         }
     }
 
@@ -103,8 +142,13 @@ class PrayerTimesRepository(
                 hijriYear = day.result.hijriYear
             )
         }
-        store.saveCaches(caches)
-        return caches
+        return cacheWriteMutex.withLock {
+            val existing = store.readCaches(month.atDay(1), month.atEndOfMonth(), location, settings)
+            val protectedDates = existing.filter { it.source == PrayerDataSource.DIYANET }.map { it.date }.toSet()
+            store.saveCaches(caches.filterNot { it.date in protectedDates })
+            (caches.filterNot { it.date in protectedDates } + existing.filter { it.date in protectedDates })
+                .sortedBy { it.date }
+        }
     }
 
     private suspend fun prefetchNextMonthIfNeeded(

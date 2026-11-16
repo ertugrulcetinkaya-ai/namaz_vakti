@@ -170,7 +170,7 @@ class PrayerTimesApi(
         return dates
     }
 
-    private suspend fun execute(request: Request): String = suspendCancellableCoroutine { continuation ->
+    internal suspend fun execute(request: Request): String = suspendCancellableCoroutine { continuation ->
         val call = client.newCall(request)
         continuation.invokeOnCancellation { call.cancel() }
         call.enqueue(object : Callback {

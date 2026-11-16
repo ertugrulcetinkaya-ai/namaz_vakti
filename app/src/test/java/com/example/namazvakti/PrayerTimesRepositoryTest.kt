@@ -1,6 +1,7 @@
 package com.example.namazvakti
 
 import com.example.namazvakti.data.local.PrayerPreferences
+import com.example.namazvakti.data.remote.DiyanetPrayerTimesRemoteDataSource
 import com.example.namazvakti.data.remote.PrayerTimesApiDayResult
 import com.example.namazvakti.data.remote.PrayerTimesApiResult
 import com.example.namazvakti.data.remote.PrayerTimesCalendarResult
@@ -9,6 +10,7 @@ import com.example.namazvakti.data.repository.PrayerTimesRepository
 import com.example.namazvakti.domain.model.CachedPrayerDay
 import com.example.namazvakti.domain.model.DefaultPrayerEventLogger
 import com.example.namazvakti.domain.model.MonthDataSource
+import com.example.namazvakti.domain.model.PrayerDataSource
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.PrayerEventLogger
@@ -441,6 +443,48 @@ class PrayerTimesRepositoryTest {
         } catch (error: PrayerTimesApiException) {
             assertTrue(error.message.orEmpty().contains("does not match"))
         }
+    }
+
+    @Test
+    fun diyanetSavesThroughYearEndAndDoesNotRefetchOnSameDay() = runTest {
+        val today = LocalDate.of(2026, 12, 25)
+        val store = FakeStore(location, settings, today, listOf(sampleCache(today, location)))
+        val api = FakeApi { year, month -> calendar(YearMonth.of(year, month)) }
+        var calls = 0
+        val diyanet = object : DiyanetPrayerTimesRemoteDataSource {
+            override suspend fun fetch(districtId: String): PrayerTimesCalendarResult {
+                calls++
+                assertEquals("9206", districtId)
+                return PrayerTimesCalendarResult(calendar(YearMonth.of(2026, 12)).days.filter { !it.date.isBefore(today) })
+            }
+        }
+        val repository = PrayerTimesRepository(api, store, settings,
+            PrayerTimeProvider(Clock.fixed(Instant.parse("2026-12-25T10:00:00Z"), PrayerTimeProvider.DEFAULT_ZONE)),
+            diyanetApi = diyanet)
+        assertTrue(repository.refreshAndCache() is RefreshResult.Success)
+        assertEquals(PrayerDataSource.DIYANET, store.days[today]?.source)
+        assertEquals(PrayerDataSource.DIYANET, store.days[LocalDate.of(2026, 12, 31)]?.source)
+        assertEquals(PrayerDataSource.ALADHAN, store.days[LocalDate.of(2027, 1, 1)]?.source)
+        repository.refreshAndCache()
+        assertEquals(1, calls)
+        assertEquals(PrayerDataSource.DIYANET, store.days[today]?.source)
+    }
+
+    @Test
+    fun diyanetRateLimitFallsBackToAladhan() = runTest {
+        val today = LocalDate.of(2026, 8, 6)
+        val store = FakeStore(location, settings, today)
+        val api = FakeApi { year, month -> calendar(YearMonth.of(year, month)) }
+        val source = object : DiyanetPrayerTimesRemoteDataSource {
+            override suspend fun fetch(districtId: String): PrayerTimesCalendarResult {
+                throw PrayerTimesApiException("HTTP 429", statusCode = 429)
+            }
+        }
+        val repository = PrayerTimesRepository(api, store, settings,
+            PrayerTimeProvider(Clock.fixed(Instant.parse("2026-08-06T10:00:00Z"), PrayerTimeProvider.DEFAULT_ZONE)),
+            diyanetApi = source)
+        assertTrue(repository.refreshAndCache() is RefreshResult.Success)
+        assertEquals(PrayerDataSource.ALADHAN, store.days[today]?.source)
     }
 
     private fun repository(
