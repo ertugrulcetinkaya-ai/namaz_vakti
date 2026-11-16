@@ -14,6 +14,11 @@ updates:
       - dependency-name: "gradle-wrapper"
         update-types:
           - "version-update:semver-major"
+      # androidx.core 1.18+ requires compileSdk 37, beyond the AGP 8 / API 36 line.
+      - dependency-name: "androidx.core:core-ktx"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
   - package-ecosystem: github-actions
     directory: /
     schedule:
