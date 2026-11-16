@@ -52,7 +52,7 @@ Geri sayım `RemoteViews` içindeki Android `Chronometer` ile çalışır; ana u
 - Android SDK 36
 - Android 8.0 veya üzeri cihaz/emülatör (`minSdk 26`)
 
-Derleme zinciri AGP 8.13.2, Gradle 8.14.7, Kotlin 2.4.20 ve KSP 2.3.13 kullanır. Gradle dağıtımı checksum ile doğrulanır; `gradle/verification-metadata.xml` çözümlenen bağımlılıkların SHA-256 doğrulamasını içerir. Gradle build cache ve configuration cache yerel ve CI derlemelerinde etkindir.
+Derleme zinciri AGP 8.13.2, Gradle 8.14.7, Kotlin 2.4.21 ve KSP 2.3.13 kullanır. Gradle dağıtımı checksum ile doğrulanır; `gradle/verification-metadata.xml` çözümlenen bağımlılıkların SHA-256 doğrulamasını içerir. Gradle build cache ve configuration cache yerel ve CI derlemelerinde etkindir.
 
 Uygulama verileri backup ve device-transfer kapsamı dışında bırakılmıştır; konum ve cache cihazlar arasında taşınmaz.
 

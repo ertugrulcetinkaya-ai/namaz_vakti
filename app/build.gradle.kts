@@ -140,14 +140,14 @@ dependencies {
     implementation("androidx.compose.material:material-icons-core")
     implementation("com.google.android.material:material:1.14.0")
     implementation("androidx.work:work-runtime-ktx:2.11.2")
-    implementation("androidx.datastore:datastore-preferences:1.2.1")
-    implementation("androidx.room:room-runtime:2.8.4")
-    implementation("androidx.room:room-ktx:2.8.4")
-    ksp("androidx.room:room-compiler:2.8.4")
+    implementation("androidx.datastore:datastore-preferences:1.3.0")
+    implementation("androidx.room:room-runtime:2.8.5")
+    implementation("androidx.room:room-ktx:2.8.5")
+    ksp("androidx.room:room-compiler:2.8.5")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation("com.google.code.gson:gson:2.15.0")
     implementation("com.squareup.okhttp3:okhttp:5.3.2")
-    // Room 2.8.4 schema migration helpers require 1.8.1; align the older lifecycle transitive.
+    // Room 2.8.x schema migration helpers require 1.8.1; align the older lifecycle transitive.
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
 
     testImplementation("junit:junit:4.13.2")
@@ -157,7 +157,7 @@ dependencies {
     androidTestImplementation("androidx.test:core-ktx:1.7.0")
     androidTestImplementation("androidx.test.ext:junit-ktx:1.3.0")
     androidTestImplementation("androidx.test:runner:1.7.0")
-    androidTestImplementation("androidx.room:room-testing:2.8.4")
+    androidTestImplementation("androidx.room:room-testing:2.8.5")
     androidTestImplementation("androidx.work:work-testing:2.11.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
