@@ -10,7 +10,7 @@ Namaz Vakti, Türkiye'deki şehirler için günlük namaz vakitlerini gösteren 
 - Ana ekrandan şehir arama ve bildirim ayarlarına erişim
 - İkindi vakti için varsayılan Şafii/standart hesaplama (`school=0`)
 - Room üzerinde timezone duyarlı ve çevrimdışı namaz vakti takvimi
-- AlAdhan method 13 vakitleri ve hicri takvim isteklerinde `calendarMethod=DIYANET`
+- İl merkezleri için birincil kaynak Diyanet vakitleri; eksik günlerde AlAdhan method 13 yedeği
 - Resmi olarak yayınlanmış Ramazan başlangıcı/bayram tarihlerine öncelik, yayınlanmayan yıllar için tahmini aralık
 - Günlük ve aylık vakit tablosu ile Ramazan imsakiyesi, iftar sütunu, Kadir Gecesi ve bayram tarihi
 - Cache retention: bugünden 90 gün öncesi ile 13 ay sonrası dışındaki kayıtlar temizlenir
@@ -24,17 +24,21 @@ Namaz Vakti, Türkiye'deki şehirler için günlük namaz vakitlerini gösteren 
 - İsteğe bağlı, vakit başına açılabilen namaz vakti bildirimleri ve önceden hatırlatma
 - CI doğrulaması ve imzalı beta artifact üretimi
 
+## Veri kaynağı
+
+[Namaz Vakti API](https://namazvakti.mtopal.dev/docs.html) üzerinden resmi Diyanet il merkezi vakitleri kullanılır. API bugünden yıl sonuna kadar döner; eksik tarihler ve erişim hataları için AlAdhan kullanılır. İlçe tablosu `tools/diyanet_locations` ile snapshot verilerinden üretilir.
+
 ## Mimari
 
 Kod sınırları paketlerle görünür hale getirilmiştir:
 
 - `app`: application ve composition root (`AppContainer`)
 - `domain/model`, `domain/policy`, `domain/port`: platformdan bağımsız modeller, karar politikaları ve uygulama sözleşmeleri
-- `data/local`, `data/remote`, `data/repository`: DataStore/Room, yalnız aylık takvim API'si ve repository
+- `data/local`, `data/remote`, `data/repository`: DataStore/Room, Diyanet ve AlAdhan API istemcileri ve repository
 - `ui/main`: Compose Activity/ekranları, ViewModel ve typed UI state
 - `widget/alarm`, `widget/renderer`, `widget/worker`: alarm/scheduler, `RemoteViews` render'ı ve WorkManager
 
-`PrayerTimesRepository` aylık API sonucunu doğrular, isteğe bağlı ay indirmelerini ve sonraki ay ön-getirmesini koordine eder. Hicri Ramazan aralıklarında resmi Diyanet kayıtları AlAdhan `hToGCalendar` tahminlerinin önüne geçer. `PrayerTimesStore` konumu DataStore'da, günlük vakitleri ve sayısal hicri alanları Room'da `konum + tarih + yöntem + mezhep` anahtarıyla saklar. Room sürüm 1'den 2'ye açık migration kullanır; namaz veri sürümü 3 olduğundan eski hesaplama ve hicri metin cache'leri ilk kullanımda bir kez silinir. `PrayerCachePolicy` timezone duyarlı cache güncelliğinin tek karar noktasıdır.
+`PrayerTimesRepository` Diyanet verilerini yıl sonuna kadar saklar; geçmiş günler, sonraki yıl ve kaynak hatalarında AlAdhan aylık verileriyle eksikleri tamamlar. Diyanet kayıtları AlAdhan tarafından üzerine yazılmaz. Repository aylık API sonucunu doğrular, isteğe bağlı ay indirmelerini ve sonraki ay ön-getirmesini koordine eder. Hicri Ramazan aralıklarında resmi Diyanet kayıtları AlAdhan `hToGCalendar` tahminlerinin önüne geçer. `PrayerTimesStore` konumu DataStore'da, günlük vakitleri ve sayısal hicri alanları Room'da `konum + tarih + yöntem + mezhep` anahtarıyla saklar. Room sürüm 1'den 2'ye açık migration kullanır; namaz veri sürümü 3 olduğundan eski hesaplama ve hicri metin cache'leri ilk kullanımda bir kez silinir. `PrayerCachePolicy` timezone duyarlı cache güncelliğinin tek karar noktasıdır.
 
 ## Ana ekran widget'ı
 

@@ -505,12 +505,16 @@ private fun CacheFooter(state: PrayerUiState.Ready, cache: CachedPrayerDay) {
             stringResource(R.string.school_standard)
         }
         val source = when (cache.source) {
+            com.example.namazvakti.domain.model.PrayerDataSource.DIYANET ->
+                stringResource(R.string.prayer_source_diyanet)
             com.example.namazvakti.domain.model.PrayerDataSource.ALADHAN ->
                 stringResource(R.string.prayer_source_aladhan)
             com.example.namazvakti.domain.model.PrayerDataSource.LEGACY_CACHE ->
                 stringResource(R.string.prayer_source_legacy_cache)
         }
-        val metadata = stringResource(
+        val metadata = if (cache.source == com.example.namazvakti.domain.model.PrayerDataSource.DIYANET) {
+            stringResource(R.string.cache_metadata_diyanet, source, cache.fetchedAt.atZone(cache.timezone).format(METADATA_TIME_FORMATTER))
+        } else stringResource(
             R.string.cache_metadata,
             source,
             cache.settings.method,

@@ -4,6 +4,7 @@ import android.app.Application
 import com.example.namazvakti.data.local.PrayerTimesDatabase
 import com.example.namazvakti.data.local.PrayerNotificationSettingsStore
 import com.example.namazvakti.data.local.PrayerTimesStore
+import com.example.namazvakti.data.remote.DiyanetPrayerTimesApi
 import com.example.namazvakti.data.remote.PrayerTimesApi
 import com.example.namazvakti.data.repository.PrayerTimesRepository
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
@@ -30,7 +31,7 @@ class AppContainer(application: Application) {
     )
     val notificationSettingsStore = PrayerNotificationSettingsStore(application)
     val api = PrayerTimesApi()
-    val repository = PrayerTimesRepository(api, store, settings, timeProvider)
+    val repository = PrayerTimesRepository(api, store, settings, timeProvider, diyanetApi = DiyanetPrayerTimesApi())
 }
 
 fun android.content.Context.appContainer(): AppContainer =
