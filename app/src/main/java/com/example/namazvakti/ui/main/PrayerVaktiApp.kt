@@ -1,6 +1,7 @@
 package com.example.namazvakti.ui.main
 
 import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -260,11 +261,22 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
             onRequestExactAlarm = requestExactAlarm,
             onOpenSoundAndVibrationSettings = {
                 PrayerNotificationPublisher.createChannels(context)
-                context.startActivity(
-                    Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
-                        .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                        .putExtra(Settings.EXTRA_CHANNEL_ID, PrayerNotificationPublisher.CHANNEL_AT_TIME)
-                )
+                try {
+                    context.startActivity(
+                        Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                            .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                            .putExtra(Settings.EXTRA_CHANNEL_ID, PrayerNotificationPublisher.CHANNEL_AT_TIME)
+                    )
+                } catch (_: ActivityNotFoundException) {
+                    try {
+                        context.startActivity(
+                            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                        )
+                    } catch (_: ActivityNotFoundException) {
+                        // This device does not expose notification settings.
+                    }
+                }
             },
             onSave = { settings ->
                 if (

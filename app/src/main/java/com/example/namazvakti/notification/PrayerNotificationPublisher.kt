@@ -1,7 +1,6 @@
 package com.example.namazvakti.notification
 
 import android.Manifest
-import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -158,7 +157,6 @@ object PrayerNotificationPublisher {
                         .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
                         .build()
                 )
-                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
         )
         manager.createNotificationChannel(
@@ -176,7 +174,6 @@ object PrayerNotificationPublisher {
                         .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
                         .build()
                 )
-                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
         )
     }

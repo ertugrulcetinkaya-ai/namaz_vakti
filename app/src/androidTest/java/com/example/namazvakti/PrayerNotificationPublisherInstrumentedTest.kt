@@ -1,7 +1,6 @@
 package com.example.namazvakti
 
 import android.Manifest
-import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.media.AudioAttributes
@@ -52,13 +51,11 @@ class PrayerNotificationPublisherInstrumentedTest {
         assertEquals(NotificationManager.IMPORTANCE_HIGH, atTime?.importance)
         assertTrue(atTime?.shouldVibrate() == true)
         assertTrue(atTime?.vibrationPattern?.contentEquals(PrayerNotificationVibration.AT_TIME) == true)
-        assertEquals(Notification.VISIBILITY_PUBLIC, atTime?.lockscreenVisibility)
         assertEquals(Settings.System.DEFAULT_NOTIFICATION_URI, atTime?.sound)
         assertEquals(AudioAttributes.USAGE_NOTIFICATION_EVENT, atTime?.audioAttributes?.usage)
         assertEquals(NotificationManager.IMPORTANCE_HIGH, reminder?.importance)
         assertTrue(reminder?.shouldVibrate() == true)
         assertTrue(reminder?.vibrationPattern?.contentEquals(PrayerNotificationVibration.REMINDER) == true)
-        assertEquals(Notification.VISIBILITY_PUBLIC, reminder?.lockscreenVisibility)
         assertEquals(Settings.System.DEFAULT_NOTIFICATION_URI, reminder?.sound)
         assertEquals(AudioAttributes.USAGE_NOTIFICATION_EVENT, reminder?.audioAttributes?.usage)
         assertEquals(null, manager.getNotificationChannel("prayer_time_entered"))
