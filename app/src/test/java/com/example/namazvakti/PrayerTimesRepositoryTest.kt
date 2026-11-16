@@ -487,6 +487,66 @@ class PrayerTimesRepositoryTest {
         assertEquals(PrayerDataSource.ALADHAN, store.days[today]?.source)
     }
 
+    @Test
+    fun offlineDiyanetWithCoveredMonthReturnsLocalCache() = runTest {
+        val today = LocalDate.of(2026, 8, 6)
+        val month = YearMonth.from(today)
+        val cached = (1..month.lengthOfMonth()).map { day ->
+            sampleCache(month.atDay(day), location).copy(
+                source = PrayerDataSource.DIYANET,
+                fetchedAt = Instant.parse("2026-08-05T10:00:00Z")
+            )
+        }
+        val store = FakeStore(location, settings, today, cached)
+        val api = FakeApi { _, _ -> throw AssertionError("AlAdhan should not be called") }
+        val source = object : DiyanetPrayerTimesRemoteDataSource {
+            override suspend fun fetch(districtId: String): PrayerTimesCalendarResult {
+                throw IOException("offline")
+            }
+        }
+        val repository = PrayerTimesRepository(
+            api, store, settings,
+            PrayerTimeProvider(Clock.fixed(Instant.parse("2026-08-06T10:00:00Z"), PrayerTimeProvider.DEFAULT_ZONE)),
+            diyanetApi = source
+        )
+
+        val result = repository.refreshAndCache() as RefreshResult.Success
+
+        assertEquals(RefreshOrigin.LOCAL_CACHE, result.origin)
+        assertEquals(cached[today.dayOfMonth - 1], result.cache)
+        assertTrue(api.requestedMonths.isEmpty())
+    }
+
+    @Test
+    fun ensureMonthDoesNotOverwriteDiyanetWithAladhan() = runTest {
+        val month = YearMonth.of(2026, 8)
+        val today = month.atDay(6)
+        val diyanetTimes = sampleTimes().copy(fajr = LocalTime.of(4, 10))
+        val existing = listOf(6, 12).map { day ->
+            sampleCache(month.atDay(day), location).copy(
+                source = PrayerDataSource.DIYANET,
+                prayerTimes = diyanetTimes
+            )
+        }
+        val store = FakeStore(location, settings, today, existing)
+        val api = FakeApi { year, monthNumber -> calendar(YearMonth.of(year, monthNumber)) }
+
+        val result = repository(api, store).ensureMonth(month)
+
+        assertEquals(MonthDataSource.NETWORK, result.source)
+        existing.forEach { row ->
+            assertEquals(row, store.days[row.date])
+            assertEquals(diyanetTimes, store.days[row.date]?.prayerTimes)
+        }
+        (1..month.lengthOfMonth()).map(month::atDay)
+            .filterNot { date -> existing.any { it.date == date } }
+            .forEach { date ->
+                assertEquals(PrayerDataSource.ALADHAN, store.days[date]?.source)
+                assertEquals(sampleTimes(), store.days[date]?.prayerTimes)
+            }
+        assertEquals(month.lengthOfMonth(), store.days.size)
+    }
+
     private fun repository(
         api: PrayerTimesRemoteDataSource,
         store: FakeStore,

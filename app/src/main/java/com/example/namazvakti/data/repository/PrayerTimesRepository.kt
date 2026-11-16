@@ -58,11 +58,14 @@ class PrayerTimesRepository(
         val today = timeProvider.today(location.timezone)
         try {
             val currentMonth = YearMonth.from(today)
-            refreshDiyanet(location, today)
-            val currentDays = if (diyanetApi != null && store.hasCoverage(
+            val diyanetFailure = refreshDiyanet(location, today)
+            val currentDays = if (diyanetApi != null &&
+                DiyanetDistricts.forCity(location.city, location.country) != null && store.hasCoverage(
                     currentMonth.atDay(1), currentMonth.atEndOfMonth(), location, settings
-                )) store.readCaches(currentMonth.atDay(1), currentMonth.atEndOfMonth(), location, settings)
-                else fetchAndCacheMonth(location, currentMonth)
+                )) {
+                if (diyanetFailure != null) throw diyanetFailure
+                store.readCaches(currentMonth.atDay(1), currentMonth.atEndOfMonth(), location, settings)
+            } else fetchAndCacheMonth(location, currentMonth)
             prefetchNextMonthIfNeeded(location, today, currentMonth)
             val todayCache = currentDays.firstOrNull { it.date == today }
                 ?: store.readCache(today, location, settings)
@@ -75,15 +78,15 @@ class PrayerTimesRepository(
         }
     }
 
-    private suspend fun refreshDiyanet(location: PrayerLocation, today: java.time.LocalDate) {
-        val source = diyanetApi ?: return
-        val province = DiyanetDistricts.forCity(location.city, location.country) ?: return
+    private suspend fun refreshDiyanet(location: PrayerLocation, today: java.time.LocalDate): Exception? {
+        val source = diyanetApi ?: return null
+        val province = DiyanetDistricts.forCity(location.city, location.country) ?: return null
         val end = minOf(YearMonth.from(today).plusMonths(1).atEndOfMonth(), today.withMonth(12).withDayOfMonth(31))
         val existing = store.readCaches(today, end, location, settings)
         val freshDates = existing.filter {
             it.source == PrayerDataSource.DIYANET && it.fetchedAt.atZone(location.timezone).toLocalDate() == today
         }.map { it.date }.toSet()
-        if ((0..java.time.temporal.ChronoUnit.DAYS.between(today, end)).all { today.plusDays(it) in freshDates }) return
+        if ((0..java.time.temporal.ChronoUnit.DAYS.between(today, end)).all { today.plusDays(it) in freshDates }) return null
         try {
             val response = source.fetch(province.centralDistrictId)
             val fetchedAt = timeProvider.now(location.timezone).toInstant()
@@ -97,11 +100,13 @@ class PrayerTimesRepository(
                 )
             }
             cacheWriteMutex.withLock { store.saveCaches(caches) }
+            return null
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             eventLogger.warning("diyanet_failure error=${classifyPrayerError(e).code}",
                 PrayerTimesApiException("Diyanet request failed"))
+            return e
         }
     }
 
