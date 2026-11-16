@@ -4,6 +4,12 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    groups:
+      # Artifacts that must move together; separate PRs leave mismatched versions.
+      room:
+        patterns: ["androidx.room*"]
+      kotlin:
+        patterns: ["org.jetbrains.kotlin*"]
     ignore:
       - dependency-name: "com.android.application"
         update-types:
