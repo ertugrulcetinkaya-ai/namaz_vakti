@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.namazvakti.domain.model.CachedPrayerDay
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
+import com.example.namazvakti.domain.model.DiyanetDistricts
 import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.PrayerLocationConfig
 import com.example.namazvakti.domain.model.PrayerStorageException
@@ -83,6 +84,8 @@ class PrayerTimesStore(
     private val locationTimezoneKey = stringPreferencesKey("selected_timezone")
     private val latitudeKey = stringPreferencesKey("selected_latitude")
     private val longitudeKey = stringPreferencesKey("selected_longitude")
+    private val districtIdKey = stringPreferencesKey("selected_district_id")
+    private val districtNameKey = stringPreferencesKey("selected_district_name")
     private val prayerDataVersionKey = intPreferencesKey("prayer_data_version")
     private val codec = CachedPrayerDayCodec()
     private val migrationMutex = Mutex()
@@ -112,6 +115,15 @@ class PrayerTimesStore(
             prefs[locationTimezoneKey] = location.timezone.id
             location.latitude?.let { prefs[latitudeKey] = it.toString() } ?: prefs.remove(latitudeKey)
             location.longitude?.let { prefs[longitudeKey] = it.toString() } ?: prefs.remove(longitudeKey)
+            if (location.isCentralDistrict) {
+                prefs.remove(districtIdKey)
+                prefs.remove(districtNameKey)
+            } else {
+                location.diyanetDistrictId?.let { prefs[districtIdKey] = it }
+                    ?: prefs.remove(districtIdKey)
+                location.districtName?.let { prefs[districtNameKey] = it }
+                    ?: prefs.remove(districtNameKey)
+            }
         }
         Unit
     }
@@ -133,6 +145,14 @@ class PrayerTimesStore(
         val city = prefs[cityKey] ?: PrayerLocationConfig.defaultCity.city
         val country = prefs[countryKey] ?: PrayerLocationConfig.defaultCity.country
         val option = PrayerLocationConfig.optionForCityAndCountry(city, country)
+        val province = DiyanetDistricts.forCity(city, country)
+        val storedDistrictId = prefs[districtIdKey]
+        val storedDistrictName = prefs[districtNameKey]
+        val district = storedDistrictId?.let { id ->
+            DiyanetDistricts.districts.firstOrNull {
+                it.id == id && it.provinceId == province?.id
+            }
+        }?.takeUnless { it.id == province?.centralDistrictId }
         val timezone = prefs[locationTimezoneKey]?.let { runCatching { ZoneId.of(it) }.getOrNull() }
             ?: PrayerTimeProvider.DEFAULT_ZONE
         val storedCoordinates = prefs[latitudeKey]?.toDoubleOrNull()?.let { latitude ->
@@ -147,7 +167,11 @@ class PrayerTimesStore(
             displayCity = option.displayCity,
             timezone = timezone,
             latitude = coordinates?.first,
-            longitude = coordinates?.second
+            longitude = coordinates?.second,
+            diyanetDistrictId = district?.id,
+            districtName = district?.let {
+                storedDistrictName?.takeIf { name -> name == it.name } ?: it.name
+            }
         )
     }
 
@@ -156,9 +180,9 @@ class PrayerTimesStore(
         val location = readLocation()
         val today = timeProvider.today(location.timezone)
         prayerDayDao.find(
-            today.toString(), location.city, location.country, settings.method, settings.school
+            today.toString(), location.cacheKey, location.country, settings.method, settings.school
         )?.toDomain() ?: prayerDayDao.latestOnOrBefore(
-            today.toString(), location.city, location.country, settings.method, settings.school
+            today.toString(), location.cacheKey, location.country, settings.method, settings.school
         )?.toDomain()
     }
 
@@ -169,7 +193,7 @@ class PrayerTimesStore(
     ): CachedPrayerDay? = storageOperation {
         migrateLegacyCache()
         prayerDayDao.find(
-            date.toString(), location.city, location.country, settings.method, settings.school
+            date.toString(), location.cacheKey, location.country, settings.method, settings.school
         )?.toDomain()
     }
 
@@ -184,7 +208,7 @@ class PrayerTimesStore(
             migrateLegacyCache()
             val expectedDays = ChronoUnit.DAYS.between(startDate, endDate).toInt() + 1
             prayerDayDao.countBetween(
-                startDate.toString(), endDate.toString(), location.city, location.country,
+                startDate.toString(), endDate.toString(), location.cacheKey, location.country,
                 settings.method, settings.school
             ) == expectedDays
         }
@@ -198,7 +222,7 @@ class PrayerTimesStore(
     ): List<CachedPrayerDay> = storageOperation {
         migrateLegacyCache()
         prayerDayDao.findBetween(
-            startDate.toString(), endDate.toString(), location.city, location.country,
+            startDate.toString(), endDate.toString(), location.cacheKey, location.country,
             settings.method, settings.school
         ).map(PrayerDayEntity::toDomain)
     }

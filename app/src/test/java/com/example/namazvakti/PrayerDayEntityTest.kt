@@ -4,6 +4,7 @@ import com.example.namazvakti.data.local.PrayerDayEntity
 import com.example.namazvakti.data.local.toDomain
 import com.example.namazvakti.data.local.toEntity
 import com.example.namazvakti.domain.model.CachedPrayerDay
+import com.example.namazvakti.domain.model.DiyanetDistricts
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.PrayerDataSource
 import com.example.namazvakti.domain.model.PrayerLocation
@@ -16,6 +17,30 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class PrayerDayEntityTest {
+    @Test
+    fun districtEntityRoundTripRestoresDistrictIdAndName() {
+        val province = requireNotNull(DiyanetDistricts.forCity("Istanbul", "Turkey"))
+        val district = DiyanetDistricts.districts.first {
+            it.provinceId == province.id && it.name == "MALTEPE"
+        }
+        val cache = sampleCache().copy(
+            location = PrayerLocation(
+                city = "Istanbul",
+                country = "Turkey",
+                displayCity = "İSTANBUL",
+                diyanetDistrictId = district.id,
+                districtName = district.name
+            )
+        )
+
+        val entity = cache.toEntity()
+        val restored = entity.toDomain()
+
+        assertEquals("Istanbul#${district.id}", entity.city)
+        assertEquals(district.id, restored.location.diyanetDistrictId)
+        assertEquals(district.name, restored.location.districtName)
+    }
+
     @Test
     fun domainEntityRoundTripPreservesCacheIdentityAndMetadata() {
         val cache = CachedPrayerDay(
@@ -68,5 +93,19 @@ class PrayerDayEntityTest {
         hijriYear = null,
         fetchedAtEpochMillis = 1_777_105_600_000,
         source = PrayerDataSource.ALADHAN.name
+    )
+
+    private fun sampleCache() = CachedPrayerDay(
+        date = LocalDate.of(2026, 8, 23),
+        location = PrayerLocation("Ankara", "Turkey", "ANKARA", ZoneId.of("Europe/Istanbul")),
+        timezone = ZoneId.of("Europe/Istanbul"),
+        settings = PrayerCalculationSettings(13, 1),
+        prayerTimes = PrayerTimes(
+            LocalTime.of(4, 29), LocalTime.of(6, 1), LocalTime.of(12, 56),
+            LocalTime.of(16, 41), LocalTime.of(19, 42), LocalTime.of(21, 7)
+        ),
+        hijriText = "10 Rebiülevvel 1448",
+        fetchedAt = Instant.parse("2026-08-23T08:00:00Z"),
+        source = PrayerDataSource.ALADHAN
     )
 }

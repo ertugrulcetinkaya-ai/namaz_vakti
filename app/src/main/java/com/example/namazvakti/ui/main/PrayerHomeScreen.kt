@@ -183,7 +183,7 @@ fun PrayerHomeScreen(
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                         ) {
                             Text(
-                                text = location?.displayCity ?: stringResource(R.string.home_city_hint),
+                                text = location?.displayName ?: stringResource(R.string.home_city_hint),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )

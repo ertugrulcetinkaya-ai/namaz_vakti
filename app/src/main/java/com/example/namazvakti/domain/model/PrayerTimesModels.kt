@@ -12,8 +12,40 @@ data class PrayerLocation(
     val displayCity: String = city.uppercase(),
     val timezone: ZoneId = PrayerTimeProvider.DEFAULT_ZONE,
     val latitude: Double? = null,
-    val longitude: Double? = null
-)
+    val longitude: Double? = null,
+    val diyanetDistrictId: String? = null,
+    val districtName: String? = null
+) {
+    val cacheKey: String
+        get() = if (isCentralDistrict) city else "$city#$diyanetDistrictId"
+
+    val isCentralDistrict: Boolean
+        get() = diyanetDistrictId == null ||
+            diyanetDistrictId == DiyanetDistricts.forCity(city, country)?.centralDistrictId
+
+    val displayName: String
+        get() {
+            if (isCentralDistrict) return displayCity
+            val name = districtName ?: diyanetDistrictId?.let { id ->
+                val provinceId = DiyanetDistricts.forCity(city, country)?.id
+                DiyanetDistricts.districts.firstOrNull {
+                    it.id == id && it.provinceId == provinceId
+                }?.name
+            }
+            return name?.let { "$it, $displayCity" } ?: displayCity
+        }
+
+    companion object {
+        fun fromCacheKey(key: String): Pair<String, String?> {
+            val separator = key.indexOf('#')
+            return if (separator < 0) {
+                key to null
+            } else {
+                key.substring(0, separator) to key.substring(separator + 1)
+            }
+        }
+    }
+}
 
 data class PrayerCalculationSettings(
     val method: Int = DEFAULT_METHOD,
@@ -133,7 +165,7 @@ data class CachedPrayerDay(
         location: PrayerLocation,
         settings: PrayerCalculationSettings
     ): Boolean = this.date == date &&
-        this.location.city == location.city &&
+        this.location.cacheKey == location.cacheKey &&
         this.location.country == location.country &&
         this.settings == settings
 }

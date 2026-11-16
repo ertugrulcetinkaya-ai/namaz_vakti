@@ -5,6 +5,7 @@ import com.example.namazvakti.app.NamazVaktiApp
 import com.example.namazvakti.data.local.PrayerPreferences
 import com.example.namazvakti.data.local.PrayerNotificationSettingsSource
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
+import com.example.namazvakti.domain.model.DiyanetDistricts
 import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.PrayerLocationConfig
 import com.example.namazvakti.domain.model.PrayerNotificationSettings
@@ -122,14 +123,24 @@ class PrayerViewModel @JvmOverloads constructor(
         }
     }
 
-    fun selectCity(option: PrayerLocationConfig.CityOption) = launchLatest {
+    fun selectCity(option: PrayerLocationConfig.CityOption) = selectDistrict(option, null)
+
+    fun selectDistrict(option: PrayerLocationConfig.CityOption, districtId: String?) = launchLatest {
         try {
+            val province = DiyanetDistricts.forCity(option.city, option.country)
+            val district = districtId?.let { id ->
+                DiyanetDistricts.districts.firstOrNull {
+                    it.id == id && it.provinceId == province?.id
+                }
+            }?.takeUnless { it.id == province?.centralDistrictId }
             val location = PrayerLocation(
                 city = option.city,
                 country = option.country,
                 displayCity = option.displayCity,
                 latitude = option.latitude,
-                longitude = option.longitude
+                longitude = option.longitude,
+                diyanetDistrictId = district?.id,
+                districtName = district?.name
             )
             withContext(ioDispatcher) {
                 store.saveLocation(location)
