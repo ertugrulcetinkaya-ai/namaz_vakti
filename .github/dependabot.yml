@@ -32,6 +32,11 @@ updates:
         update-types:
           - "version-update:semver-major"
           - "version-update:semver-minor"
+      # Compose BOM 2026.09+ requires compileSdk 37 and AGP 9.1.
+      - dependency-name: "androidx.compose:compose-bom"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
   - package-ecosystem: github-actions
     directory: /
     schedule:
