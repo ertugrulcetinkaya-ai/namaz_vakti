@@ -77,7 +77,9 @@ android {
         // Versions are intentionally capped at the newest AGP 8 / API 36-compatible line.
         // OldTargetApi is environment-sensitive: newer runners may know a preview API
         // beyond compileSdk, even though this project intentionally targets API 36.
-        disable += setOf("GradleDependency", "NewerVersionAvailable", "OldTargetApi")
+        // AndroidGradlePluginVersion also flags every new Gradle patch release, which
+        // breaks unrelated builds with warningsAsErrors; Dependabot tracks these updates.
+        disable += setOf("AndroidGradlePluginVersion", "GradleDependency", "NewerVersionAvailable", "OldTargetApi")
     }
 
     compileOptions {
@@ -143,7 +145,7 @@ dependencies {
     implementation("androidx.room:room-ktx:2.8.4")
     ksp("androidx.room:room-compiler:2.8.4")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
-    implementation("com.google.code.gson:gson:2.14.0")
+    implementation("com.google.code.gson:gson:2.15.0")
     implementation("com.squareup.okhttp3:okhttp:5.3.2")
     // Room 2.8.4 schema migration helpers require 1.8.1; align the older lifecycle transitive.
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
