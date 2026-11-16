@@ -14,8 +14,13 @@ updates:
       - dependency-name: "gradle-wrapper"
         update-types:
           - "version-update:semver-major"
-      # androidx.core 1.18+ requires compileSdk 37, beyond the AGP 8 / API 36 line.
+      # These releases require compileSdk 37, beyond the AGP 8 / API 36 line
+      # (androidx.core 1.19, okhttp-android 5.5). Patch updates are still allowed.
       - dependency-name: "androidx.core:core-ktx"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+      - dependency-name: "com.squareup.okhttp3:*"
         update-types:
           - "version-update:semver-major"
           - "version-update:semver-minor"
