@@ -10,6 +10,7 @@
     <string name="religious_day_notification_night">Bu akşam %1$s</string>
     <string name="religious_day_notification_day">Bugün %1$s</string>
     <string name="notifications_enabled">Namaz vakti bildirimlerini aç</string>
+    <string name="notification_sound_vibration_settings">Ses ve titreşim ayarları</string>
     <string name="notification_lead_time">Önceden hatırlat</string>
     <string name="notification_prayer_permission_denied">Bildirim izni verilmedi; hatırlatmalar kapalı kaldı.</string>
     <string name="notification_channel_at_time_name">Vakit girdi</string>

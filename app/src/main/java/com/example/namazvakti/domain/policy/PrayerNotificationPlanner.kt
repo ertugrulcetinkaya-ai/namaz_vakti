@@ -51,7 +51,7 @@ object PrayerNotificationPlanner {
                         triggerAt = if (reminderIsUpcoming) reminderAt else prayerTime,
                         prayerTime = prayerTime,
                         displayCity = cache.location.displayCity,
-                        locationCity = cache.location.city,
+                        locationCity = cache.location.cacheKey,
                         locationCountry = cache.location.country,
                         leadMinutes = settings.leadMinutes
                     )

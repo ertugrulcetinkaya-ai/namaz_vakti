@@ -48,7 +48,8 @@ fun PrayerNotificationSettingsSheet(
     exactAlarmNeeded: Boolean,
     onDismiss: () -> Unit,
     onSave: (PrayerNotificationSettings) -> Unit,
-    onRequestExactAlarm: () -> Unit
+    onRequestExactAlarm: () -> Unit,
+    onOpenSoundAndVibrationSettings: () -> Unit
 ) {
     var notificationsEnabled by remember(settings) { mutableStateOf(settings.notificationsEnabled) }
     var enabledPrayers by remember(settings) { mutableStateOf(settings.enabledPrayers) }
@@ -86,6 +87,15 @@ fun PrayerNotificationSettingsSheet(
                     checked = notificationsEnabled,
                     onCheckedChange = { notificationsEnabled = it }
                 )
+            }
+
+            if (notificationsEnabled) {
+                TextButton(
+                    onClick = onOpenSoundAndVibrationSettings,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.notification_sound_vibration_settings))
+                }
             }
 
             HorizontalDivider()

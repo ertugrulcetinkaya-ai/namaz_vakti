@@ -70,7 +70,7 @@ class PrayerNotificationReceiver : BroadcastReceiver() {
             date.atTime(prayer.timeIn(it)).atZone(it.timezone).toInstant()
         }
         val locationMatches = cache != null &&
-            cache.location.city == intent.getStringExtra(PrayerNotificationAlarm.EXTRA_LOCATION_CITY) &&
+            cache.location.cacheKey == intent.getStringExtra(PrayerNotificationAlarm.EXTRA_LOCATION_CITY) &&
             cache.location.country == intent.getStringExtra(PrayerNotificationAlarm.EXTRA_LOCATION_COUNTRY)
         val scheduledTrigger = Instant.ofEpochMilli(triggerMillis)
         val scheduledPrayer = Instant.ofEpochMilli(prayerMillis)

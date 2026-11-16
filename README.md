@@ -21,7 +21,7 @@ Namaz Vakti, Türkiye'deki şehirler için günlük namaz vakitlerini gösteren 
 - Sıradaki vakti `Chronometer` ile canlı gösteren widget; uygulama saniyede bir çalışmaz
 - Android 12+ responsive `RemoteViews`, dinamik sistem renkleri ve sistem köşe yarıçapları
 - Vakit sınırlarında ve sistem saati değişikliklerinde otomatik widget güncellemesi
-- İsteğe bağlı, vakit başına açılabilen namaz vakti bildirimleri ve önceden hatırlatma
+- Güçlü titreşimli, vakit başına açılabilen namaz vakti bildirimleri, önceden hatırlatma ve ses/titreşim ayarları kısayolu
 - CI doğrulaması ve imzalı beta artifact üretimi
 
 ## Veri kaynağı

@@ -7,7 +7,9 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioAttributes
 import android.os.Build
+import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -21,8 +23,10 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 object PrayerNotificationPublisher {
-    private const val CHANNEL_AT_TIME = "prayer_time_entered"
-    private const val CHANNEL_REMINDER = "prayer_time_reminder"
+    internal const val CHANNEL_AT_TIME = "prayer_time_entered_v2"
+    internal const val CHANNEL_REMINDER = "prayer_time_reminder_v2"
+    private const val CHANNEL_AT_TIME_LEGACY = "prayer_time_entered"
+    private const val CHANNEL_REMINDER_LEGACY = "prayer_time_reminder"
     private const val CHANNEL_RELIGIOUS_DAYS = "religious_days"
     private const val NOTIFICATION_ID_BASE = 6200
     private const val RELIGIOUS_DAY_NOTIFICATION_ID = 6304
@@ -44,6 +48,11 @@ object PrayerNotificationPublisher {
 
         createChannels(context)
         val channelId = if (type == PrayerNotificationType.AT_TIME) CHANNEL_AT_TIME else CHANNEL_REMINDER
+        val vibrationPattern = if (type == PrayerNotificationType.AT_TIME) {
+            PrayerNotificationVibration.AT_TIME
+        } else {
+            PrayerNotificationVibration.REMINDER
+        }
         val title = notificationTitle(context, prayer, type, leadMinutes)
         val content = context.getString(
             R.string.notification_content,
@@ -64,7 +73,11 @@ object PrayerNotificationPublisher {
             .setContentText(content)
             .setContentIntent(contentIntent)
             .setAutoCancel(true)
-            .setCategory(NotificationCompat.CATEGORY_EVENT)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setVibrate(vibrationPattern)
+            .setDefaults(NotificationCompat.DEFAULT_SOUND)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .build()
         NotificationManagerCompat.from(context).notify(
             NOTIFICATION_ID_BASE + prayer.ordinal,
@@ -127,6 +140,8 @@ object PrayerNotificationPublisher {
 
     fun createChannels(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)
+        manager.deleteNotificationChannel(CHANNEL_AT_TIME_LEGACY)
+        manager.deleteNotificationChannel(CHANNEL_REMINDER_LEGACY)
         manager.createNotificationChannel(
             NotificationChannel(
                 CHANNEL_AT_TIME,
@@ -134,15 +149,31 @@ object PrayerNotificationPublisher {
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = context.getString(R.string.notification_channel_at_time_description)
+                enableVibration(true)
+                vibrationPattern = PrayerNotificationVibration.AT_TIME
+                setSound(
+                    Settings.System.DEFAULT_NOTIFICATION_URI,
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
+                        .build()
+                )
             }
         )
         manager.createNotificationChannel(
             NotificationChannel(
                 CHANNEL_REMINDER,
                 context.getString(R.string.notification_channel_reminder_name),
-                NotificationManager.IMPORTANCE_DEFAULT
+                NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = context.getString(R.string.notification_channel_reminder_description)
+                enableVibration(true)
+                vibrationPattern = PrayerNotificationVibration.REMINDER
+                setSound(
+                    Settings.System.DEFAULT_NOTIFICATION_URI,
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
+                        .build()
+                )
             }
         )
     }
@@ -188,4 +219,9 @@ object PrayerNotificationPublisher {
         PrayerNotificationPrayer.MAGHRIB -> context.getString(R.string.prayer_maghrib_reminder)
         PrayerNotificationPrayer.ISHA -> context.getString(R.string.prayer_isha_reminder)
     }
+}
+
+internal object PrayerNotificationVibration {
+    val AT_TIME = longArrayOf(0, 800, 400, 800, 400, 800)
+    val REMINDER = longArrayOf(0, 500, 250, 500)
 }

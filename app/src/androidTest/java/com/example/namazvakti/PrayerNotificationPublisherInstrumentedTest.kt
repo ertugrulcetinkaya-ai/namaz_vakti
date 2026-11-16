@@ -1,9 +1,12 @@
 package com.example.namazvakti
 
 import android.Manifest
+import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.media.AudioAttributes
 import android.os.Build
 import android.os.SystemClock
+import android.provider.Settings
 import androidx.core.app.NotificationManagerCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -11,6 +14,7 @@ import com.example.namazvakti.domain.model.DiyanetReligiousDays
 import com.example.namazvakti.domain.model.PrayerNotificationPrayer
 import com.example.namazvakti.domain.model.PrayerNotificationType
 import com.example.namazvakti.notification.PrayerNotificationPublisher
+import com.example.namazvakti.notification.PrayerNotificationVibration
 import java.time.ZonedDateTime
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -20,6 +24,44 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class PrayerNotificationPublisherInstrumentedTest {
+    @Test
+    fun createsHighImportanceVibratingPrayerChannelsAndRemovesLegacyChannels() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val manager = context.getSystemService(NotificationManager::class.java)
+
+        manager.createNotificationChannel(
+            NotificationChannel(
+                "prayer_time_entered",
+                "Vakit girdi",
+                NotificationManager.IMPORTANCE_DEFAULT
+            )
+        )
+        manager.createNotificationChannel(
+            NotificationChannel(
+                "prayer_time_reminder",
+                "Vakit hatırlatması",
+                NotificationManager.IMPORTANCE_DEFAULT
+            )
+        )
+
+        PrayerNotificationPublisher.createChannels(context)
+
+        val atTime = manager.getNotificationChannel(PrayerNotificationPublisher.CHANNEL_AT_TIME)
+        val reminder = manager.getNotificationChannel(PrayerNotificationPublisher.CHANNEL_REMINDER)
+        assertEquals(NotificationManager.IMPORTANCE_HIGH, atTime?.importance)
+        assertTrue(atTime?.shouldVibrate() == true)
+        assertTrue(atTime?.vibrationPattern?.contentEquals(PrayerNotificationVibration.AT_TIME) == true)
+        assertEquals(Settings.System.DEFAULT_NOTIFICATION_URI, atTime?.sound)
+        assertEquals(AudioAttributes.USAGE_NOTIFICATION_EVENT, atTime?.audioAttributes?.usage)
+        assertEquals(NotificationManager.IMPORTANCE_HIGH, reminder?.importance)
+        assertTrue(reminder?.shouldVibrate() == true)
+        assertTrue(reminder?.vibrationPattern?.contentEquals(PrayerNotificationVibration.REMINDER) == true)
+        assertEquals(Settings.System.DEFAULT_NOTIFICATION_URI, reminder?.sound)
+        assertEquals(AudioAttributes.USAGE_NOTIFICATION_EVENT, reminder?.audioAttributes?.usage)
+        assertEquals(null, manager.getNotificationChannel("prayer_time_entered"))
+        assertEquals(null, manager.getNotificationChannel("prayer_time_reminder"))
+    }
+
     @Test
     fun postsNotificationWhenPermissionIsGranted() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
@@ -69,6 +111,10 @@ class PrayerNotificationPublisherInstrumentedTest {
                             "text=${notification.notification.extras.getCharSequence("android.text")}"
                     },
                 activeNotifications.any { it.id == notificationId }
+            )
+            assertEquals(
+                PrayerNotificationPublisher.CHANNEL_AT_TIME,
+                activeNotifications.first { it.id == notificationId }.notification.channelId
             )
         } finally {
             manager.cancel(notificationId)
