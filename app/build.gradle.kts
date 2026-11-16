@@ -158,6 +158,6 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit-ktx:1.3.0")
     androidTestImplementation("androidx.test:runner:1.7.0")
     androidTestImplementation("androidx.room:room-testing:2.8.5")
-    androidTestImplementation("androidx.work:work-testing:2.11.2")
+    androidTestImplementation("androidx.work:work-testing:2.12.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
