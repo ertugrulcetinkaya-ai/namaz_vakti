@@ -1,8 +1,10 @@
 package com.example.namazvakti
 
 import com.example.namazvakti.domain.model.CachedPrayerDay
+import com.example.namazvakti.domain.model.DiyanetDistricts
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.PrayerLocation
+import com.example.namazvakti.domain.model.PrayerLocationConfig
 import com.example.namazvakti.domain.model.PrayerNotificationPrayer
 import com.example.namazvakti.domain.model.PrayerNotificationSettings
 import com.example.namazvakti.domain.model.PrayerNotificationType
@@ -85,6 +87,38 @@ class PrayerNotificationPlannerTest {
         assertEquals(zone, event?.triggerAt?.zone)
         assertEquals(LocalTime.of(4, 0), event?.prayerTime?.toLocalTime())
         assertEquals(Instant.parse("2026-08-06T11:00:00Z"), event?.triggerAt?.toInstant())
+    }
+
+    @Test
+    fun usesLocationCacheKeyForNonCentralDistrictEvents() {
+        val district = DiyanetDistricts.districts.single {
+            it.provinceName == "İSTANBUL" && it.name == "MALTEPE"
+        }
+        val province = DiyanetDistricts.provinces.single { it.id == district.provinceId }
+        val provinceOption = PrayerLocationConfig.cityOptions.single { it.displayCity == province.name }
+        val districtLocation = PrayerLocation(
+            city = provinceOption.city,
+            country = provinceOption.country,
+            displayCity = provinceOption.displayCity,
+            diyanetDistrictId = district.id,
+            districtName = district.name
+        )
+        val provinceLocation = PrayerLocation(
+            city = provinceOption.city,
+            country = provinceOption.country,
+            displayCity = provinceOption.displayCity,
+            diyanetDistrictId = province.centralDistrictId,
+            districtName = province.name
+        )
+        val event = planner().nextEvent(
+            today().copy(location = districtLocation),
+            tomorrow().copy(location = districtLocation),
+            settings(),
+            now()
+        )
+
+        assertEquals(districtLocation.cacheKey, event?.locationCity)
+        assertFalse(districtLocation.cacheKey == provinceLocation.cacheKey)
     }
 
     @Test

@@ -1,8 +1,10 @@
 package com.example.namazvakti.ui.main
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -27,6 +29,7 @@ import androidx.core.content.ContextCompat
 import com.example.namazvakti.R
 import com.example.namazvakti.domain.model.PrayerTimeProvider
 import com.example.namazvakti.domain.model.PrayerNotificationSettings
+import com.example.namazvakti.notification.PrayerNotificationPublisher
 import com.example.namazvakti.widget.alarm.PrayerExactAlarmAccess
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -255,6 +258,14 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
             exactAlarmNeeded = exactAlarmNeeded,
             onDismiss = { showNotificationSettings = false },
             onRequestExactAlarm = requestExactAlarm,
+            onOpenSoundAndVibrationSettings = {
+                PrayerNotificationPublisher.createChannels(context)
+                context.startActivity(
+                    Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                        .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                        .putExtra(Settings.EXTRA_CHANNEL_ID, PrayerNotificationPublisher.CHANNEL_AT_TIME)
+                )
+            },
             onSave = { settings ->
                 if (
                     (settings.notificationsEnabled || settings.religiousDaysEnabled) &&
