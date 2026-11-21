@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import com.example.namazvakti.R
 import com.example.namazvakti.domain.model.CachedPrayerDay
+import com.example.namazvakti.domain.model.PrayerError
 import com.example.namazvakti.domain.model.displayHijriText
 import com.example.namazvakti.domain.model.PrayerTimeName
 import com.example.namazvakti.domain.model.PrayerTimes
@@ -58,9 +59,46 @@ import com.example.namazvakti.domain.policy.RamadanCountdownCalculator
 import com.example.namazvakti.domain.policy.RamadanCountdownKind
 import com.example.namazvakti.domain.policy.ReligiousDayAnnouncementPolicy
 import java.time.Duration
+import java.time.LocalDate
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+
+internal sealed interface HomeEmptyMessage {
+    data object NoPrayerData : HomeEmptyMessage
+    data object TodayUnavailable : HomeEmptyMessage
+    data object Refreshing : HomeEmptyMessage
+    data class Error(val error: PrayerError) : HomeEmptyMessage
+}
+
+internal data class HomeEmptyState(
+    val message: HomeEmptyMessage,
+    val lastDataDate: LocalDate?,
+    val isLoading: Boolean,
+    val showRetry: Boolean
+)
+
+internal fun homeEmptyStateFor(
+    state: PrayerUiState.Ready,
+    today: LocalDate
+): HomeEmptyState? {
+    if (state.cache?.date == today) return null
+
+    val lastDataDate = state.cache?.date?.takeIf { it.isBefore(today) }
+    val message = when {
+        state.operation == OperationState.Refreshing -> HomeEmptyMessage.Refreshing
+        state.lastError != null -> HomeEmptyMessage.Error(state.lastError)
+        state.cache == null && state.operation == OperationState.Idle -> HomeEmptyMessage.NoPrayerData
+        else -> HomeEmptyMessage.TodayUnavailable
+    }
+    val isLoading = message == HomeEmptyMessage.Refreshing
+    return HomeEmptyState(
+        message = message,
+        lastDataDate = lastDataDate,
+        isLoading = isLoading,
+        showRetry = !isLoading
+    )
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -290,7 +328,7 @@ fun PrayerHomeScreen(
                     item { CacheFooter(ready, todayCache) }
                 } else {
                     item {
-                        StateMessage(state = state, onRefresh = onRefresh)
+                        StateMessage(state = state, today = today, onRefresh = onRefresh)
                     }
                 }
                 if (exactAlarmNeeded) {
@@ -530,19 +568,19 @@ private fun CacheFooter(state: PrayerUiState.Ready, cache: CachedPrayerDay) {
 }
 
 @Composable
-private fun StateMessage(state: PrayerUiState, onRefresh: () -> Unit) {
+private fun StateMessage(state: PrayerUiState, today: LocalDate, onRefresh: () -> Unit) {
+    val emptyState = (state as? PrayerUiState.Ready)?.let { homeEmptyStateFor(it, today) }
+    if (state is PrayerUiState.Ready && emptyState == null) return
+
     val text = when (state) {
         PrayerUiState.Loading -> stringResource(R.string.refreshing)
-        is PrayerUiState.Ready -> stringResource(R.string.no_prayer_data)
-        is PrayerUiState.Error -> when (state.error) {
-            com.example.namazvakti.domain.model.PrayerError.Network -> stringResource(R.string.network_error)
-            is com.example.namazvakti.domain.model.PrayerError.Service -> stringResource(R.string.service_error)
-            com.example.namazvakti.domain.model.PrayerError.InvalidData -> stringResource(R.string.invalid_data_error)
-            com.example.namazvakti.domain.model.PrayerError.Storage,
-            com.example.namazvakti.domain.model.PrayerError.TransientStorage,
-            com.example.namazvakti.domain.model.PrayerError.PermanentStorage -> stringResource(R.string.storage_error)
-            com.example.namazvakti.domain.model.PrayerError.Unknown -> stringResource(R.string.refresh_error)
+        is PrayerUiState.Ready -> when (val message = requireNotNull(emptyState).message) {
+            HomeEmptyMessage.NoPrayerData -> stringResource(R.string.no_prayer_data)
+            HomeEmptyMessage.TodayUnavailable -> stringResource(R.string.today_prayer_data_unavailable)
+            HomeEmptyMessage.Refreshing -> stringResource(R.string.refreshing)
+            is HomeEmptyMessage.Error -> prayerErrorText(message.error)
         }
+        is PrayerUiState.Error -> prayerErrorText(state.error)
     }
     Column(
         modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp),
@@ -550,14 +588,33 @@ private fun StateMessage(state: PrayerUiState, onRefresh: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(text = text, style = MaterialTheme.typography.bodyLarge)
-        if (state is PrayerUiState.Error) {
+        emptyState?.lastDataDate?.let { date ->
+            Text(
+                text = stringResource(R.string.home_last_data, date.format(TURKISH_DATE_FORMATTER)),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        if (state is PrayerUiState.Error || emptyState?.showRetry == true) {
             androidx.compose.material3.Button(onClick = onRefresh) {
                 Text(stringResource(R.string.retry))
             }
-        } else if (state == PrayerUiState.Loading) {
+        }
+        if (state == PrayerUiState.Loading || emptyState?.isLoading == true) {
             CircularProgressIndicator()
         }
     }
+}
+
+@Composable
+private fun prayerErrorText(error: PrayerError): String = when (error) {
+    PrayerError.Network -> stringResource(R.string.network_error)
+    is PrayerError.Service -> stringResource(R.string.service_error)
+    PrayerError.InvalidData -> stringResource(R.string.invalid_data_error)
+    PrayerError.Storage,
+    PrayerError.TransientStorage,
+    PrayerError.PermanentStorage -> stringResource(R.string.storage_error)
+    PrayerError.Unknown -> stringResource(R.string.refresh_error)
 }
 
 private fun prayerRows(times: PrayerTimes): List<Pair<PrayerTimeName, java.time.LocalTime>> =

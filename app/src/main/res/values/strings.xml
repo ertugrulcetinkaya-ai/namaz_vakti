@@ -98,6 +98,8 @@
     <string name="ramadan_sahur_countdown">Sahura (İmsak) %1$d sa %2$02d dk</string>
     <string name="open_imsakiye">İmsakiye %1$s</string>
     <string name="no_prayer_data">Bugünün vakitleri henüz yok.</string>
+    <string name="today_prayer_data_unavailable">Bugünün vakitleri henüz alınamadı.</string>
+    <string name="home_last_data">Son veri: %1$s</string>
     <string name="retry">Tekrar dene</string>
     <string name="prayer_countdown_display">%1$d sa %2$02d dk %3$02d sn</string>
     <string name="prayer_countdown_display_days">%1$d gün %2$d sa %3$02d dk %4$02d sn</string>
