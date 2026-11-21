@@ -29,7 +29,9 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -40,6 +42,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
@@ -259,6 +262,46 @@ class PrayerViewModelTest {
 
         assertEquals(OperationState.Idle, (viewModel.state.value as PrayerUiState.Ready).operation)
         assertTrue(repository.refreshCancelled)
+    }
+
+    @Test
+    fun cancelledRefreshCannotResetANewerRefreshToIdle() = runTest {
+        val store = FakeStore()
+        val firstResult = RefreshResult.Success(sampleCache(store.location))
+        val secondResult = RefreshResult.Success(sampleCache(store.location))
+        val repository = DelayedCancellationRepository(firstResult, secondResult)
+        val viewModel = viewModel(
+            store,
+            repository,
+            CoroutineScope(StandardTestDispatcher(testScheduler))
+        )
+        advanceUntilIdle()
+
+        val firstRefresh = viewModel.refresh()
+        runCurrent()
+        assertTrue(repository.firstRefreshStarted.isCompleted)
+
+        firstRefresh.cancel()
+        val secondRefresh = viewModel.refresh()
+        runCurrent()
+        assertTrue(repository.secondRefreshStarted.isCompleted)
+        val secondRefreshingState = viewModel.state.value as PrayerUiState.Ready
+        assertEquals(OperationState.Refreshing, secondRefreshingState.operation)
+
+        repository.completeFirstRefresh()
+        runCurrent()
+
+        assertTrue(firstRefresh.isCompleted)
+        assertFalse(secondRefresh.isCompleted)
+        assertSame(secondRefreshingState, viewModel.state.value)
+        assertEquals(OperationState.Refreshing, (viewModel.state.value as PrayerUiState.Ready).operation)
+
+        repository.completeSecondRefresh()
+        advanceUntilIdle()
+
+        val finalState = viewModel.state.value as PrayerUiState.Ready
+        assertEquals(OperationState.Refreshed, finalState.operation)
+        assertEquals(secondResult.cache, finalState.cache)
     }
 
     @Test
@@ -572,6 +615,37 @@ class PrayerViewModelTest {
                 refreshCancelled = true
                 throw e
             }
+        }
+    }
+
+    private class DelayedCancellationRepository(
+        private val firstResult: RefreshResult,
+        private val secondResult: RefreshResult
+    ) : PrayerRefreshRepository {
+        val firstRefreshStarted = CompletableDeferred<Unit>()
+        val secondRefreshStarted = CompletableDeferred<Unit>()
+        private val firstResultGate = CompletableDeferred<RefreshResult>()
+        private val secondResultGate = CompletableDeferred<RefreshResult>()
+        private var refreshCount = 0
+
+        fun completeFirstRefresh() {
+            firstResultGate.complete(firstResult)
+        }
+
+        fun completeSecondRefresh() {
+            secondResultGate.complete(secondResult)
+        }
+
+        override suspend fun refreshAndCache(): RefreshResult = when (refreshCount++) {
+            0 -> {
+                firstRefreshStarted.complete(Unit)
+                withContext(NonCancellable) { firstResultGate.await() }
+            }
+            1 -> {
+                secondRefreshStarted.complete(Unit)
+                secondResultGate.await()
+            }
+            else -> error("Unexpected refresh call")
         }
     }
 

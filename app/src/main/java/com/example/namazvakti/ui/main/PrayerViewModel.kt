@@ -296,13 +296,18 @@ class PrayerViewModel @JvmOverloads constructor(
         val currentFreshness = if (
             cachePolicy.isFresh(cache, location, settings, timeProvider.now())
         ) Freshness.Fresh else Freshness.Stale
-        _state.value = PrayerUiState.Ready(
+        val refreshingState = PrayerUiState.Ready(
             location,
             currentFreshness,
             OperationState.Refreshing,
             cache,
             tomorrowCache = tomorrowCache
         )
+        if (_state.value == refreshingState) {
+            // MutableStateFlow conflates equal values, so give this refresh a distinct state instance.
+            _state.value = refreshingState.copy(operation = OperationState.Idle)
+        }
+        _state.value = refreshingState
         try {
             when (val result = withContext(ioDispatcher) { repository.refreshAndCache() }) {
                 is RefreshResult.Success -> {
@@ -355,11 +360,8 @@ class PrayerViewModel @JvmOverloads constructor(
         } catch (e: Exception) {
             _state.value = PrayerUiState.Error(location, classifyPrayerError(e))
         } finally {
-            val currentState = _state.value
-            if (currentState is PrayerUiState.Ready &&
-                currentState.operation == OperationState.Refreshing
-            ) {
-                _state.value = currentState.copy(operation = OperationState.Idle)
+            if (_state.value === refreshingState) {
+                _state.value = refreshingState.copy(operation = OperationState.Idle)
             }
         }
     }
