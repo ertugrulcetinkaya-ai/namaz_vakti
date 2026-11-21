@@ -25,7 +25,8 @@ import com.example.namazvakti.ui.main.PrayerUiState
 import com.example.namazvakti.ui.main.PrayerViewModel
 import com.example.namazvakti.domain.policy.PrayerCachePolicy
 import android.app.Application
-import android.content.Context
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.awaitCancellation
@@ -111,6 +112,184 @@ class PrayerViewModelTest {
         assertEquals(OperationState.Refreshed, state.operation)
         assertEquals(cache, state.cache)
         assertEquals(RefreshOrigin.NETWORK, state.refreshOrigin)
+    }
+
+    @Test
+    fun updatingNotificationSettingsDoesNotCancelAnInFlightRefresh() = runTest {
+        val store = FakeStore()
+        val cache = sampleCache(store.location)
+        val repository = GatedRefreshRepository(RefreshResult.Success(cache))
+        val source = FakeNotificationSettingsStore()
+        val viewModel = viewModel(
+            store,
+            repository,
+            CoroutineScope(StandardTestDispatcher(testScheduler)),
+            source
+        )
+        advanceUntilIdle()
+
+        viewModel.refresh()
+        runCurrent()
+        assertTrue(repository.refreshStarted.isCompleted)
+        val settings = PrayerNotificationSettings(notificationsEnabled = true, leadMinutes = 10)
+        viewModel.updateNotificationSettings(settings)
+        runCurrent()
+
+        assertEquals(settings, source.read())
+        assertEquals(OperationState.Refreshing, (viewModel.state.value as PrayerUiState.Ready).operation)
+        assertFalse(repository.refreshCancelled)
+
+        repository.completeRefresh()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value as PrayerUiState.Ready
+        assertEquals(OperationState.Refreshed, state.operation)
+        assertEquals(settings, viewModel.notificationSettings.value)
+    }
+
+    @Test
+    fun refreshingDuringDistrictSelectionWaitsForMonthAndImsakiyeReloads() = runTest {
+        val store = FakeStore()
+        val range = RamadanRange(
+            1448,
+            LocalDate.of(2027, 2, 8),
+            LocalDate.of(2027, 3, 8),
+            LocalDate.of(2027, 3, 9),
+            estimated = false
+        )
+        val repository = MonthRepository(store, range = range)
+        val viewModel = viewModel(
+            store,
+            repository,
+            CoroutineScope(StandardTestDispatcher(testScheduler))
+        )
+        advanceUntilIdle()
+        val month = YearMonth.of(2027, 2)
+        viewModel.loadMonth(month)
+        viewModel.loadImsakiye()
+        advanceUntilIdle()
+
+        val option = PrayerLocationConfig.cityOptions.first { it.city == "Istanbul" }
+        val province = requireNotNull(DiyanetDistricts.forCity(option.city, option.country))
+        val district = DiyanetDistricts.districts.first {
+            it.provinceId == province.id && it.name == "MALTEPE"
+        }
+        val newLocation = PrayerLocation(
+            city = option.city,
+            country = option.country,
+            displayCity = option.displayCity,
+            latitude = option.latitude,
+            longitude = option.longitude,
+            diyanetDistrictId = district.id,
+            districtName = district.name
+        )
+        repository.refreshResult = RefreshResult.Success(sampleCache(newLocation))
+
+        viewModel.selectDistrict(option, district.id)
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        assertEquals(newLocation, store.location)
+        assertEquals(newLocation, viewModel.monthlyState.value.days.first().location)
+        assertEquals(newLocation, viewModel.imsakiyeState.value.location)
+    }
+
+    @Test
+    fun notificationSchedulingFailuresDoNotReplaceReadyStates() = runTest {
+        val store = FakeStore()
+        val cache = sampleCache(store.location)
+        val scheduler = FakeScheduler(throwOnNotifications = true)
+        val viewModel = viewModel(
+            store,
+            FakeRepository(RefreshResult.Success(cache)),
+            CoroutineScope(StandardTestDispatcher(testScheduler)),
+            scheduler = scheduler
+        )
+
+        advanceUntilIdle()
+        assertTrue(viewModel.state.value is PrayerUiState.Ready)
+
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value as PrayerUiState.Ready
+        assertEquals(OperationState.Refreshed, state.operation)
+        assertTrue(scheduler.notificationSchedules >= 2)
+    }
+
+    @Test
+    fun widgetUpdateFailureLeavesRefreshReady() = runTest {
+        val store = FakeStore()
+        val cache = sampleCache(store.location)
+        val widgetUpdater = FakeWidgetUpdater(throwOnUpdate = true)
+        val viewModel = viewModel(
+            store,
+            FakeRepository(RefreshResult.Success(cache)),
+            CoroutineScope(StandardTestDispatcher(testScheduler)),
+            widgetUpdater = widgetUpdater
+        )
+        advanceUntilIdle()
+
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value as PrayerUiState.Ready
+        assertEquals(OperationState.Refreshed, state.operation)
+        assertEquals(1, widgetUpdater.updateCalls)
+    }
+
+    @Test
+    fun cancellingRefreshResetsRefreshingOperationToIdle() = runTest {
+        val store = FakeStore()
+        val repository = GatedRefreshRepository(RefreshResult.Success(sampleCache(store.location)))
+        val viewModel = viewModel(
+            store,
+            repository,
+            CoroutineScope(StandardTestDispatcher(testScheduler))
+        )
+        advanceUntilIdle()
+
+        val refreshJob = viewModel.refresh()
+        runCurrent()
+        assertTrue(repository.refreshStarted.isCompleted)
+        assertEquals(OperationState.Refreshing, (viewModel.state.value as PrayerUiState.Ready).operation)
+
+        refreshJob.cancel()
+        runCurrent()
+
+        assertEquals(OperationState.Idle, (viewModel.state.value as PrayerUiState.Ready).operation)
+        assertTrue(repository.refreshCancelled)
+    }
+
+    @Test
+    fun refreshDoesNotCancelNotificationSchedulingAfterSettingsSave() = runTest {
+        val store = FakeStore()
+        val source = FakeNotificationSettingsStore(holdSave = true)
+        val scheduler = FakeScheduler()
+        val viewModel = viewModel(
+            store,
+            FakeRepository(RefreshResult.Success(sampleCache(store.location))),
+            CoroutineScope(StandardTestDispatcher(testScheduler)),
+            source,
+            scheduler
+        )
+        advanceUntilIdle()
+        val schedulesBefore = scheduler.notificationSchedules
+        val settings = PrayerNotificationSettings(notificationsEnabled = true, leadMinutes = 15)
+
+        viewModel.updateNotificationSettings(settings)
+        runCurrent()
+        assertTrue(source.saveStarted.isCompleted)
+
+        viewModel.refresh()
+        advanceUntilIdle()
+        assertEquals(schedulesBefore + 1, scheduler.notificationSchedules)
+
+        source.finishSave()
+        advanceUntilIdle()
+
+        assertEquals(settings, source.read())
+        assertEquals(schedulesBefore + 2, scheduler.notificationSchedules)
     }
 
     @Test
@@ -328,9 +507,10 @@ class PrayerViewModelTest {
         repository: PrayerRefreshRepository,
         scope: CoroutineScope,
         notificationSettingsStore: FakeNotificationSettingsStore = FakeNotificationSettingsStore(),
-        scheduler: FakeScheduler = FakeScheduler()
+        scheduler: FakeScheduler = FakeScheduler(),
+        widgetUpdater: FakeWidgetUpdater = FakeWidgetUpdater()
     ) = PrayerViewModel(
-        Application(), store, repository, scheduler, FakeWidgetUpdater(),
+        Application(), store, repository, scheduler, widgetUpdater,
         PrayerTimeProvider(), PrayerCalculationSettings(), scope,
         scope.coroutineContext[ContinuationInterceptor] as CoroutineDispatcher,
         PrayerCachePolicy(), notificationSettingsStore
@@ -370,6 +550,29 @@ class PrayerViewModelTest {
 
     private class FakeRepository(private val result: RefreshResult) : PrayerRefreshRepository {
         override suspend fun refreshAndCache() = result
+    }
+
+    private class GatedRefreshRepository(
+        private val result: RefreshResult
+    ) : PrayerRefreshRepository {
+        val refreshStarted = CompletableDeferred<Unit>()
+        private val resultGate = CompletableDeferred<RefreshResult>()
+        var refreshCancelled = false
+            private set
+
+        fun completeRefresh() {
+            resultGate.complete(result)
+        }
+
+        override suspend fun refreshAndCache(): RefreshResult {
+            refreshStarted.complete(Unit)
+            return try {
+                resultGate.await()
+            } catch (e: CancellationException) {
+                refreshCancelled = true
+                throw e
+            }
+        }
     }
 
     private inner class MonthRepository(
@@ -423,21 +626,49 @@ class PrayerViewModelTest {
         }
     }
 
-    private class FakeScheduler : PrayerRefreshScheduler {
+    private class FakeScheduler(
+        private val throwOnNotifications: Boolean = false
+    ) : PrayerRefreshScheduler {
         var notificationSchedules = 0
         override suspend fun enqueueRefresh(force: Boolean) = Unit
         override suspend fun scheduleBoundary() = Unit
-        override suspend fun scheduleNotifications() { notificationSchedules += 1 }
+        override suspend fun scheduleNotifications() {
+            notificationSchedules += 1
+            if (throwOnNotifications) throw IllegalStateException("Notification scheduling failed")
+        }
     }
 
-    private class FakeNotificationSettingsStore : PrayerNotificationSettingsSource {
+    private class FakeNotificationSettingsStore(
+        private val holdSave: Boolean = false
+    ) : PrayerNotificationSettingsSource {
         private val state = MutableStateFlow(PrayerNotificationSettings())
+        val saveStarted = CompletableDeferred<Unit>()
+        private val saveGate = CompletableDeferred<Unit>()
+
         override val settings: Flow<PrayerNotificationSettings> = state
         override suspend fun read() = state.first()
-        override suspend fun save(settings: PrayerNotificationSettings) { state.value = settings }
+
+        override suspend fun save(settings: PrayerNotificationSettings) {
+            if (holdSave) {
+                saveStarted.complete(Unit)
+                saveGate.await()
+            }
+            state.value = settings
+        }
+
+        fun finishSave() {
+            saveGate.complete(Unit)
+        }
     }
 
-    private class FakeWidgetUpdater : PrayerWidgetUpdatePort {
-        override suspend fun updateAll() = Unit
+    private class FakeWidgetUpdater(
+        private val throwOnUpdate: Boolean = false
+    ) : PrayerWidgetUpdatePort {
+        var updateCalls = 0
+
+        override suspend fun updateAll() {
+            updateCalls += 1
+            if (throwOnUpdate) throw IllegalStateException("Widget update failed")
+        }
     }
 }
