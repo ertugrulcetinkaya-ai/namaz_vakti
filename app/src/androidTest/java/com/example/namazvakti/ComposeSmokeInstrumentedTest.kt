@@ -43,6 +43,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -50,6 +51,9 @@ import org.junit.runner.RunWith
 class ComposeSmokeInstrumentedTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val context = instrumentation.targetContext
+
+    @get:Rule
+    val dismissSystemDialogsRule = DismissSystemDialogsRule()
 
     @Test
     fun initialScreenMovesFromLoadingToReadyWhenLocalStoreResponds() {
@@ -280,6 +284,7 @@ class ComposeSmokeInstrumentedTest {
     ): AccessibilityNodeInfo {
         val deadline = SystemClock.uptimeMillis() + TIMEOUT_MILLIS
         do {
+            dismissSystemDialogsRule.dismissSystemDialogs()
             instrumentation.uiAutomation.rootInActiveWindow?.findNode(matches)?.let { return it }
             SystemClock.sleep(POLL_MILLIS)
         } while (SystemClock.uptimeMillis() < deadline)
@@ -293,6 +298,7 @@ class ComposeSmokeInstrumentedTest {
     ): AccessibilityNodeInfo {
         val deadline = SystemClock.uptimeMillis() + TIMEOUT_MILLIS
         do {
+            dismissSystemDialogsRule.dismissSystemDialogs()
             val root = instrumentation.uiAutomation.rootInActiveWindow
             root?.findNode(matches)?.let { return it }
             val scrollContainer = root?.findNode { it.isScrollable } ?: break

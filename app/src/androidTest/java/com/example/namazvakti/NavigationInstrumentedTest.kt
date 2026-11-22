@@ -9,6 +9,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.example.namazvakti.ui.main.MainActivity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -16,6 +17,9 @@ import org.junit.runner.RunWith
 class NavigationInstrumentedTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val context = instrumentation.targetContext
+
+    @get:Rule
+    val dismissSystemDialogsRule = DismissSystemDialogsRule()
 
     @Test
     fun systemBackFromImsakiyeReturnsToMonthlyAfterActivityRecreation() {
@@ -78,6 +82,7 @@ class NavigationInstrumentedTest {
         // Cold start on a CI emulator (first DataStore/Room access and the initial refresh) can exceed 10s.
         val deadline = SystemClock.uptimeMillis() + AWAIT_TIMEOUT_MS
         do {
+            dismissSystemDialogsRule.dismissSystemDialogs()
             instrumentation.uiAutomation.rootInActiveWindow?.findNode(matches)?.let { return it }
             SystemClock.sleep(100)
         } while (SystemClock.uptimeMillis() < deadline)
