@@ -6,20 +6,23 @@ import org.junit.Test
 
 class PrayerWidgetSizeClassTest {
     @Test
-    fun measuredS24UltraTwoByOneDimensionsUseSmallLayout() {
+    fun twoCellAndSubThresholdWidthsUseSmallLayout() {
         assertEquals(PrayerWidgetSizeClass.SMALL, PrayerWidgetSizeClass.from(159, 81))
-        assertEquals(PrayerWidgetSizeClass.SMALL, PrayerWidgetSizeClass.from(399, 278))
+        assertEquals(PrayerWidgetSizeClass.SMALL, PrayerWidgetSizeClass.from(279, 278))
     }
 
     @Test
-    fun measuredS24UltraWideOneRowDimensionsUseMediumLayout() {
+    fun threeCellWidthsUseMediumLayoutAtOneRowHeight() {
+        assertEquals(PrayerWidgetSizeClass.MEDIUM, PrayerWidgetSizeClass.from(280, 126))
+        assertEquals(PrayerWidgetSizeClass.MEDIUM, PrayerWidgetSizeClass.from(380, 126))
         assertEquals(PrayerWidgetSizeClass.MEDIUM, PrayerWidgetSizeClass.from(515, 126))
-        assertEquals(PrayerWidgetSizeClass.MEDIUM, PrayerWidgetSizeClass.from(406, 199))
+        assertEquals(PrayerWidgetSizeClass.MEDIUM, PrayerWidgetSizeClass.from(380, 199))
     }
 
     @Test
-    fun measuredS24UltraFourByTwoDimensionsUseLargeLayout() {
-        assertEquals(PrayerWidgetSizeClass.LARGE, PrayerWidgetSizeClass.from(407, 278))
+    fun twoRowHeightUsesLargeLayoutForThreeCellAndWiderWidgets() {
+        assertEquals(PrayerWidgetSizeClass.LARGE, PrayerWidgetSizeClass.from(280, 278))
+        assertEquals(PrayerWidgetSizeClass.LARGE, PrayerWidgetSizeClass.from(380, 278))
         assertEquals(PrayerWidgetSizeClass.LARGE, PrayerWidgetSizeClass.from(515, 278))
     }
 }

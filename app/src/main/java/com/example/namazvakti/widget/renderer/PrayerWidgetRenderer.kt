@@ -30,7 +30,8 @@ class PrayerWidgetRenderer {
         context: Context,
         snapshot: PrayerWidgetSnapshot,
         sizeClass: PrayerWidgetSizeClass,
-        elapsedRealtime: Long = android.os.SystemClock.elapsedRealtime()
+        elapsedRealtime: Long = android.os.SystemClock.elapsedRealtime(),
+        widthDp: Int? = null
     ): RemoteViews = render(
         context = context,
         cache = snapshot.cache,
@@ -41,7 +42,8 @@ class PrayerWidgetRenderer {
         tomorrowCache = snapshot.tomorrowCache,
         ramadanRange = snapshot.ramadanRange,
         elapsedRealtime = elapsedRealtime,
-        religiousDays = snapshot.religiousDays
+        religiousDays = snapshot.religiousDays,
+        widthDp = widthDp
     )
 
     fun render(
@@ -54,9 +56,13 @@ class PrayerWidgetRenderer {
         tomorrowCache: CachedPrayerDay? = null,
         ramadanRange: RamadanRange? = null,
         elapsedRealtime: Long = android.os.SystemClock.elapsedRealtime(),
-        religiousDays: List<DiyanetReligiousDay> = emptyList()
+        religiousDays: List<DiyanetReligiousDay> = emptyList(),
+        widthDp: Int? = null
     ): RemoteViews {
         val views = RemoteViews(context.packageName, layoutFor(sizeClass))
+        val compactDetails = sizeClass != PrayerWidgetSizeClass.SMALL &&
+            widthDp != null &&
+            widthDp < COMPACT_DETAILS_MIN_WIDTH_DP
         val localNow = now.withZoneSameInstant(cache?.timezone ?: location.timezone)
         views.setOnClickPendingIntent(
             android.R.id.background,
@@ -73,10 +79,17 @@ class PrayerWidgetRenderer {
         } else ""
         val hijriText = cache?.displayHijriText()?.trim().orEmpty()
         val cityText = when (sizeClass) {
-            PrayerWidgetSizeClass.LARGE -> listOf(location.displayName, hijriText)
-                .filter(String::isNotBlank).joinToString(" • ")
-            PrayerWidgetSizeClass.MEDIUM -> listOf(location.displayCity, hijriText)
-                .filter(String::isNotBlank).joinToString(" • ") + staleSuffix
+            PrayerWidgetSizeClass.LARGE -> if (compactDetails) {
+                location.displayCity
+            } else {
+                listOf(location.displayName, hijriText).filter(String::isNotBlank).joinToString(" • ")
+            }
+            PrayerWidgetSizeClass.MEDIUM -> if (compactDetails) {
+                location.displayCity + staleSuffix
+            } else {
+                listOf(location.displayCity, hijriText)
+                    .filter(String::isNotBlank).joinToString(" • ") + staleSuffix
+            }
             PrayerWidgetSizeClass.SMALL -> location.displayCity
         }
         views.setTextViewText(R.id.prayer_widget_city, cityText)
@@ -92,12 +105,15 @@ class PrayerWidgetRenderer {
                 views.setTextViewText(
                     viewId,
                     buildString {
-                        if (item.highlighted) append('►')
-                        append(item.label)
+                        if (item.highlighted && !compactDetails) append('►')
+                        append(if (compactDetails) item.label.toCompactWidgetLabel() else item.label)
                         append(' ')
                         append(item.time.format(PrayerTimes.TIME_FORMATTER))
                     }
                 )
+                if (compactDetails) {
+                    views.setTextViewTextSize(viewId, TypedValue.COMPLEX_UNIT_SP, COMPACT_PRAYER_TEXT_SIZE_SP)
+                }
                 views.setTextColor(
                     viewId,
                     if (item.highlighted) context.getColor(R.color.widget_active_text)
@@ -131,7 +147,8 @@ class PrayerWidgetRenderer {
         views.setTextColor(R.id.prayer_widget_next_prayer, context.getColor(R.color.widget_active_text))
         val showCountdown = countdown != null &&
             dataState == PrayerWidgetDataState.Fresh &&
-            sizeClass != PrayerWidgetSizeClass.MEDIUM
+            sizeClass != PrayerWidgetSizeClass.MEDIUM &&
+            !compactDetails
         val showSmallStaleLabel = sizeClass == PrayerWidgetSizeClass.SMALL &&
             dataState == PrayerWidgetDataState.Stale
         if (showCountdown) {
@@ -290,6 +307,9 @@ class PrayerWidgetRenderer {
     }
 
     private companion object {
+        const val COMPACT_DETAILS_MIN_WIDTH_DP = 400
+        const val COMPACT_PRAYER_TEXT_SIZE_SP = 16f
+
         val PRAYER_ITEM_IDS = listOf(
             R.id.prayer_widget_item_1,
             R.id.prayer_widget_item_2,
@@ -298,5 +318,15 @@ class PrayerWidgetRenderer {
             R.id.prayer_widget_item_5,
             R.id.prayer_widget_item_6
         )
+    }
+
+    private fun String.toCompactWidgetLabel(): String = when (this) {
+        "İmsak" -> "İms"
+        "Güneş" -> "Gün"
+        "Öğle" -> "Öğle"
+        "İkindi" -> "İki"
+        "Akşam" -> "Akş"
+        "Yatsı" -> "Yat"
+        else -> this
     }
 }

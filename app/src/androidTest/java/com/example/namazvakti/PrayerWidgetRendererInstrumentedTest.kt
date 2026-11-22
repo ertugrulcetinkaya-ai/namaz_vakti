@@ -168,6 +168,35 @@ class PrayerWidgetRendererInstrumentedTest {
     }
 
     @Test
+    fun mediumAndLargeLayoutsRenderWithoutClippingAt280DpWidth() {
+        val layouts = listOf(
+            PrayerWidgetSizeClass.MEDIUM to (280 to 126),
+            PrayerWidgetSizeClass.LARGE to (280 to 278)
+        )
+        for ((size, dimensionsDp) in layouts) {
+            for (state in listOf(
+                PrayerWidgetDataState.Fresh,
+                PrayerWidgetDataState.Stale,
+                PrayerWidgetDataState.Unavailable
+            )) {
+                val rendered = render(
+                    cache = if (state == PrayerWidgetDataState.Unavailable) null else cache(),
+                    state = state,
+                    size = size,
+                    dimensionsDp = dimensionsDp
+                )
+                assertTrue(bitmapHasVisiblePixels(rendered.bitmap))
+                if (state == PrayerWidgetDataState.Fresh) {
+                    assertEquals(
+                        context.getColor(R.color.widget_active_text),
+                        rendered.root.findViewById<TextView>(R.id.prayer_widget_item_3).currentTextColor
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
     fun largeLayoutShowsDiyanetRamadanIftarAndDay() {
         val ramadanDate = LocalDate.of(2026, 2, 20)
         val ramadanNow = ramadanDate.atTime(14, 0).atZone(ZONE)
@@ -238,7 +267,8 @@ class PrayerWidgetRendererInstrumentedTest {
         renderContext: Context = context,
         now: ZonedDateTime = this.now,
         ramadanRange: com.example.namazvakti.domain.model.RamadanRange? = null,
-        religiousDays: List<DiyanetReligiousDay> = emptyList()
+        religiousDays: List<DiyanetReligiousDay> = emptyList(),
+        dimensionsDp: Pair<Int, Int> = size.dimensionsDp()
     ): Rendered {
         val snapshot = com.example.namazvakti.widget.PrayerWidgetSnapshot(
             cache = cache,
@@ -252,7 +282,8 @@ class PrayerWidgetRendererInstrumentedTest {
             renderContext,
             snapshot,
             size,
-            elapsedRealtime = SystemClock.elapsedRealtime()
+            elapsedRealtime = SystemClock.elapsedRealtime(),
+            widthDp = dimensionsDp.first
         )
             .apply(renderContext, FrameLayout(renderContext))
         val chronometer = root.findViewById<Chronometer>(R.id.prayer_widget_chronometer)
@@ -262,7 +293,7 @@ class PrayerWidgetRendererInstrumentedTest {
             chronometer.text = "5:08:14 kaldı"
         }
         val density = renderContext.resources.displayMetrics.density
-        val (widthDp, heightDp) = size.dimensionsDp()
+        val (widthDp, heightDp) = dimensionsDp
         val width = (widthDp * density).toInt()
         val height = (heightDp * density).toInt()
         root.measure(
