@@ -30,6 +30,8 @@ object DiyanetRamadanCalendar {
         RamadanCalendarEntry(hijriYear, firstRamadan, firstShawwal)
     }.associateBy(RamadanCalendarEntry::hijriYear)
 
+    fun lastCoveredDate(): LocalDate = entries.values.maxOf(RamadanCalendarEntry::firstShawwal)
+
     fun find(hijriYear: Int): RamadanCalendarEntry? = entries[hijriYear]
 }
 

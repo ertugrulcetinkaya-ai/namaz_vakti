@@ -97,6 +97,7 @@
     <string name="day_label">Gün</string>
     <string name="ramadan_day_label">Gün</string>
     <string name="imsakiye_title">Ramazan İmsakiyesi</string>
+    <string name="ramadan_estimated_label">Tahmini</string>
     <string name="ramadan_estimated_notice">Tarihler hesaplamaya dayalıdır; Diyanet’in resmi takvimi yayınlandığında değişebilir</string>
     <string name="eid_date">Ramazan Bayramı · 1 Şevval · %1$s</string>
     <string name="ramadan_day">Ramazan’ın %1$d. günü</string>

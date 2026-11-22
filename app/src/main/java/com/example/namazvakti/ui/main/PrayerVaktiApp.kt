@@ -191,6 +191,7 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
         Screen.ReligiousDays -> ReligiousDaysScreen(
             today = today,
             eventsForYear = viewModel::religiousDaysFor,
+            ramadanRange = ramadanRange,
             onBack = goBack
         )
         Screen.Monthly -> MonthlyPrayerScreen(

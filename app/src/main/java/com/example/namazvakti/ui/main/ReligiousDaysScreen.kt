@@ -41,6 +41,7 @@ import androidx.compose.ui.res.stringResource
 import com.example.namazvakti.R
 import com.example.namazvakti.domain.model.DiyanetReligiousDay
 import com.example.namazvakti.domain.model.DiyanetReligiousDays
+import com.example.namazvakti.domain.model.RamadanRange
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
@@ -63,16 +64,22 @@ private sealed interface ReligiousDayListRow {
 fun ReligiousDaysScreen(
     today: LocalDate,
     onBack: () -> Unit,
-    eventsForYear: (Int) -> List<DiyanetReligiousDay> = DiyanetReligiousDays::forYear
+    eventsForYear: (Int) -> List<DiyanetReligiousDay> = DiyanetReligiousDays::forYear,
+    ramadanRange: RamadanRange? = null
 ) {
+    val lastSelectableYear = maxOf(
+        DiyanetReligiousDays.LAST_YEAR,
+        today.year,
+        ramadanRange?.takeIf { it.estimated }?.startDate?.year ?: DiyanetReligiousDays.LAST_YEAR
+    )
     var selectedYear by rememberSaveable {
-        mutableIntStateOf(today.year.coerceIn(DiyanetReligiousDays.FIRST_YEAR, DiyanetReligiousDays.LAST_YEAR))
+        mutableIntStateOf(today.year.coerceIn(DiyanetReligiousDays.FIRST_YEAR, lastSelectableYear))
     }
-    val years = remember(selectedYear, today) {
+    val years = remember(selectedYear, today, lastSelectableYear) {
         buildList {
             add(selectedYear)
             val daysUntilYearEnd = ChronoUnit.DAYS.between(today, today.withMonth(12).withDayOfMonth(31))
-            if (selectedYear == today.year && daysUntilYearEnd < 60 && selectedYear < DiyanetReligiousDays.LAST_YEAR) {
+            if (selectedYear == today.year && daysUntilYearEnd < 60 && selectedYear < lastSelectableYear) {
                 add(selectedYear + 1)
             }
         }
@@ -121,8 +128,16 @@ fun ReligiousDaysScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.previous_year))
                     }
                     Text(selectedYear.toString(), style = MaterialTheme.typography.titleMedium)
+                    if (ramadanRange?.estimated == true && ramadanRange.startDate.year == selectedYear) {
+                        Text(
+                            stringResource(R.string.ramadan_estimated_label),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.tertiary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                     IconButton(
-                        enabled = selectedYear < DiyanetReligiousDays.LAST_YEAR,
+                        enabled = selectedYear < lastSelectableYear,
                         onClick = { selectedYear++ }
                     ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = stringResource(R.string.next_year))

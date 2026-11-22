@@ -33,6 +33,8 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.YearMonth
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -141,6 +143,71 @@ class ComposeSmokeInstrumentedTest {
     }
 
     @Test
+    fun estimatedRamadanOutsidePublishedTablesShowsEstimatedLabelAndEidDate() {
+        val range = estimated2036RamadanRange()
+        val harness = launchHarness(ramadanRange = range)
+        try {
+            harness.scenario.use {
+                awaitCondition("initial ready state") { harness.viewModel.state.value is PrayerUiState.Ready }
+                awaitCondition("estimated Ramadan range") { harness.viewModel.ramadanRange.value == range }
+                val monthly = context.getString(R.string.monthly_open)
+                awaitNode(monthly) { it.text?.toString() == monthly }.click()
+                val imsakiye = context.getString(R.string.imsakiye_open)
+                awaitNode(imsakiye) { it.contentDescription?.toString() == imsakiye }.click()
+
+                awaitImsakiyeTitle()
+                awaitNode(context.getString(R.string.ramadan_estimated_label)) {
+                    it.text?.toString() == context.getString(R.string.ramadan_estimated_label)
+                }
+                val expectedEidRow = context.getString(
+                    R.string.eid_date,
+                    range.eidDate.format(ACCESSIBLE_DATE_FORMATTER)
+                )
+                awaitNodeAfterScrolling("estimated Eid date from RamadanRange.eidDate") {
+                    it.text?.toString() == expectedEidRow
+                }
+            }
+        } finally {
+            harness.scope.cancel()
+        }
+    }
+
+    @Test
+    fun estimatedRamadanYearIsLabeledOnReligiousDaysScreen() {
+        val range = estimated2036RamadanRange()
+        val harness = launchHarness(ramadanRange = range)
+        try {
+            harness.scenario.use {
+                awaitCondition("initial ready state") { harness.viewModel.state.value is PrayerUiState.Ready }
+                awaitCondition("estimated Ramadan range") { harness.viewModel.ramadanRange.value == range }
+                val monthly = context.getString(R.string.monthly_open)
+                awaitNode(monthly) { it.text?.toString() == monthly }.click()
+                val religiousDays = context.getString(R.string.religious_days_open)
+                awaitNode(religiousDays) {
+                    it.text?.toString() == religiousDays && it.hasClickableAncestor()
+                }.click()
+
+                var year = PrayerTimeProvider().today().year.coerceAtLeast(2025)
+                while (year != range.startDate.year) {
+                    val movingForward = year < range.startDate.year
+                    val buttonLabel = context.getString(
+                        if (movingForward) R.string.next_year else R.string.previous_year
+                    )
+                    awaitNode(buttonLabel) { it.contentDescription?.toString() == buttonLabel }.click()
+                    year += if (movingForward) 1 else -1
+                    awaitNode("religious year $year") { it.text?.toString() == year.toString() }
+                }
+
+                awaitNode(context.getString(R.string.ramadan_estimated_label)) {
+                    it.text?.toString() == context.getString(R.string.ramadan_estimated_label)
+                }
+            }
+        } finally {
+            harness.scope.cancel()
+        }
+    }
+
+    @Test
     fun staleOfflineScreenShowsRetryAndRetryCallsRepository() {
         val location = PrayerLocation("Ankara", "Turkey", "ANKARA")
         val yesterday = PrayerTimeProvider().today(location.timezone).minusDays(1)
@@ -218,10 +285,11 @@ class ComposeSmokeInstrumentedTest {
         initialCacheDate: LocalDate = PrayerTimeProvider().today(location.timezone),
         storeReadGate: CompletableDeferred<Unit>? = null,
         failRefresh: Boolean = false,
-        notificationSettings: PrayerNotificationSettings = PrayerNotificationSettings()
+        notificationSettings: PrayerNotificationSettings = PrayerNotificationSettings(),
+        ramadanRange: RamadanRange = sampleRamadanRange()
     ): Harness {
         val store = FakeStore(location, cache(location, initialCacheDate), storeReadGate)
-        val repository = FakeRepository(store, failRefresh)
+        val repository = FakeRepository(store, failRefresh, ramadanRange)
         val notificationStore = FakeNotificationSettings(notificationSettings)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         val viewModel = PrayerViewModel(
@@ -461,6 +529,7 @@ class ComposeSmokeInstrumentedTest {
     private companion object {
         const val TIMEOUT_MILLIS = 10_000L
         const val POLL_MILLIS = 50L
+        val ACCESSIBLE_DATE_FORMATTER = DateTimeFormatter.ofPattern("d MMMM EEEE", Locale.forLanguageTag("tr-TR"))
 
         fun cache(location: PrayerLocation, date: LocalDate) = CachedPrayerDay(
             date = date,
@@ -485,6 +554,18 @@ class ComposeSmokeInstrumentedTest {
                 endDate = lastDay,
                 eidDate = lastDay.plusDays(1),
                 estimated = false
+            )
+        }
+
+        fun estimated2036RamadanRange(): RamadanRange {
+            val start = LocalDate.of(2036, 11, 10)
+            val eid = LocalDate.of(2036, 12, 9)
+            return RamadanRange(
+                hijriYear = 1458,
+                startDate = start,
+                endDate = eid.minusDays(1),
+                eidDate = eid,
+                estimated = true
             )
         }
     }

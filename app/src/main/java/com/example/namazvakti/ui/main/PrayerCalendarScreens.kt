@@ -240,13 +240,28 @@ fun ImsakiyeScreen(
             TopAppBar(
                 title = {
                     Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                        Text(
-                            range?.let { "Ramazan ${it.hijriYear} İmsakiyesi" }
-                                ?: stringResource(R.string.imsakiye_title),
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                range?.let { "Ramazan ${it.hijriYear} İmsakiyesi" }
+                                    ?: stringResource(R.string.imsakiye_title),
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.titleMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (range?.estimated == true) {
+                                Text(
+                                    stringResource(R.string.ramadan_estimated_label),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.tertiary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                         state.headerLocationName?.let { locationName ->
                             Text(locationName, style = MaterialTheme.typography.labelMedium, maxLines = 1)
                         }
@@ -322,14 +337,11 @@ fun ImsakiyeScreen(
                 }
             }
             if (range != null) {
-                val eidEvent = DiyanetReligiousDays.on(range.eidDate).firstOrNull {
-                    it.name.contains("RAMAZAN BAYRAMI") && it.name.contains("1. Gün")
-                }
-                if (eidEvent != null) item {
+                item {
                     Text(
                         stringResource(
                             R.string.eid_date,
-                            eidEvent.date.format(ACCESSIBLE_DATE_FORMATTER)
+                            range.eidDate.format(ACCESSIBLE_DATE_FORMATTER)
                         ),
                         modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
                         style = MaterialTheme.typography.titleMedium,

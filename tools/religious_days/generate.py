@@ -280,6 +280,8 @@ def generate() -> str:
     lines.extend([
         "    ).sortedBy(DiyanetReligiousDay::date)",
         "",
+        "    fun lastCoveredDate(): LocalDate = entries.last().date",
+        "",
         "    fun forYear(year: Int): List<DiyanetReligiousDay> =",
         "        entries.filter { it.date.year == year }",
         "",
