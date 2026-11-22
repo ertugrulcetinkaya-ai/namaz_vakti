@@ -8,6 +8,7 @@ import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -42,6 +43,7 @@ import java.time.temporal.ChronoUnit
 @Composable
 fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
     val context = LocalContext.current
+    val activity = LocalActivity.current
     val state by viewModel.state.collectAsStateWithLifecycle()
     val notificationSettings by viewModel.notificationSettings.collectAsStateWithLifecycle()
     val notificationSettingsError by viewModel.notificationSettingsError.collectAsStateWithLifecycle()
@@ -59,15 +61,18 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
     val today = now.withZoneSameInstant(timezone).toLocalDate()
     val autoRefreshMinute = now.truncatedTo(ChronoUnit.MINUTES)
     var lastObservedDate by remember { mutableStateOf(today) }
-    var showCities by rememberSaveable { mutableStateOf(false) }
-    var citySelectionStep by rememberSaveable { mutableIntStateOf(1) }
-    var selectedProvinceCity by rememberSaveable { mutableStateOf<String?>(null) }
-    var showMonthly by rememberSaveable { mutableStateOf(false) }
-    var showImsakiye by rememberSaveable { mutableStateOf(false) }
-    var showReligiousDays by rememberSaveable { mutableStateOf(false) }
-    var religiousDaysFromMonthly by rememberSaveable { mutableStateOf(false) }
+    var backStack by rememberSaveable(stateSaver = AppBackStack.Saver) { mutableStateOf(AppBackStack()) }
     var showNotificationSettings by rememberSaveable { mutableStateOf(false) }
-    var pendingNotificationSettings by remember { mutableStateOf<PrayerNotificationSettings?>(null) }
+    var notificationDraft by rememberSaveable(stateSaver = NotificationSettingsSaver) {
+        mutableStateOf<PrayerNotificationSettings?>(null)
+    }
+    var pendingNotificationSettings by rememberSaveable(stateSaver = NotificationSettingsSaver) {
+        mutableStateOf<PrayerNotificationSettings?>(null)
+    }
+    val dismissNotificationSettings = {
+        showNotificationSettings = false
+        notificationDraft = null
+    }
     var resumeVersion by remember { mutableIntStateOf(0) }
     val autoRefreshPolicy = remember { AutoRefreshPolicy() }
 
@@ -126,14 +131,14 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
         pendingNotificationSettings = null
         if (granted) {
             viewModel.updateNotificationSettings(pending)
-            showNotificationSettings = false
+            dismissNotificationSettings()
         } else {
-            viewModel.updateNotificationSettings(
-                pending.copy(
-                    notificationsEnabled = pending.notificationsEnabled && notificationSettings.notificationsEnabled,
-                    religiousDaysEnabled = pending.religiousDaysEnabled && notificationSettings.religiousDaysEnabled
-                )
+            val allowedSettings = pending.copy(
+                notificationsEnabled = pending.notificationsEnabled && notificationSettings.notificationsEnabled,
+                religiousDaysEnabled = pending.religiousDaysEnabled && notificationSettings.religiousDaysEnabled
             )
+            notificationDraft = allowedSettings
+            viewModel.updateNotificationSettings(allowedSettings)
             Toast.makeText(
                 context,
                 R.string.notification_prayer_permission_denied,
@@ -154,118 +159,80 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
     }
     val requestExactAlarm = { openExactAlarmSettings(context) }
 
-    BackHandler(enabled = showCities || showMonthly || showImsakiye || showReligiousDays) {
-        when {
-            showCities && citySelectionStep == 2 -> {
-                citySelectionStep = 1
-                selectedProvinceCity = null
-            }
-            showCities -> showCities = false
-            showReligiousDays -> {
-                showReligiousDays = false
-                if (religiousDaysFromMonthly) showMonthly = true
-                religiousDaysFromMonthly = false
-            }
-            showMonthly -> showMonthly = false
-            showImsakiye -> showImsakiye = false
-        }
+    val screen = backStack.current
+    val goBack: () -> Unit = {
+        backStack = backStack.pop()
+        if (backStack.current == null) activity?.finish()
     }
+    BackHandler(enabled = screen != null, onBack = goBack)
 
-    if (showCities) {
-        CitySelectionScreen(
+    val openImsakiye = {
+        viewModel.loadImsakiye()
+        backStack = backStack.push(Screen.Imsakiye)
+    }
+    val openReligiousDays = { backStack = backStack.push(Screen.ReligiousDays) }
+
+    when (screen) {
+        is Screen.Cities -> CitySelectionScreen(
             selectedLocation = location,
-            selectionStep = citySelectionStep,
-            selectedProvinceCity = selectedProvinceCity,
-            onBack = {
-                if (citySelectionStep == 2) {
-                    citySelectionStep = 1
-                    selectedProvinceCity = null
-                } else {
-                    showCities = false
-                }
-            },
+            selectionStep = screen.step,
+            selectedProvinceCity = screen.provinceCity,
+            onBack = goBack,
             onSelectProvince = { city ->
-                selectedProvinceCity = city
-                citySelectionStep = 2
+                backStack = backStack.push(Screen.Cities(step = 2, provinceCity = city))
             },
             onSelectDistrict = { option, districtId ->
-                showCities = false
-                citySelectionStep = 1
-                selectedProvinceCity = null
+                backStack = backStack.pop().pop()
                 viewModel.selectDistrict(option, districtId)
             }
         )
-    } else if (showReligiousDays) {
-        ReligiousDaysScreen(
+        Screen.ReligiousDays -> ReligiousDaysScreen(
             today = today,
             eventsForYear = viewModel::religiousDaysFor,
-            onBack = {
-                showReligiousDays = false
-                if (religiousDaysFromMonthly) showMonthly = true
-                religiousDaysFromMonthly = false
-            }
+            onBack = goBack
         )
-    } else if (showMonthly) {
-        MonthlyPrayerScreen(
+        Screen.Monthly -> MonthlyPrayerScreen(
             state = monthlyState,
             ramadanRange = ramadanRange,
             today = today,
-            onBack = { showMonthly = false },
-            onOpenReligiousDays = {
-                showMonthly = false
-                showReligiousDays = true
-                religiousDaysFromMonthly = true
-            },
-            onOpenImsakiye = {
-                viewModel.loadImsakiye()
-                showMonthly = false
-                showImsakiye = true
-            },
+            onBack = goBack,
+            onOpenReligiousDays = openReligiousDays,
+            onOpenImsakiye = openImsakiye,
             onMonthChange = viewModel::loadMonth,
             onRetry = { viewModel.loadMonth(monthlyState.month) }
         )
-    } else if (showImsakiye) {
-        ImsakiyeScreen(
+        Screen.Imsakiye -> ImsakiyeScreen(
             state = imsakiyeState,
             today = today,
-            onBack = { showImsakiye = false },
+            onBack = goBack,
             onRetry = viewModel::loadImsakiye
         )
-    } else {
-        PrayerHomeScreen(
+        Screen.Home -> PrayerHomeScreen(
             state = state,
             now = now,
             onRefresh = viewModel::refresh,
-            onOpenCities = {
-                citySelectionStep = 1
-                selectedProvinceCity = null
-                showCities = true
-            },
+            onOpenCities = { backStack = backStack.push(Screen.Cities(step = 1, provinceCity = null)) },
             onOpenMonthly = {
                 viewModel.loadMonth(YearMonth.from(today))
-                showMonthly = true
+                backStack = backStack.push(Screen.Monthly)
             },
-            onOpenReligiousDays = {
-                religiousDaysFromMonthly = false
-                showReligiousDays = true
-            },
-            onOpenImsakiye = {
-                viewModel.loadImsakiye()
-                showImsakiye = true
-            },
+            onOpenReligiousDays = openReligiousDays,
+            onOpenImsakiye = openImsakiye,
             ramadanRange = ramadanRange,
             onOpenNotificationSettings = { showNotificationSettings = true },
             exactAlarmNeeded = exactAlarmNeeded,
             onRequestExactAlarm = requestExactAlarm
         )
+        null -> Unit
     }
 
-    if (showNotificationSettings && state is PrayerUiState.Ready) {
+    if (showNotificationSettings) {
         PrayerNotificationSettingsSheet(
-            settings = notificationSettings,
+            settings = notificationDraft ?: notificationSettings,
+            onSettingsChange = { notificationDraft = it },
             saveFailed = notificationSettingsError,
             exactAlarmNeeded = exactAlarmNeeded,
-            onDismiss = { showNotificationSettings = false },
+            onDismiss = dismissNotificationSettings,
             onRequestExactAlarm = requestExactAlarm,
             onOpenSoundAndVibrationSettings = {
                 PrayerNotificationPublisher.createChannels(context)
@@ -297,7 +264,7 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
                     notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 } else {
                     viewModel.updateNotificationSettings(settings)
-                    showNotificationSettings = false
+                    dismissNotificationSettings()
                 }
             }
         )

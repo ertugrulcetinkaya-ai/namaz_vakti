@@ -184,7 +184,7 @@ fun PrayerHomeScreen(
                 actions = {
                     IconButton(
                         onClick = onOpenNotificationSettings,
-                        enabled = ready != null
+                        enabled = state != PrayerUiState.Loading
                     ) {
                         Icon(
                             painter = painterResource(R.drawable.ic_notifications_24),

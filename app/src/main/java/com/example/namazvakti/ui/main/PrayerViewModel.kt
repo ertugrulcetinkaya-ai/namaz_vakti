@@ -80,6 +80,9 @@ class PrayerViewModel @JvmOverloads constructor(
         loadRamadanRange()
         return launchRefresh {
             try {
+                _notificationSettings.value = withContext(ioDispatcher) {
+                    notificationSettingsStore.read()
+                }
                 val snapshot = withContext(ioDispatcher) {
                     val location = store.readLocation()
                     val cache = store.readCache()
@@ -93,9 +96,6 @@ class PrayerViewModel @JvmOverloads constructor(
                     snapshot.first,
                     timeProvider.today(snapshot.first.timezone)
                 )
-                _notificationSettings.value = withContext(ioDispatcher) {
-                    notificationSettingsStore.read()
-                }
                 _state.value = PrayerUiState.Ready(
                     location = snapshot.first,
                     freshness = if (snapshot.third) Freshness.Fresh else Freshness.Stale,

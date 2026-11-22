@@ -25,9 +25,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -44,6 +43,7 @@ import com.example.namazvakti.domain.model.PrayerNotificationSettings
 @Composable
 fun PrayerNotificationSettingsSheet(
     settings: PrayerNotificationSettings,
+    onSettingsChange: (PrayerNotificationSettings) -> Unit,
     saveFailed: Boolean,
     exactAlarmNeeded: Boolean,
     onDismiss: () -> Unit,
@@ -51,10 +51,7 @@ fun PrayerNotificationSettingsSheet(
     onRequestExactAlarm: () -> Unit,
     onOpenSoundAndVibrationSettings: () -> Unit
 ) {
-    var notificationsEnabled by remember(settings) { mutableStateOf(settings.notificationsEnabled) }
-    var enabledPrayers by remember(settings) { mutableStateOf(settings.enabledPrayers) }
-    var leadMinutes by remember(settings) { mutableIntStateOf(settings.leadMinutes) }
-    var religiousDaysEnabled by remember(settings) { mutableStateOf(settings.religiousDaysEnabled) }
+    val (notificationsEnabled, enabledPrayers, leadMinutes, religiousDaysEnabled) = settings
     var leadMenuExpanded by rememberSaveable { mutableStateOf(false) }
     val leadValues = listOf(0, 5, 10, 15, 30, 45)
     val leadLabels = stringArrayResource(R.array.notification_lead_choices)
@@ -85,7 +82,7 @@ fun PrayerNotificationSettingsSheet(
                 Text(stringResource(R.string.notifications_enabled), modifier = Modifier.weight(1f))
                 Switch(
                     checked = notificationsEnabled,
-                    onCheckedChange = { notificationsEnabled = it }
+                    onCheckedChange = { onSettingsChange(settings.copy(notificationsEnabled = it)) }
                 )
             }
 
@@ -107,7 +104,7 @@ fun PrayerNotificationSettingsSheet(
                 Text(stringResource(R.string.religious_day_notifications_enabled), modifier = Modifier.weight(1f))
                 Switch(
                     checked = religiousDaysEnabled,
-                    onCheckedChange = { religiousDaysEnabled = it }
+                    onCheckedChange = { onSettingsChange(settings.copy(religiousDaysEnabled = it)) }
                 )
             }
 
@@ -122,7 +119,8 @@ fun PrayerNotificationSettingsSheet(
                             enabled = notificationsEnabled,
                             role = Role.Checkbox
                         ) {
-                            enabledPrayers = if (checked) enabledPrayers - prayer else enabledPrayers + prayer
+                            val prayers = if (checked) enabledPrayers - prayer else enabledPrayers + prayer
+                            onSettingsChange(settings.copy(enabledPrayers = prayers))
                         },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -159,7 +157,7 @@ fun PrayerNotificationSettingsSheet(
                         DropdownMenuItem(
                             text = { Text(leadLabels[index]) },
                             onClick = {
-                                leadMinutes = minutes
+                                onSettingsChange(settings.copy(leadMinutes = minutes))
                                 leadMenuExpanded = false
                             }
                         )
@@ -197,24 +195,33 @@ fun PrayerNotificationSettingsSheet(
                 TextButton(onClick = onDismiss) {
                     Text(stringResource(R.string.notification_cancel))
                 }
-                Button(
-                    onClick = {
-                        onSave(
-                            PrayerNotificationSettings(
-                                notificationsEnabled = notificationsEnabled,
-                                enabledPrayers = enabledPrayers,
-                                leadMinutes = leadMinutes,
-                                religiousDaysEnabled = religiousDaysEnabled
-                            )
-                        )
-                    }
-                ) {
+                Button(onClick = { onSave(settings) }) {
                     Text(stringResource(R.string.notification_save))
                 }
             }
         }
     }
 }
+
+internal val NotificationSettingsSaver = listSaver<PrayerNotificationSettings?, Any>(
+    save = { settings ->
+        if (settings == null) emptyList() else listOf(
+            settings.notificationsEnabled,
+            settings.leadMinutes,
+            settings.religiousDaysEnabled,
+            settings.enabledPrayers.map { it.storageKey }.toTypedArray()
+        )
+    },
+    restore = { saved ->
+        val prayerKeys = saved[3] as Array<*>
+        PrayerNotificationSettings(
+            notificationsEnabled = saved[0] as Boolean,
+            leadMinutes = saved[1] as Int,
+            religiousDaysEnabled = saved[2] as Boolean,
+            enabledPrayers = PrayerNotificationPrayer.entries.filterTo(mutableSetOf()) { it.storageKey in prayerKeys }
+        )
+    }
+)
 
 private fun PrayerNotificationPrayer.stringId(): Int = when (this) {
     PrayerNotificationPrayer.IMSAK -> R.string.prayer_imsak
