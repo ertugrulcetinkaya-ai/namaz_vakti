@@ -49,7 +49,7 @@ fun CitySelectionScreen(
     onSelectProvince: (String) -> Unit,
     onSelectDistrict: (PrayerLocationConfig.CityOption, String?) -> Unit
 ) {
-    var query by rememberSaveable { mutableStateOf("") }
+    var query by rememberSaveable(selectionStep, selectedProvinceCity) { mutableStateOf("") }
     val selectedProvince = selectedProvinceCity?.let { city ->
         PrayerLocationConfig.cityOptions.firstOrNull { it.city == city }
     }
@@ -94,10 +94,7 @@ fun CitySelectionScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = {
-                        if (selectionStep == 2) query = ""
-                        onBack()
-                    }) {
+                    IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.back)
@@ -144,10 +141,7 @@ fun CitySelectionScreen(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable {
-                                    query = ""
-                                    onSelectProvince(city.city)
-                                },
+                                .clickable { onSelectProvince(city.city) },
                             colors = CardDefaults.cardColors(
                                 containerColor = if (selected) {
                                     MaterialTheme.colorScheme.primaryContainer
