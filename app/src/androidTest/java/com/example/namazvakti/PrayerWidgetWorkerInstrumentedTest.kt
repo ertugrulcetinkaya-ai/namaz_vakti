@@ -25,6 +25,7 @@ import java.time.ZonedDateTime
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -67,6 +68,8 @@ class PrayerWidgetWorkerInstrumentedTest {
 
         assertTrue(result is ListenableWorker.Result.Success)
         assertEquals(0, dependencies.refreshCalls)
+        assertEquals(1, dependencies.snapshotLoads)
+        assertEquals(1, dependencies.snapshotForCalls)
         assertEquals(1, dependencies.rendered.size)
         assertEquals(1, dependencies.scheduled.size)
     }
@@ -121,6 +124,72 @@ class PrayerWidgetWorkerInstrumentedTest {
     }
 
     @Test
+    fun successfulRefreshReloadsSnapshotWithTomorrowCacheBeforeRendering() = runBlocking {
+        val initialSnapshot = freshSnapshot(cache)
+        assertNull(initialSnapshot.tomorrowCache)
+        val tomorrow = sampleCache(cache.date.plusDays(1))
+        val dependencies = FakeDependencies(
+            snapshot = initialSnapshot,
+            refreshResult = RefreshResult.Success(cache)
+        ).apply {
+            snapshotAfterRefresh = initialSnapshot.copy(tomorrowCache = tomorrow)
+        }
+
+        val result = worker(dependencies).doWork()
+
+        assertTrue(result is ListenableWorker.Result.Success)
+        assertEquals(2, dependencies.snapshotLoads)
+        assertEquals(0, dependencies.snapshotForCalls)
+        assertEquals(tomorrow, dependencies.rendered.single().tomorrowCache)
+    }
+
+    @Test
+    fun staleCacheRefreshReloadsSnapshotBeforeRendering() = runBlocking {
+        val stale = sampleCache(cache.date)
+        val tomorrow = sampleCache(stale.date.plusDays(1))
+        val initialSnapshot = freshSnapshot(cache)
+        val dependencies = FakeDependencies(
+            snapshot = initialSnapshot,
+            refreshResult = RefreshResult.StaleCache(
+                cache = stale,
+                cause = IOException("offline"),
+                error = PrayerError.Network
+            )
+        ).apply {
+            snapshotAfterRefresh = initialSnapshot.copy(
+                cache = stale,
+                dataState = PrayerWidgetDataState.Stale,
+                tomorrowCache = tomorrow
+            )
+        }
+
+        val result = worker(dependencies).doWork()
+
+        assertTrue(result is ListenableWorker.Result.Retry)
+        assertEquals(2, dependencies.snapshotLoads)
+        assertEquals(0, dependencies.snapshotForCalls)
+        assertEquals(stale, dependencies.rendered.single().cache)
+        assertEquals(tomorrow, dependencies.rendered.single().tomorrowCache)
+    }
+
+    @Test
+    fun snapshotReloadFailureFallsBackToRefreshResultSnapshot() = runBlocking {
+        val dependencies = FakeDependencies(
+            snapshot = freshSnapshot(cache),
+            refreshResult = RefreshResult.Success(cache)
+        ).apply {
+            snapshotReloadFailure = IOException("snapshot reload failed")
+        }
+
+        val result = worker(dependencies).doWork()
+
+        assertTrue(result is ListenableWorker.Result.Success)
+        assertEquals(2, dependencies.snapshotLoads)
+        assertEquals(1, dependencies.snapshotForCalls)
+        assertEquals(cache, dependencies.rendered.single().cache)
+    }
+
+    @Test
     fun transientStorageRetriesOnlyOnce() = runBlocking {
         val dependencies = FakeDependencies(
             refreshResult = RefreshResult.Failure(
@@ -172,6 +241,10 @@ class PrayerWidgetWorkerInstrumentedTest {
         private val refreshResult: RefreshResult = RefreshResult.Success(snapshot.cache!!)
     ) : PrayerWidgetWorkerDependencies {
         var refreshCalls = 0
+        var snapshotLoads = 0
+        var snapshotForCalls = 0
+        var snapshotAfterRefresh: PrayerWidgetSnapshot? = null
+        var snapshotReloadFailure: Exception? = null
         var cancelled = false
         var notificationSchedules = 0
         val rendered = mutableListOf<PrayerWidgetSnapshot>()
@@ -185,25 +258,45 @@ class PrayerWidgetWorkerInstrumentedTest {
             cancelled = true
         }
 
-        override suspend fun loadSnapshot(): PrayerWidgetSnapshot = snapshot
+        override suspend fun loadSnapshot(): PrayerWidgetSnapshot {
+            snapshotLoads += 1
+            if (snapshotLoads > 1) snapshotReloadFailure?.let { throw it }
+            return snapshot
+        }
 
         override suspend fun refresh(): RefreshResult {
             refreshCalls += 1
+            snapshot = snapshotAfterRefresh ?: when (val result = refreshResult) {
+                is RefreshResult.Success -> snapshot.copy(
+                    cache = result.cache,
+                    location = result.cache.location,
+                    dataState = PrayerWidgetDataState.Fresh
+                )
+                is RefreshResult.StaleCache -> snapshot.copy(
+                    cache = result.cache,
+                    location = result.cache.location,
+                    dataState = PrayerWidgetDataState.Stale
+                )
+                is RefreshResult.Failure -> snapshot
+            }
             return refreshResult
         }
 
         override fun snapshotFor(
             cache: CachedPrayerDay?,
             current: PrayerWidgetSnapshot
-        ): PrayerWidgetSnapshot = current.copy(
-            cache = cache,
-            location = cache?.location ?: current.location,
-            dataState = when {
-                cache == null -> PrayerWidgetDataState.Unavailable
-                cache.date == current.cache?.date -> PrayerWidgetDataState.Fresh
-                else -> PrayerWidgetDataState.Stale
-            }
-        )
+        ): PrayerWidgetSnapshot {
+            snapshotForCalls += 1
+            return current.copy(
+                cache = cache,
+                location = cache?.location ?: current.location,
+                dataState = when {
+                    cache == null -> PrayerWidgetDataState.Unavailable
+                    cache.date == current.cache?.date -> PrayerWidgetDataState.Fresh
+                    else -> PrayerWidgetDataState.Stale
+                }
+            )
+        }
 
         override suspend fun render(snapshot: PrayerWidgetSnapshot) {
             rendered += snapshot
