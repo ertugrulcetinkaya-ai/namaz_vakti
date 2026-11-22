@@ -5,6 +5,7 @@ Namaz Vakti hesap oluşturmaz ve analitik kullanmaz.
 ## Ağ istekleri
 
 - Diyanet verisine erişen üçüncü taraf ara servise yalnızca seçili ilçe kimliği gönderilir.
+- Diyanet yansıması için `raw.githubusercontent.com` adresine yalnızca seçili ilçe kimliği gönderilir. Bu isteğe GitHub'ın [Gizlilik Bildirimi](https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement) uygulanır.
 - Yedek hesaplama gerektiğinde AlAdhan API'ye şehir, ülke ve il merkezi koordinatları gönderilir.
 
 ## Cihazda saklanan veriler
