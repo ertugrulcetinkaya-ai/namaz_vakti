@@ -25,7 +25,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.namazvakti"
+        applicationId = "io.github.ertugrulcetinkaya.namazvakti"
         minSdk = 26
         targetSdk = 36
         versionCode = betaVersionCode

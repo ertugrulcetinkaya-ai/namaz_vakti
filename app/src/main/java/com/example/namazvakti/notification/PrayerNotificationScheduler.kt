@@ -94,7 +94,7 @@ object PrayerNotificationScheduler {
 
 /** Keeps notification alarms independent from the widget alarm and its PendingIntent. */
 internal object PrayerNotificationAlarm {
-    const val ACTION = "com.example.namazvakti.action.PRAYER_NOTIFICATION"
+    const val ACTION = "io.github.ertugrulcetinkaya.namazvakti.action.PRAYER_NOTIFICATION"
     const val EXTRA_PRAYER = "notification_prayer"
     const val EXTRA_TYPE = "notification_type"
     const val EXTRA_TRIGGER_AT = "notification_trigger_at"
