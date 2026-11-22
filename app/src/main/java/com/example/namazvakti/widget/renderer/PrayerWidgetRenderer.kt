@@ -79,7 +79,7 @@ class PrayerWidgetRenderer {
         )
 
         val staleSuffix = if (dataState == PrayerWidgetDataState.Stale) {
-            " • ${context.getString(R.string.widget_stale_label)}"
+            context.getString(R.string.widget_stale_label)
         } else ""
         val hijriText = cache?.displayHijriText()?.trim().orEmpty()
         val showProvinceCenterNote = sizeClass == PrayerWidgetSizeClass.LARGE &&
@@ -105,13 +105,21 @@ class PrayerWidgetRenderer {
                     reducedTextSize = reducedTextSize
                 )
             }
-            PrayerWidgetSizeClass.MEDIUM -> if (compactDetails) {
-                location.displayCity + staleSuffix
-            } else {
-                listOf(location.displayCity, hijriText)
-                    .filter(String::isNotBlank).joinToString(" • ") + staleSuffix
-            }
-            PrayerWidgetSizeClass.SMALL -> location.displayCity
+            PrayerWidgetSizeClass.MEDIUM -> mediumCityText(
+                context = context,
+                location = location,
+                hijriText = hijriText,
+                staleSuffix = staleSuffix,
+                widthDp = widthDp,
+                compactDetails = compactDetails,
+                reducedTextSize = reducedTextSize
+            )
+            PrayerWidgetSizeClass.SMALL -> measuredCityText(
+                context = context,
+                candidates = listOf(listOf(location.displayName), listOf(location.displayCity)),
+                widthDp = widthDp,
+                textSizeSp = LARGE_CITY_TEXT_SIZE_SP
+            )
         }
         views.setTextViewText(R.id.prayer_widget_city, cityText)
         if (reducedTextSize) {
@@ -251,7 +259,7 @@ class PrayerWidgetRenderer {
         }
         views.setContentDescription(
             android.R.id.background,
-            context.getString(R.string.widget_content_description, location.displayCity, spoken.trim())
+            context.getString(R.string.widget_content_description, location.displayName, spoken.trim())
         )
         return views
     }
@@ -331,6 +339,44 @@ class PrayerWidgetRenderer {
             return listOf(city, hijriText).filter(String::isNotBlank).joinToString(" • ")
         }
         val textSizeSp = if (reducedTextSize) COMPACT_TEXT_SIZE_SP else LARGE_CITY_TEXT_SIZE_SP
+        val candidates = listOf(
+            listOf(city, hijriText, provinceCenterNote),
+            listOf(city, provinceCenterNote),
+            listOf(location.displayCity, provinceCenterNote)
+        )
+        return measuredCityText(context, candidates, widthDp, textSizeSp)
+    }
+
+    private fun mediumCityText(
+        context: Context,
+        location: PrayerLocation,
+        hijriText: String,
+        staleSuffix: String,
+        widthDp: Int?,
+        compactDetails: Boolean,
+        reducedTextSize: Boolean
+    ): String {
+        val optionalDetails = if (compactDetails) emptyList() else listOf(hijriText)
+        val candidates = listOf(
+            listOf(location.displayName) + optionalDetails + staleSuffix,
+            listOf(location.displayName, staleSuffix),
+            listOf(location.displayCity) + optionalDetails + staleSuffix,
+            listOf(location.displayCity, staleSuffix)
+        )
+        val textSizeSp = if (reducedTextSize) COMPACT_TEXT_SIZE_SP else LARGE_CITY_TEXT_SIZE_SP
+        return measuredCityText(context, candidates, widthDp, textSizeSp)
+    }
+
+    private fun measuredCityText(
+        context: Context,
+        candidates: List<List<String>>,
+        widthDp: Int?,
+        textSizeSp: Float
+    ): String {
+        val candidateTexts = candidates
+            .map { it.filter(String::isNotBlank).joinToString(" • ") }
+            .distinct()
+        if (widthDp == null) return candidateTexts.first()
         val paint = TextPaint().apply {
             textSize = TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_SP,
@@ -343,15 +389,8 @@ class PrayerWidgetRenderer {
             widthDp.toFloat(),
             context.resources.displayMetrics
         ) - context.resources.getDimension(R.dimen.widget_padding_horizontal) * 2
-        val candidates = listOf(
-            listOf(city, hijriText, provinceCenterNote),
-            listOf(city, provinceCenterNote),
-            listOf(location.displayCity, provinceCenterNote)
-        )
-        return candidates
-            .map { it.filter(String::isNotBlank).joinToString(" • ") }
-            .firstOrNull { paint.measureText(it) <= availableWidth }
-            ?: candidates.last().joinToString(" • ")
+        return candidateTexts.firstOrNull { paint.measureText(it) <= availableWidth }
+            ?: candidateTexts.last()
     }
 
     private fun religiousText(context: Context, events: List<DiyanetReligiousDay>): String? {

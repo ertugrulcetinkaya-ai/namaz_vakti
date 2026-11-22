@@ -79,7 +79,7 @@ object PrayerNotificationPlanner {
                         type = type,
                         triggerAt = triggerAt,
                         prayerTime = prayerTime,
-                        displayCity = cache.location.displayCity,
+                        displayCity = cache.location.displayName,
                         locationCity = cache.location.cacheKey,
                         locationCountry = cache.location.country,
                         leadMinutes = settings.leadMinutes

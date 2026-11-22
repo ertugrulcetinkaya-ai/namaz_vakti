@@ -118,7 +118,7 @@ class PrayerNotificationReceiver : BroadcastReceiver() {
                 type = event.type,
                 leadMinutes = settings.leadMinutes,
                 prayerTime = currentPrayerTime,
-                displayCity = cache.location.displayCity
+                displayCity = cache.location.displayName
             )
             settingsStore.recordShownEvent(event)
         }

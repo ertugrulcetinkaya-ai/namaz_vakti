@@ -119,6 +119,7 @@ class PrayerNotificationPlannerTest {
         )
 
         assertEquals(districtLocation.cacheKey, event?.locationCity)
+        assertEquals(districtLocation.displayName, event?.displayCity)
         assertFalse(districtLocation.cacheKey == provinceLocation.cacheKey)
     }
 
