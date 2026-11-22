@@ -14,7 +14,7 @@ import com.example.namazvakti.widget.renderer.PrayerWidgetRenderer
 
 class PrayerWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
-        launchAsync(TAG, "widget update failed") {
+        launchAsync(context, TAG, "widget update failed") {
             val appContext = context.applicationContext
             val snapshot = PrayerWidgetSnapshotLoader.load(appContext)
             updateWidgets(appContext, manager, ids, snapshot)
@@ -33,7 +33,7 @@ class PrayerWidgetProvider : AppWidgetProvider() {
         newOptions: Bundle
     ) {
         super.onAppWidgetOptionsChanged(context, manager, appWidgetId, newOptions)
-        launchAsync(TAG, "widget resize update failed") {
+        launchAsync(context, TAG, "widget resize update failed") {
             val appContext = context.applicationContext
             updateWidgets(
                 appContext,
@@ -46,7 +46,7 @@ class PrayerWidgetProvider : AppWidgetProvider() {
 
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
-        launchAsync(TAG, "widget enable setup failed") {
+        launchAsync(context, TAG, "widget enable setup failed") {
             PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(context.applicationContext)
             PrayerWidgetScheduler.enqueueRefresh(context.applicationContext)
         }
@@ -54,7 +54,7 @@ class PrayerWidgetProvider : AppWidgetProvider() {
 
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
-        launchAsync(TAG, "widget disable cleanup failed") {
+        launchAsync(context, TAG, "widget disable cleanup failed") {
             PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(context.applicationContext)
             PrayerWidgetScheduler.enqueueRefresh(context.applicationContext)
         }

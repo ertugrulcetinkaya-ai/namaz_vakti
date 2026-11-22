@@ -3,7 +3,6 @@ package com.example.namazvakti.notification
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 import androidx.core.app.NotificationManagerCompat
 import com.example.namazvakti.app.appContainer
 import com.example.namazvakti.domain.model.PrayerNotificationPrayer
@@ -12,28 +11,17 @@ import com.example.namazvakti.domain.policy.PrayerNotificationDeliveryPolicy
 import com.example.namazvakti.domain.policy.PrayerNotificationEventId
 import com.example.namazvakti.domain.policy.timeIn
 import com.example.namazvakti.widget.alarm.PrayerWidgetScheduler
+import com.example.namazvakti.widget.launchAsync
 import java.time.Instant
 import java.time.LocalDate
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
 
 class PrayerNotificationReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != PrayerNotificationAlarm.ACTION) return
-        val pendingResult = goAsync()
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                handle(context.applicationContext, intent)
-            } catch (exception: CancellationException) {
-                throw exception
-            } catch (exception: Exception) {
-                Log.e(TAG, "notification alarm handling failed", exception)
-            } finally {
-                pendingResult.finish()
-            }
+        val appContext = context.applicationContext
+        launchAsync(appContext, TAG, "notification alarm handling failed") {
+            handle(appContext, intent)
         }
     }
 

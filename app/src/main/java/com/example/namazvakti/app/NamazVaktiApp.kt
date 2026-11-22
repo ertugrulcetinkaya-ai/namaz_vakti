@@ -11,12 +11,16 @@ import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.PrayerTimeProvider
 import com.example.namazvakti.domain.policy.PrayerCachePolicy
 import com.example.namazvakti.domain.policy.PrayerCacheRetentionPolicy
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 class NamazVaktiApp : Application() {
     val container: AppContainer by lazy { AppContainer(this) }
 }
 
 class AppContainer(application: Application) {
+    val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     val settings = PrayerCalculationSettings()
     val timeProvider = PrayerTimeProvider()
     val cachePolicy = PrayerCachePolicy()
