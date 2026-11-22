@@ -205,10 +205,18 @@ class PrayerWidgetRenderer {
         } else {
             bottomInfoText(context, ramadanText, religiousText)
         }
-        views.setTextViewText(R.id.prayer_widget_ramadan, bottomInfo.orEmpty())
+        val showProvinceCenterNote = sizeClass == PrayerWidgetSizeClass.LARGE &&
+            cache?.usesProvinceCenterFallback == true &&
+            !compactDetails
+        val displayedBottomInfo = if (showProvinceCenterNote) {
+            appendProvinceCenterNote(context, bottomInfo)
+        } else {
+            bottomInfo
+        }
+        views.setTextViewText(R.id.prayer_widget_ramadan, displayedBottomInfo.orEmpty())
         views.setViewVisibility(
             R.id.prayer_widget_ramadan,
-            if (sizeClass == PrayerWidgetSizeClass.LARGE && bottomInfo != null) View.VISIBLE else View.GONE
+            if (sizeClass == PrayerWidgetSizeClass.LARGE && displayedBottomInfo != null) View.VISIBLE else View.GONE
         )
 
         val spoken = when {
@@ -299,6 +307,25 @@ class PrayerWidgetRenderer {
             context.resources.displayMetrics
         )
         return if (paint.measureText(combined) <= availableWidth) combined else ramadanText
+    }
+
+    private fun appendProvinceCenterNote(context: Context, existing: String?): String {
+        val note = context.getString(R.string.widget_province_center_short)
+        if (existing == null) return note
+        val combined = "$existing • $note"
+        val paint = TextPaint().apply {
+            textSize = TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_SP,
+                18f,
+                context.resources.displayMetrics
+            )
+        }
+        val availableWidth = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            204f,
+            context.resources.displayMetrics
+        )
+        return if (paint.measureText(combined) <= availableWidth) combined else existing
     }
 
     private fun religiousText(context: Context, events: List<DiyanetReligiousDay>): String? {

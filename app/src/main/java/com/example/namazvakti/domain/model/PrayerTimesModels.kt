@@ -160,6 +160,9 @@ data class CachedPrayerDay(
     val hijriMonth: Int? = null,
     val hijriYear: Int? = null
 ) {
+    val usesProvinceCenterFallback: Boolean
+        get() = source == PrayerDataSource.ALADHAN && location.diyanetDistrictId != null
+
     fun matches(
         date: LocalDate,
         location: PrayerLocation,

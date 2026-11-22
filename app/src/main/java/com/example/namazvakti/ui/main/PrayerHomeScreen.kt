@@ -564,6 +564,13 @@ private fun CacheFooter(state: PrayerUiState.Ready, cache: CachedPrayerDay) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+        if (cache.usesProvinceCenterFallback) {
+            Text(
+                text = stringResource(R.string.province_center_calculation_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.tertiary
+            )
+        }
     }
 }
 

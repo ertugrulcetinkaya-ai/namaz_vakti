@@ -67,6 +67,9 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.max
 
+internal val MonthlyUiState.hasProvinceCenterFallback: Boolean
+    get() = days.any { it.usesProvinceCenterFallback }
+
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun MonthlyPrayerScreen(
@@ -160,6 +163,9 @@ fun MonthlyPrayerScreen(
             }
             if (state.source == com.example.namazvakti.domain.model.MonthDataSource.PARTIAL) {
                 item { CalendarNotice(stringResource(R.string.monthly_partial)) }
+            }
+            if (state.hasProvinceCenterFallback) {
+                item { CalendarNotice(stringResource(R.string.province_center_calculation_note)) }
             }
             if (state.error != null && state.days.isEmpty()) {
                 item { CalendarRetry(onRetry, showFailureMessage = true) }

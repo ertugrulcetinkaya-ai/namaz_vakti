@@ -115,6 +115,8 @@
     <string name="prayer_source_diyanet">Diyanet İşleri Başkanlığı</string>
     <string name="cache_metadata_diyanet">%1$s • %2$s</string>
     <string name="prayer_source_aladhan">AlAdhan</string>
+    <string name="province_center_calculation_note">İl merkezi koordinatlarına göre hesaplandı</string>
+    <string name="widget_province_center_short">İl merkezi</string>
     <string name="prayer_source_legacy_cache">Eski yerel önbellek</string>
     <string name="active_prayer">Aktif vakit</string>
     <string name="city_selection_title">Şehir seçin</string>
