@@ -28,6 +28,12 @@
     <string name="prayer_asr">İkindi</string>
     <string name="prayer_maghrib">Akşam</string>
     <string name="prayer_isha">Yatsı</string>
+    <string name="prayer_imsak_short">İms</string>
+    <string name="prayer_sunrise_short">Gün</string>
+    <string name="prayer_dhuhr_short">Öğ</string>
+    <string name="prayer_asr_short">İki</string>
+    <string name="prayer_maghrib_short">Akş</string>
+    <string name="prayer_isha_short">Yat</string>
     <string name="prayer_imsak_reminder">İmsağa</string>
     <string name="prayer_dhuhr_reminder">Öğleye</string>
     <string name="prayer_asr_reminder">İkindiye</string>

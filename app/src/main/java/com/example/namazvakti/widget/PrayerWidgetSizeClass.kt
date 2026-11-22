@@ -6,9 +6,9 @@ enum class PrayerWidgetSizeClass {
     LARGE;
 
     companion object {
-        // On the S24 Ultra, a 2x1 widget is ~159dp wide, a wide one-row widget
-        // is ~515x126dp, and two rows are at least ~278dp high.
-        const val WIDE_MIN_WIDTH_DP = 400
+        // A 2x1 widget is ~159dp on the S24 Ultra, while three launcher cells can
+        // be about 280dp on Pixel; keep the multi-column layouts reachable there.
+        const val WIDE_MIN_WIDTH_DP = 280
         const val LARGE_MIN_HEIGHT_DP = 200
 
         fun from(widthDp: Int, heightDp: Int): PrayerWidgetSizeClass = when {
