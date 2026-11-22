@@ -40,7 +40,7 @@ class PrayerWidgetAlarmReceiver : BroadcastReceiver() {
 
     companion object {
         const val ACTION_PRAYER_BOUNDARY =
-            "com.example.namazvakti.action.PRAYER_BOUNDARY"
+            "io.github.ertugrulcetinkaya.namazvakti.action.PRAYER_BOUNDARY"
         private const val TAG = "NamazWidget"
     }
 }
