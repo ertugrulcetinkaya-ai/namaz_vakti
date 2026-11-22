@@ -168,28 +168,88 @@ class PrayerWidgetRendererInstrumentedTest {
     }
 
     @Test
-    fun mediumAndLargeLayoutsRenderWithoutClippingAt280DpWidth() {
-        val layouts = listOf(
-            PrayerWidgetSizeClass.MEDIUM to (280 to 126),
-            PrayerWidgetSizeClass.LARGE to (280 to 278)
-        )
-        for ((size, dimensionsDp) in layouts) {
-            for (state in listOf(
-                PrayerWidgetDataState.Fresh,
-                PrayerWidgetDataState.Stale,
-                PrayerWidgetDataState.Unavailable
-            )) {
+    fun prayerLabelMeasurementShowsShortLabelsAreOnlyNeededBelow320Dp() {
+        for (size in listOf(PrayerWidgetSizeClass.MEDIUM, PrayerWidgetSizeClass.LARGE)) {
+            for (widthDp in listOf(280, 320, 360, 380, 515)) {
+                val heightDp = if (size == PrayerWidgetSizeClass.MEDIUM) 126 else 278
                 val rendered = render(
-                    cache = if (state == PrayerWidgetDataState.Unavailable) null else cache(),
-                    state = state,
+                    cache = cache(),
+                    state = PrayerWidgetDataState.Fresh,
                     size = size,
-                    dimensionsDp = dimensionsDp
+                    dimensionsDp = widthDp to heightDp,
+                    checkTextClipping = false
+                )
+                if (widthDp == 280) {
+                    val fullLabels = listOf("İmsak", "Güneş", "►Öğle", "İkindi", "Akşam", "Yatsı")
+                    val times = listOf("04:12", "05:49", "13:08", "17:02", "20:21", "22:01")
+                    fullLabels.zip(times).forEachIndexed { index, (label, time) ->
+                        rendered.root.findViewById<TextView>(prayerItemId(index + 1)).text = "$label $time"
+                    }
+                    measureAndLayout(rendered.root, context, widthDp to heightDp)
+                }
+                val clippedItems = (1..6).mapNotNull { index ->
+                    val item = rendered.root.findViewById<TextView>(prayerItemId(index))
+                    item.text.toString().takeIf { item.layout.getEllipsisCount(0) > 0 }
+                }
+                if (widthDp == 280) {
+                    assertEquals(
+                        setOf("Güneş 05:49", "►Öğle 13:08", "Akşam 20:21"),
+                        clippedItems.toSet()
+                    )
+                } else {
+                    assertTrue("Full prayer labels clip at ${widthDp}dp for $size: $clippedItems", clippedItems.isEmpty())
+                }
+            }
+        }
+    }
+
+    @Test
+    fun mediumAndLargeLayoutsRenderWithoutEllipsisAtLauncherWidthsAndLargeKeepsCountdown() {
+        val widthsDp = listOf(280, 320, 360, 380, 515)
+        val fullLabels = listOf(
+            R.string.prayer_imsak,
+            R.string.prayer_sunrise,
+            R.string.prayer_dhuhr,
+            R.string.prayer_asr,
+            R.string.prayer_maghrib,
+            R.string.prayer_isha
+        ).map { context.getString(it) }
+        val shortLabels = listOf(
+            R.string.prayer_imsak_short,
+            R.string.prayer_sunrise_short,
+            R.string.prayer_dhuhr_short,
+            R.string.prayer_asr_short,
+            R.string.prayer_maghrib_short,
+            R.string.prayer_isha_short
+        ).map { context.getString(it) }
+        val times = listOf("04:12", "05:49", "13:08", "17:02", "20:21", "22:01")
+
+        for (size in listOf(PrayerWidgetSizeClass.MEDIUM, PrayerWidgetSizeClass.LARGE)) {
+            for (widthDp in widthsDp) {
+                val heightDp = if (size == PrayerWidgetSizeClass.MEDIUM) 126 else 278
+                val rendered = render(
+                    cache = cache(),
+                    state = PrayerWidgetDataState.Fresh,
+                    size = size,
+                    dimensionsDp = widthDp to heightDp
+                )
+                val labels = if (widthDp < 320) shortLabels else fullLabels
+                val expectedTexts = labels.zip(times).mapIndexed { index, (label, time) ->
+                    "${if (index == 2) "►" else ""}$label $time"
+                }
+                assertEquals(
+                    expectedTexts,
+                    (1..6).map { index -> rendered.root.findViewById<TextView>(prayerItemId(index)).text.toString() }
+                )
+                assertEquals(
+                    context.getColor(R.color.widget_active_text),
+                    rendered.root.findViewById<TextView>(prayerItemId(3)).currentTextColor
                 )
                 assertTrue(bitmapHasVisiblePixels(rendered.bitmap))
-                if (state == PrayerWidgetDataState.Fresh) {
+                if (size == PrayerWidgetSizeClass.LARGE) {
                     assertEquals(
-                        context.getColor(R.color.widget_active_text),
-                        rendered.root.findViewById<TextView>(R.id.prayer_widget_item_3).currentTextColor
+                        View.VISIBLE,
+                        rendered.root.findViewById<View>(R.id.prayer_widget_chronometer).visibility
                     )
                 }
             }
@@ -268,7 +328,8 @@ class PrayerWidgetRendererInstrumentedTest {
         now: ZonedDateTime = this.now,
         ramadanRange: com.example.namazvakti.domain.model.RamadanRange? = null,
         religiousDays: List<DiyanetReligiousDay> = emptyList(),
-        dimensionsDp: Pair<Int, Int> = size.dimensionsDp()
+        dimensionsDp: Pair<Int, Int> = size.dimensionsDp(),
+        checkTextClipping: Boolean = true
     ): Rendered {
         val snapshot = com.example.namazvakti.widget.PrayerWidgetSnapshot(
             cache = cache,
@@ -292,16 +353,10 @@ class PrayerWidgetRendererInstrumentedTest {
         } else if (size == PrayerWidgetSizeClass.LARGE) {
             chronometer.text = "5:08:14 kaldı"
         }
-        val density = renderContext.resources.displayMetrics.density
-        val (widthDp, heightDp) = dimensionsDp
-        val width = (widthDp * density).toInt()
-        val height = (heightDp * density).toInt()
-        root.measure(
-            View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
-            View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY)
-        )
-        root.layout(0, 0, width, height)
-        assertNoTextClipping(root)
+        measureAndLayout(root, renderContext, dimensionsDp)
+        val width = (dimensionsDp.first * renderContext.resources.displayMetrics.density).toInt()
+        val height = (dimensionsDp.second * renderContext.resources.displayMetrics.density).toInt()
+        if (checkTextClipping) assertNoTextClipping(root)
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         root.draw(Canvas(bitmap))
         return Rendered(root, bitmap)
@@ -312,6 +367,17 @@ class PrayerWidgetRendererInstrumentedTest {
         val nightFlag = if (nightMode) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO
         config.uiMode = (config.uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or nightFlag
         return createConfigurationContext(config)
+    }
+
+    private fun measureAndLayout(root: View, renderContext: Context, dimensionsDp: Pair<Int, Int>) {
+        val density = renderContext.resources.displayMetrics.density
+        val width = (dimensionsDp.first * density).toInt()
+        val height = (dimensionsDp.second * density).toInt()
+        root.measure(
+            View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY)
+        )
+        root.layout(0, 0, width, height)
     }
 
     private fun saveBitmap(bitmap: Bitmap, name: String) {
@@ -383,6 +449,16 @@ class PrayerWidgetRendererInstrumentedTest {
     )
 
     private fun View.text(id: Int): String = findViewById<TextView>(id).text.toString()
+
+    private fun prayerItemId(index: Int): Int = when (index) {
+        1 -> R.id.prayer_widget_item_1
+        2 -> R.id.prayer_widget_item_2
+        3 -> R.id.prayer_widget_item_3
+        4 -> R.id.prayer_widget_item_4
+        5 -> R.id.prayer_widget_item_5
+        6 -> R.id.prayer_widget_item_6
+        else -> error("Unsupported prayer item index: $index")
+    }
 
     private fun bitmapHasVisiblePixels(bitmap: Bitmap): Boolean {
         val pixels = IntArray(bitmap.width * bitmap.height)

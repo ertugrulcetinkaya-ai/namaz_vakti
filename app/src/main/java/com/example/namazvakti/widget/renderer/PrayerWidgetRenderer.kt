@@ -12,6 +12,7 @@ import com.example.namazvakti.domain.model.CachedPrayerDay
 import com.example.namazvakti.domain.model.DiyanetReligiousDay
 import com.example.namazvakti.domain.model.displayHijriText
 import com.example.namazvakti.domain.model.PrayerLocation
+import com.example.namazvakti.domain.model.PrayerTimeName
 import com.example.namazvakti.domain.model.PrayerTimes
 import com.example.namazvakti.domain.model.RamadanRange
 import com.example.namazvakti.domain.policy.RamadanCountdownCalculator
@@ -63,6 +64,9 @@ class PrayerWidgetRenderer {
         val compactDetails = sizeClass != PrayerWidgetSizeClass.SMALL &&
             widthDp != null &&
             widthDp < COMPACT_DETAILS_MIN_WIDTH_DP
+        val reducedTextSize = sizeClass != PrayerWidgetSizeClass.SMALL &&
+            widthDp != null &&
+            widthDp < REDUCED_TEXT_SIZE_MIN_WIDTH_DP
         val localNow = now.withZoneSameInstant(cache?.timezone ?: location.timezone)
         views.setOnClickPendingIntent(
             android.R.id.background,
@@ -93,6 +97,13 @@ class PrayerWidgetRenderer {
             PrayerWidgetSizeClass.SMALL -> location.displayCity
         }
         views.setTextViewText(R.id.prayer_widget_city, cityText)
+        if (reducedTextSize) {
+            views.setTextViewTextSize(
+                R.id.prayer_widget_city,
+                TypedValue.COMPLEX_UNIT_SP,
+                COMPACT_TEXT_SIZE_SP
+            )
+        }
         views.setTextViewText(R.id.prayer_widget_date, "")
 
         val activeItems = cache?.prayerTimes?.toHighlightedDisplayItems(localNow.toLocalTime())
@@ -102,17 +113,22 @@ class PrayerWidgetRenderer {
         } else {
             activeItems.forEachIndexed { index, item ->
                 val viewId = PRAYER_ITEM_IDS[index]
+                val label = if (compactDetails) {
+                    context.getString(PRAYER_SHORT_LABELS.getValue(PRAYER_NAMES_IN_DISPLAY_ORDER[index]))
+                } else {
+                    item.label
+                }
                 views.setTextViewText(
                     viewId,
                     buildString {
-                        if (item.highlighted && !compactDetails) append('►')
-                        append(if (compactDetails) item.label.toCompactWidgetLabel() else item.label)
+                        if (item.highlighted) append('►')
+                        append(label)
                         append(' ')
                         append(item.time.format(PrayerTimes.TIME_FORMATTER))
                     }
                 )
-                if (compactDetails) {
-                    views.setTextViewTextSize(viewId, TypedValue.COMPLEX_UNIT_SP, COMPACT_PRAYER_TEXT_SIZE_SP)
+                if (reducedTextSize) {
+                    views.setTextViewTextSize(viewId, TypedValue.COMPLEX_UNIT_SP, COMPACT_TEXT_SIZE_SP)
                 }
                 views.setTextColor(
                     viewId,
@@ -145,10 +161,21 @@ class PrayerWidgetRenderer {
             } else ""
         )
         views.setTextColor(R.id.prayer_widget_next_prayer, context.getColor(R.color.widget_active_text))
+        if (reducedTextSize) {
+            views.setTextViewTextSize(
+                R.id.prayer_widget_next_prayer,
+                TypedValue.COMPLEX_UNIT_SP,
+                COMPACT_TEXT_SIZE_SP
+            )
+            views.setTextViewTextSize(
+                R.id.prayer_widget_chronometer,
+                TypedValue.COMPLEX_UNIT_SP,
+                COMPACT_TEXT_SIZE_SP
+            )
+        }
         val showCountdown = countdown != null &&
             dataState == PrayerWidgetDataState.Fresh &&
-            sizeClass != PrayerWidgetSizeClass.MEDIUM &&
-            !compactDetails
+            sizeClass != PrayerWidgetSizeClass.MEDIUM
         val showSmallStaleLabel = sizeClass == PrayerWidgetSizeClass.SMALL &&
             dataState == PrayerWidgetDataState.Stale
         if (showCountdown) {
@@ -307,8 +334,28 @@ class PrayerWidgetRenderer {
     }
 
     private companion object {
-        const val COMPACT_DETAILS_MIN_WIDTH_DP = 400
-        const val COMPACT_PRAYER_TEXT_SIZE_SP = 16f
+        // Applied RemoteViews fit full 16sp labels at 320/360/380dp (and 22sp at 515dp);
+        // at 280dp, Güneş, active Öğle, and Akşam clip, so short labels are only needed below 320dp.
+        const val COMPACT_DETAILS_MIN_WIDTH_DP = 320
+        const val REDUCED_TEXT_SIZE_MIN_WIDTH_DP = 400
+        const val COMPACT_TEXT_SIZE_SP = 16f
+
+        val PRAYER_NAMES_IN_DISPLAY_ORDER = listOf(
+            PrayerTimeName.IMSAK,
+            PrayerTimeName.SUNRISE,
+            PrayerTimeName.DHUHR,
+            PrayerTimeName.ASR,
+            PrayerTimeName.MAGHRIB,
+            PrayerTimeName.ISHA
+        )
+        val PRAYER_SHORT_LABELS = mapOf(
+            PrayerTimeName.IMSAK to R.string.prayer_imsak_short,
+            PrayerTimeName.SUNRISE to R.string.prayer_sunrise_short,
+            PrayerTimeName.DHUHR to R.string.prayer_dhuhr_short,
+            PrayerTimeName.ASR to R.string.prayer_asr_short,
+            PrayerTimeName.MAGHRIB to R.string.prayer_maghrib_short,
+            PrayerTimeName.ISHA to R.string.prayer_isha_short
+        )
 
         val PRAYER_ITEM_IDS = listOf(
             R.id.prayer_widget_item_1,
@@ -318,15 +365,5 @@ class PrayerWidgetRenderer {
             R.id.prayer_widget_item_5,
             R.id.prayer_widget_item_6
         )
-    }
-
-    private fun String.toCompactWidgetLabel(): String = when (this) {
-        "İmsak" -> "İms"
-        "Güneş" -> "Gün"
-        "Öğle" -> "Öğle"
-        "İkindi" -> "İki"
-        "Akşam" -> "Akş"
-        "Yatsı" -> "Yat"
-        else -> this
     }
 }
