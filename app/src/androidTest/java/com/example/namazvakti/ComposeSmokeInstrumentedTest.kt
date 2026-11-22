@@ -369,12 +369,14 @@ class ComposeSmokeInstrumentedTest {
             dismissSystemDialogsRule.dismissSystemDialogs()
             val root = instrumentation.uiAutomation.rootInActiveWindow
             root?.findNode(matches)?.let { return it }
-            // Screens such as the imsakiye contain a horizontal table scroller before the vertical list, so
-            // prefer an explicit downward scroll on any scrollable node and only then fall back to "forward".
-            val scrollables = root?.collectScrollables().orEmpty()
-            val scrolled = scrollables.any {
-                it.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_DOWN.id)
-            } || scrollables.any { it.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) }
+            // Keep the original behavior first: scroll the first scrollable node forward (the notification
+            // sheet relies on this). Only when it cannot move any more, scroll another node down; the imsakiye
+            // screen has a horizontal table scroller before its vertical day list.
+            val scrolled = root?.findNode { it.isScrollable }
+                ?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) == true ||
+                root?.collectScrollables().orEmpty().any {
+                    it.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_DOWN.id)
+                }
             if (!scrolled) break
             SystemClock.sleep(POLL_MILLIS)
         } while (SystemClock.uptimeMillis() < deadline)
