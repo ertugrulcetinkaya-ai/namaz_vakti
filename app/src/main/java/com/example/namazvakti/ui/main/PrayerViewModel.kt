@@ -1,6 +1,7 @@
 package com.example.namazvakti.ui.main
 
 import android.app.Application
+import android.util.Log
 import com.example.namazvakti.app.NamazVaktiApp
 import com.example.namazvakti.data.local.PrayerPreferences
 import com.example.namazvakti.data.local.PrayerNotificationSettingsSource
@@ -62,7 +63,9 @@ class PrayerViewModel @JvmOverloads constructor(
     val imsakiyeState: StateFlow<ImsakiyeUiState> = _imsakiyeState.asStateFlow()
     private val _ramadanRange = MutableStateFlow<RamadanRange?>(null)
     val ramadanRange: StateFlow<RamadanRange?> = _ramadanRange.asStateFlow()
-    private var actionJob: Job? = null
+    private var refreshJob: Job? = null
+    private var settingsJob: Job? = null
+    private var locationJob: Job? = null
     private var monthJob: Job? = null
     private var imsakiyeJob: Job? = null
     private var rangeJob: Job? = null
@@ -75,86 +78,105 @@ class PrayerViewModel @JvmOverloads constructor(
 
     fun load(): Job {
         loadRamadanRange()
-        return launchLatest {
-        try {
-            val snapshot = withContext(ioDispatcher) {
-                val location = store.readLocation()
-                val cache = store.readCache()
-                Triple(
-                    location,
-                    cache,
-                    cachePolicy.isFresh(cache, location, settings, timeProvider.now())
-                )
-            }
-            val tomorrowCache = readTomorrowCache(
-                snapshot.first,
-                timeProvider.today(snapshot.first.timezone)
-            )
-            _notificationSettings.value = withContext(ioDispatcher) {
-                notificationSettingsStore.read()
-            }
-            scheduler.scheduleNotifications()
-            _state.value = PrayerUiState.Ready(
-                location = snapshot.first,
-                freshness = if (snapshot.third) Freshness.Fresh else Freshness.Stale,
-                cache = snapshot.second,
-                tomorrowCache = tomorrowCache
-            )
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            _state.value = PrayerUiState.Error(null, classifyPrayerStorageError(e))
-        }
-        }
-    }
-
-    fun refresh() = launchLatest { refreshInternal() }
-
-    fun updateNotificationSettings(settings: PrayerNotificationSettings) = launchLatest {
-        try {
-            withContext(ioDispatcher) { notificationSettingsStore.save(settings) }
-            _notificationSettings.value = settings
-            _notificationSettingsError.value = false
-            scheduler.scheduleNotifications()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (_: Exception) {
-            _notificationSettingsError.value = true
-        }
-    }
-
-    fun selectCity(option: PrayerLocationConfig.CityOption) = selectDistrict(option, null)
-
-    fun selectDistrict(option: PrayerLocationConfig.CityOption, districtId: String?) = launchLatest {
-        try {
-            val province = DiyanetDistricts.forCity(option.city, option.country)
-            val district = districtId?.let { id ->
-                DiyanetDistricts.districts.firstOrNull {
-                    it.id == id && it.provinceId == province?.id
+        return launchRefresh {
+            try {
+                val snapshot = withContext(ioDispatcher) {
+                    val location = store.readLocation()
+                    val cache = store.readCache()
+                    Triple(
+                        location,
+                        cache,
+                        cachePolicy.isFresh(cache, location, settings, timeProvider.now())
+                    )
                 }
-            }?.takeUnless { it.id == province?.centralDistrictId }
-            val location = PrayerLocation(
-                city = option.city,
-                country = option.country,
-                displayCity = option.displayCity,
-                latitude = option.latitude,
-                longitude = option.longitude,
-                diyanetDistrictId = district?.id,
-                districtName = district?.name
-            )
-            withContext(ioDispatcher) {
-                store.saveLocation(location)
+                val tomorrowCache = readTomorrowCache(
+                    snapshot.first,
+                    timeProvider.today(snapshot.first.timezone)
+                )
+                _notificationSettings.value = withContext(ioDispatcher) {
+                    notificationSettingsStore.read()
+                }
+                _state.value = PrayerUiState.Ready(
+                    location = snapshot.first,
+                    freshness = if (snapshot.third) Freshness.Fresh else Freshness.Stale,
+                    cache = snapshot.second,
+                    tomorrowCache = tomorrowCache
+                )
+                runSideEffect("Unable to schedule notifications after loading") {
+                    scheduler.scheduleNotifications()
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.value = PrayerUiState.Error(null, classifyPrayerStorageError(e))
             }
-            scheduler.scheduleNotifications()
-            refreshInternal()
-            requestedMonth?.let(::loadMonth)
-            if (imsakiyeRequested) loadImsakiye()
-            loadRamadanRange()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            _state.value = PrayerUiState.Error(null, classifyPrayerStorageError(e))
         }
+    }
+
+    fun refresh() = launchRefresh {
+        val activeLocationJob = locationJob?.takeIf { it.isActive }
+        if (activeLocationJob != null) {
+            // District selection owns the refresh and dependent loads; wait for them to finish.
+            activeLocationJob.join()
+        } else {
+            refreshInternal()
+        }
+    }
+
+    fun updateNotificationSettings(settings: PrayerNotificationSettings): Job {
+        settingsJob?.cancel()
+        return scope().launch {
+            try {
+                withContext(ioDispatcher) { notificationSettingsStore.save(settings) }
+                _notificationSettings.value = settings
+                _notificationSettingsError.value = false
+                scheduler.scheduleNotifications()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                _notificationSettingsError.value = true
+            }
+        }.also { settingsJob = it }
+    }
+
+    fun selectCity(option: PrayerLocationConfig.CityOption): Job = selectDistrict(option, null)
+
+    fun selectDistrict(option: PrayerLocationConfig.CityOption, districtId: String?): Job {
+        refreshJob?.cancel()
+        locationJob?.cancel()
+        return scope().launch {
+            try {
+                val province = DiyanetDistricts.forCity(option.city, option.country)
+                val district = districtId?.let { id ->
+                    DiyanetDistricts.districts.firstOrNull {
+                        it.id == id && it.provinceId == province?.id
+                    }
+                }?.takeUnless { it.id == province?.centralDistrictId }
+                val location = PrayerLocation(
+                    city = option.city,
+                    country = option.country,
+                    displayCity = option.displayCity,
+                    latitude = option.latitude,
+                    longitude = option.longitude,
+                    diyanetDistrictId = district?.id,
+                    districtName = district?.name
+                )
+                withContext(ioDispatcher) {
+                    store.saveLocation(location)
+                }
+                runSideEffect("Unable to schedule notifications after changing location") {
+                    scheduler.scheduleNotifications()
+                }
+                refreshInternal()
+                requestedMonth?.let(::loadMonth)
+                if (imsakiyeRequested) loadImsakiye()
+                loadRamadanRange()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.value = PrayerUiState.Error(null, classifyPrayerStorageError(e))
+            }
+        }.also { locationJob = it }
     }
 
     private fun scope(): CoroutineScope = testScope ?: viewModelScope
@@ -240,9 +262,23 @@ class PrayerViewModel @JvmOverloads constructor(
         }
     }
 
-    private fun launchLatest(block: suspend () -> Unit): Job {
-        actionJob?.cancel()
-        return scope().launch { block() }.also { actionJob = it }
+    private fun launchRefresh(block: suspend () -> Unit): Job {
+        refreshJob?.cancel()
+        return scope().launch { block() }.also { refreshJob = it }
+    }
+
+    private suspend fun runSideEffect(message: String, action: suspend () -> Unit) {
+        try {
+            action()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            try {
+                Log.w("PrayerViewModel", message, e)
+            } catch (_: RuntimeException) {
+                // Keep Android's unavailable local JVM logging stub from changing UI state.
+            }
+        }
     }
 
     private suspend fun refreshInternal() {
@@ -260,13 +296,18 @@ class PrayerViewModel @JvmOverloads constructor(
         val currentFreshness = if (
             cachePolicy.isFresh(cache, location, settings, timeProvider.now())
         ) Freshness.Fresh else Freshness.Stale
-        _state.value = PrayerUiState.Ready(
+        val refreshingState = PrayerUiState.Ready(
             location,
             currentFreshness,
             OperationState.Refreshing,
             cache,
             tomorrowCache = tomorrowCache
         )
+        if (_state.value == refreshingState) {
+            // MutableStateFlow conflates equal values, so give this refresh a distinct state instance.
+            _state.value = refreshingState.copy(operation = OperationState.Idle)
+        }
+        _state.value = refreshingState
         try {
             when (val result = withContext(ioDispatcher) { repository.refreshAndCache() }) {
                 is RefreshResult.Success -> {
@@ -274,10 +315,6 @@ class PrayerViewModel @JvmOverloads constructor(
                         result.cache.location,
                         result.cache.date
                     )
-                    widgetUpdater.updateAll()
-                    scheduler.scheduleBoundary()
-                    scheduler.scheduleNotifications()
-                    loadRamadanRange()
                     _state.value = PrayerUiState.Ready(
                         result.cache.location,
                         Freshness.Fresh,
@@ -287,6 +324,16 @@ class PrayerViewModel @JvmOverloads constructor(
                         null,
                         tomorrowCache
                     )
+                    loadRamadanRange()
+                    runSideEffect("Unable to update widgets after refreshing") {
+                        widgetUpdater.updateAll()
+                    }
+                    runSideEffect("Unable to schedule boundary refresh after refreshing") {
+                        scheduler.scheduleBoundary()
+                    }
+                    runSideEffect("Unable to schedule notifications after refreshing") {
+                        scheduler.scheduleNotifications()
+                    }
                 }
                 is RefreshResult.StaleCache -> {
                     val tomorrowCache = readTomorrowCache(
@@ -312,6 +359,10 @@ class PrayerViewModel @JvmOverloads constructor(
             throw e
         } catch (e: Exception) {
             _state.value = PrayerUiState.Error(location, classifyPrayerError(e))
+        } finally {
+            if (_state.value === refreshingState) {
+                _state.value = refreshingState.copy(operation = OperationState.Idle)
+            }
         }
     }
 
