@@ -159,7 +159,18 @@ data class CachedPrayerDay(
     val hijriYear: Int? = null
 ) {
     val usesProvinceCenterFallback: Boolean
-        get() = source == PrayerDataSource.ALADHAN && location.diyanetDistrictId != null
+        get() = source == PrayerDataSource.ALADHAN &&
+            location.diyanetDistrictId != null &&
+            !location.isCentralDistrict &&
+            !location.hasDistrictCoordinates()
+
+    private fun PrayerLocation.hasDistrictCoordinates(): Boolean {
+        val province = DiyanetDistricts.forCity(city, country) ?: return false
+        val district = DiyanetDistricts.districts.firstOrNull {
+            it.id == diyanetDistrictId && it.provinceId == province.id
+        } ?: return false
+        return district.latitude != null && district.longitude != null
+    }
 
     fun matches(
         date: LocalDate,

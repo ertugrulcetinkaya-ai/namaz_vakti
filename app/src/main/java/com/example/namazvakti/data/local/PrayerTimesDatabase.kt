@@ -119,6 +119,9 @@ interface PrayerDayDao {
     @Query("DELETE FROM prayer_days WHERE date < :minimumDate OR date > :maximumDate")
     suspend fun deleteOutsideDateWindow(minimumDate: String, maximumDate: String): Int
 
+    @Query("DELETE FROM prayer_days WHERE city LIKE '%#%' AND source = 'ALADHAN'")
+    suspend fun deleteDistrictAlAdhanCaches(): Int
+
     @Query("DELETE FROM prayer_days")
     suspend fun clearAll()
 }

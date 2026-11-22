@@ -75,8 +75,14 @@ class PrayerTimesModelsTest {
             city = "Istanbul",
             country = "Turkey",
             displayCity = "İSTANBUL",
+            latitude = district.latitude,
+            longitude = district.longitude,
             diyanetDistrictId = district.id,
             districtName = district.name
+        )
+        val districtWithoutCoordinates = selectedDistrict.copy(
+            diyanetDistrictId = "unmapped-district",
+            districtName = "UNKNOWN"
         )
         val central = PrayerLocation("Istanbul", "Turkey", "İSTANBUL")
         val cache = sampleCache()
@@ -85,7 +91,9 @@ class PrayerTimesModelsTest {
             .usesProvinceCenterFallback)
         assertFalse(cache.copy(source = PrayerDataSource.ALADHAN, location = central)
             .usesProvinceCenterFallback)
-        assertTrue(cache.copy(source = PrayerDataSource.ALADHAN, location = selectedDistrict)
+        assertFalse(cache.copy(source = PrayerDataSource.ALADHAN, location = selectedDistrict)
+            .usesProvinceCenterFallback)
+        assertTrue(cache.copy(source = PrayerDataSource.ALADHAN, location = districtWithoutCoordinates)
             .usesProvinceCenterFallback)
     }
 

@@ -1,0 +1,4 @@
+pyproj>=3.6
+pyshp>=2.3
+pytest>=8
+shapely>=2.0
