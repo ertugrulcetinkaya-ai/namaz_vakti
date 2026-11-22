@@ -355,7 +355,7 @@ class PrayerWidgetRendererInstrumentedTest {
     }
 
     @Test
-    fun mediumShowsDistrictNameWhenItFitsAndSmallFallsBackButTalkBackKeepsIt() {
+    fun mediumShowsDistrictNameAndSmallKeepsDistrictWhenFullNameDoesNotFit() {
         val district = DiyanetDistricts.districts.single {
             it.provinceName == "İSTANBUL" && it.name == "KARTAL"
         }
@@ -379,7 +379,9 @@ class PrayerWidgetRendererInstrumentedTest {
         )
 
         assertTrue(medium.root.text(R.id.prayer_widget_city).contains(selectedLocation.displayName))
-        assertEquals("İSTANBUL", small.root.text(R.id.prayer_widget_city))
+        assertTrue(
+            small.root.text(R.id.prayer_widget_city) in setOf(selectedLocation.displayName, "KARTAL")
+        )
         assertTrue(medium.root.contentDescription.contains(selectedLocation.displayName))
         assertTrue(small.root.contentDescription.contains(selectedLocation.displayName))
     }

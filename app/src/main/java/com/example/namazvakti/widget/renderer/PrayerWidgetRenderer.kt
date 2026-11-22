@@ -116,9 +116,13 @@ class PrayerWidgetRenderer {
             )
             PrayerWidgetSizeClass.SMALL -> measuredCityText(
                 context = context,
-                candidates = listOf(listOf(location.displayName), listOf(location.displayCity)),
+                candidates = listOfNotNull(
+                    listOf(location.displayName),
+                    location.selectedDistrictName()?.let(::listOf),
+                    listOf(location.displayCity)
+                ),
                 widthDp = widthDp,
-                textSizeSp = LARGE_CITY_TEXT_SIZE_SP
+                textSizeSp = SMALL_CITY_TEXT_SIZE_SP
             )
         }
         views.setTextViewText(R.id.prayer_widget_city, cityText)
@@ -357,9 +361,11 @@ class PrayerWidgetRenderer {
         reducedTextSize: Boolean
     ): String {
         val optionalDetails = if (compactDetails) emptyList() else listOf(hijriText)
-        val candidates = listOf(
+        val districtName = location.selectedDistrictName()
+        val candidates = listOfNotNull(
             listOf(location.displayName) + optionalDetails + staleSuffix,
             listOf(location.displayName, staleSuffix),
+            districtName?.let { listOf(it, staleSuffix) },
             listOf(location.displayCity) + optionalDetails + staleSuffix,
             listOf(location.displayCity, staleSuffix)
         )
@@ -392,6 +398,10 @@ class PrayerWidgetRenderer {
         return candidateTexts.firstOrNull { paint.measureText(it) <= availableWidth }
             ?: candidateTexts.last()
     }
+
+    // District alone ("KARTAL") is a better fallback than the province when "KARTAL, İSTANBUL" does not fit.
+    private fun PrayerLocation.selectedDistrictName(): String? =
+        displayName.takeIf { it != displayCity }?.substringBefore(',')?.trim()?.takeIf(String::isNotBlank)
 
     private fun religiousText(context: Context, events: List<DiyanetReligiousDay>): String? {
         if (events.isEmpty()) return null
@@ -432,6 +442,7 @@ class PrayerWidgetRenderer {
         const val REDUCED_TEXT_SIZE_MIN_WIDTH_DP = 400
         const val COMPACT_TEXT_SIZE_SP = 16f
         const val LARGE_CITY_TEXT_SIZE_SP = 24f
+        const val SMALL_CITY_TEXT_SIZE_SP = 18f
 
         val PRAYER_NAMES_IN_DISPLAY_ORDER = listOf(
             PrayerTimeName.IMSAK,
