@@ -1,6 +1,7 @@
 package com.example.namazvakti.domain.policy
 
 import java.time.LocalDate
+import java.time.YearMonth
 
 data class PrayerCacheRetentionWindow(
     val minimumDate: LocalDate,
@@ -20,6 +21,12 @@ class PrayerCacheRetentionPolicy(
         minimumDate = today.minusDays(pastDays),
         maximumDate = today.plusMonths(futureMonths)
     )
+
+    fun minimumCalendarMonth(today: LocalDate): YearMonth {
+        val minimumDate = window(today).minimumDate
+        val minimumMonth = YearMonth.from(minimumDate)
+        return if (minimumDate == minimumMonth.atDay(1)) minimumMonth else minimumMonth.plusMonths(1)
+    }
 
     private companion object {
         const val DEFAULT_PAST_DAYS = 90L

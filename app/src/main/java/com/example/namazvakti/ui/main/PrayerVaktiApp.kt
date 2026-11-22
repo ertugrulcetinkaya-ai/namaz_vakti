@@ -29,6 +29,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.core.content.ContextCompat
 import com.example.namazvakti.R
+import com.example.namazvakti.app.appContainer
 import com.example.namazvakti.domain.model.PrayerTimeProvider
 import com.example.namazvakti.domain.model.PrayerNotificationSettings
 import com.example.namazvakti.notification.PrayerNotificationPublisher
@@ -43,6 +44,7 @@ import java.time.temporal.ChronoUnit
 @Composable
 fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
     val context = LocalContext.current
+    val cacheRetentionPolicy = remember(context) { context.appContainer().cacheRetentionPolicy }
     val activity = LocalActivity.current
     val state by viewModel.state.collectAsStateWithLifecycle()
     val notificationSettings by viewModel.notificationSettings.collectAsStateWithLifecycle()
@@ -199,7 +201,8 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
             onOpenReligiousDays = openReligiousDays,
             onOpenImsakiye = openImsakiye,
             onMonthChange = viewModel::loadMonth,
-            onRetry = { viewModel.loadMonth(monthlyState.month) }
+            onRetry = { viewModel.loadMonth(monthlyState.month) },
+            retentionPolicy = cacheRetentionPolicy
         )
         Screen.Imsakiye -> ImsakiyeScreen(
             state = imsakiyeState,

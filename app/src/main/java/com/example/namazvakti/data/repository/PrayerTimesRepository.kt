@@ -239,7 +239,8 @@ class PrayerTimesRepository(
             val start = yearMonth.atDay(1)
             val end = yearMonth.atEndOfMonth()
             val cached = store.readCaches(start, end, location, settings)
-            if (store.hasCoverage(start, end, location, settings)) {
+            val expectedDates = (1..yearMonth.lengthOfMonth()).map(yearMonth::atDay).toSet()
+            if (cached.size == expectedDates.size && cached.map { it.date }.toSet() == expectedDates) {
                 return@withLock MonthResult(yearMonth, cached, MonthDataSource.CACHE)
             }
             try {

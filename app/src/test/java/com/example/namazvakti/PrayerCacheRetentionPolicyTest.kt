@@ -2,6 +2,7 @@ package com.example.namazvakti
 
 import com.example.namazvakti.domain.policy.PrayerCacheRetentionPolicy
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.temporal.ChronoUnit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
@@ -19,6 +20,24 @@ class PrayerCacheRetentionPolicyTest {
         assertEquals(LocalDate.of(2027, 10, 11), window.maximumDate)
         assertTrue(ChronoUnit.DAYS.between(window.minimumDate, window.maximumDate) + 1 <= 500)
         assertTrue(LocalDate.of(2027, 2, 8) in window.minimumDate..window.maximumDate)
+    }
+
+    @Test
+    fun minimumCalendarMonthIncludesBoundaryMonthWhenItsFirstDayIsRetained() {
+        val today = LocalDate.of(2026, 8, 30)
+
+        val minimumMonth = PrayerCacheRetentionPolicy(pastDays = 90).minimumCalendarMonth(today)
+
+        assertEquals(YearMonth.of(2026, 6), minimumMonth)
+    }
+
+    @Test
+    fun minimumCalendarMonthAdvancesWhenWindowStartsAfterTheFirstDay() {
+        val today = LocalDate.of(2026, 8, 30)
+
+        val minimumMonth = PrayerCacheRetentionPolicy(pastDays = 89).minimumCalendarMonth(today)
+
+        assertEquals(YearMonth.of(2026, 7), minimumMonth)
     }
 
     @Test

@@ -61,6 +61,7 @@ import com.example.namazvakti.domain.model.displayHijriText
 import com.example.namazvakti.domain.model.PrayerTimeName
 import com.example.namazvakti.domain.model.PrayerTimes
 import com.example.namazvakti.domain.model.RamadanRange
+import com.example.namazvakti.domain.policy.PrayerCacheRetentionPolicy
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -83,10 +84,11 @@ fun MonthlyPrayerScreen(
     onOpenImsakiye: () -> Unit,
     onOpenReligiousDays: () -> Unit,
     onMonthChange: (YearMonth) -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    retentionPolicy: PrayerCacheRetentionPolicy = PrayerCacheRetentionPolicy()
 ) {
     val month = state.month
-    val minimum = YearMonth.from(today).minusMonths(3)
+    val minimum = retentionPolicy.minimumCalendarMonth(today)
     val maximum = YearMonth.from(today).plusMonths(12)
     val listState = rememberLazyListState()
     val horizontalScrollState = rememberScrollState()
