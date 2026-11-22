@@ -104,7 +104,13 @@ class PrayerTimesStore(
     override suspend fun saveCaches(caches: List<CachedPrayerDay>) = storageOperation {
         if (caches.isEmpty()) return@storageOperation
         migrateLegacyCache()
-        prayerDayDao.upsertAll(caches.map(CachedPrayerDay::toEntity))
+        val retainedCaches = caches.filter { cache ->
+            val window = retentionPolicy.window(timeProvider.today(cache.location.timezone))
+            cache.date in window.minimumDate..window.maximumDate
+        }
+        if (retainedCaches.isNotEmpty()) {
+            prayerDayDao.upsertAll(retainedCaches.map(CachedPrayerDay::toEntity))
+        }
         pruneIfDue(caches.first().location)
     }
 

@@ -162,6 +162,27 @@ class PrayerTimesDatabaseInstrumentedTest {
     }
 
     @Test
+    fun saveCachesDoesNotWriteOutOfWindowRowsWhenPruningIsNotDue() = runBlocking {
+        val today = LocalDate.of(2026, 8, 23)
+        val store = PrayerTimesStore(
+            context,
+            dao,
+            PrayerTimeProvider(
+                Clock.fixed(Instant.parse("2026-08-23T08:00:00Z"), PrayerTimeProvider.DEFAULT_ZONE)
+            ),
+            PrayerCalculationSettings()
+        )
+        store.saveCaches(listOf(cache(today)))
+
+        val beforeWindow = today.minusDays(91)
+        val afterWindow = today.plusMonths(13).plusDays(1)
+        store.saveCaches(listOf(cache(beforeWindow), cache(afterWindow)))
+
+        assertNull(dao.find(beforeWindow.toString(), "Ankara", "Turkey", 13, 0))
+        assertNull(dao.find(afterWindow.toString(), "Ankara", "Turkey", 13, 0))
+    }
+
+    @Test
     fun readingCacheDoesNotMutateRetentionWindow() = runBlocking {
         val today = LocalDate.of(2026, 8, 23)
         val oldDate = today.minusDays(91)

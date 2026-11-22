@@ -250,6 +250,27 @@ class PrayerTimesRepositoryTest {
         assertEquals(MonthDataSource.CACHE, result.source)
         assertEquals(31, result.days.size)
         assertTrue(api.requestedMonths.isEmpty())
+        assertEquals(0, store.hasCoverageCalls)
+    }
+
+    @Test
+    fun ensureMonthDoesNotTreatAnIncompleteInitialReadAsCompleteCoverage() = runTest {
+        val month = YearMonth.of(2026, 8)
+        val store = FakeStore(
+            location,
+            settings,
+            LocalDate.of(2026, 8, 6),
+            initial = listOf(sampleCache(month.atDay(1), location)),
+            hasCoverageResult = true
+        )
+        val api = FakeApi { year, value -> calendar(YearMonth.of(year, value)) }
+
+        val result = repository(api, store).ensureMonth(month)
+
+        assertEquals(MonthDataSource.NETWORK, result.source)
+        assertEquals(31, result.days.size)
+        assertEquals(listOf(month), api.requestedMonths)
+        assertEquals(0, store.hasCoverageCalls)
     }
 
     @Test
@@ -729,9 +750,12 @@ class PrayerTimesRepositoryTest {
         private val settings: PrayerCalculationSettings,
         private val today: LocalDate,
         initial: List<CachedPrayerDay> = emptyList(),
-        private val readCacheFailure: Throwable? = null
+        private val readCacheFailure: Throwable? = null,
+        private val hasCoverageResult: Boolean? = null
     ) : PrayerPreferences {
         val days = initial.associateByTo(mutableMapOf(), CachedPrayerDay::date)
+        var hasCoverageCalls = 0
+            private set
 
         override suspend fun readCache(): CachedPrayerDay? {
             readCacheFailure?.let { throw it }
@@ -766,9 +790,12 @@ class PrayerTimesRepositoryTest {
             endDate: LocalDate,
             location: PrayerLocation,
             settings: PrayerCalculationSettings
-        ): Boolean = generateSequence(startDate) { it.plusDays(1) }
-            .takeWhile { !it.isAfter(endDate) }
-            .all { date -> readCache(date, location, settings) != null }
+        ): Boolean {
+            hasCoverageCalls++
+            return hasCoverageResult ?: generateSequence(startDate) { it.plusDays(1) }
+                .takeWhile { !it.isAfter(endDate) }
+                .all { date -> readCache(date, location, settings) != null }
+        }
 
         override suspend fun readLocation() = location
         override suspend fun saveLocation(location: PrayerLocation) {
