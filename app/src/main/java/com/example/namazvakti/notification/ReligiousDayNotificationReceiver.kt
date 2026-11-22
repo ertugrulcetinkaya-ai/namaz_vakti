@@ -3,33 +3,21 @@ package com.example.namazvakti.notification
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 import com.example.namazvakti.app.appContainer
 import com.example.namazvakti.domain.model.DiyanetReligiousDays
 import com.example.namazvakti.domain.policy.ReligiousDayNotificationDeliveryPolicy
+import com.example.namazvakti.widget.launchAsync
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 class ReligiousDayNotificationReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != ReligiousDayNotificationAlarm.ACTION) return
-        val pendingResult = goAsync()
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                handle(context.applicationContext, intent)
-            } catch (exception: CancellationException) {
-                throw exception
-            } catch (exception: Exception) {
-                Log.e(TAG, "religious-day notification alarm handling failed", exception)
-            } finally {
-                pendingResult.finish()
-            }
+        val appContext = context.applicationContext
+        launchAsync(appContext, TAG, "religious-day notification alarm handling failed") {
+            handle(appContext, intent)
         }
     }
 
