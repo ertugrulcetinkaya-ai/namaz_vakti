@@ -11,31 +11,18 @@ import android.widget.RemoteViews
 import androidx.annotation.RequiresApi
 import com.example.namazvakti.widget.alarm.PrayerWidgetScheduler
 import com.example.namazvakti.widget.renderer.PrayerWidgetRenderer
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 class PrayerWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
-        val pendingResult = goAsync()
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                val appContext = context.applicationContext
-                val snapshot = PrayerWidgetSnapshotLoader.load(appContext)
-                updateWidgets(appContext, manager, ids, snapshot)
-                PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(
-                    appContext,
-                    snapshot = snapshot
-                )
-                PrayerWidgetScheduler.enqueueRefresh(appContext, snapshot = snapshot)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "widget update failed", e)
-            } finally {
-                pendingResult.finish()
-            }
+        launchAsync(TAG, "widget update failed") {
+            val appContext = context.applicationContext
+            val snapshot = PrayerWidgetSnapshotLoader.load(appContext)
+            updateWidgets(appContext, manager, ids, snapshot)
+            PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(
+                appContext,
+                snapshot = snapshot
+            )
+            PrayerWidgetScheduler.enqueueRefresh(appContext, snapshot = snapshot)
         }
     }
 
@@ -46,57 +33,30 @@ class PrayerWidgetProvider : AppWidgetProvider() {
         newOptions: Bundle
     ) {
         super.onAppWidgetOptionsChanged(context, manager, appWidgetId, newOptions)
-        val pendingResult = goAsync()
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                val appContext = context.applicationContext
-                updateWidgets(
-                    appContext,
-                    manager,
-                    intArrayOf(appWidgetId),
-                    PrayerWidgetSnapshotLoader.load(appContext)
-                )
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "widget resize update failed", e)
-            } finally {
-                pendingResult.finish()
-            }
+        launchAsync(TAG, "widget resize update failed") {
+            val appContext = context.applicationContext
+            updateWidgets(
+                appContext,
+                manager,
+                intArrayOf(appWidgetId),
+                PrayerWidgetSnapshotLoader.load(appContext)
+            )
         }
     }
 
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
-        val pendingResult = goAsync()
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(context.applicationContext)
-                PrayerWidgetScheduler.enqueueRefresh(context.applicationContext)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "widget enable setup failed", e)
-            } finally {
-                pendingResult.finish()
-            }
+        launchAsync(TAG, "widget enable setup failed") {
+            PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(context.applicationContext)
+            PrayerWidgetScheduler.enqueueRefresh(context.applicationContext)
         }
     }
 
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
-        val pendingResult = goAsync()
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(context.applicationContext)
-                PrayerWidgetScheduler.enqueueRefresh(context.applicationContext)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "widget disable cleanup failed", e)
-            } finally {
-                pendingResult.finish()
-            }
+        launchAsync(TAG, "widget disable cleanup failed") {
+            PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(context.applicationContext)
+            PrayerWidgetScheduler.enqueueRefresh(context.applicationContext)
         }
     }
 
