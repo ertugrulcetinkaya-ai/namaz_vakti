@@ -2,7 +2,10 @@ package com.example.namazvakti
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.example.namazvakti.data.local.PrayerNotificationSettingsStore
 import com.example.namazvakti.domain.model.PrayerNotificationPrayer
 import com.example.namazvakti.domain.model.PrayerNotificationSettings
@@ -16,12 +19,14 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class PrayerNotificationSettingsStoreTest {
     @Test
     fun defaultsToDisabledWithFivePrayersAndNoReminder() = runBlocking {
-        val store = PrayerNotificationSettingsStore(FakePreferencesDataStore())
+        val preferences = FakePreferencesDataStore()
+        val store = PrayerNotificationSettingsStore(preferences)
 
         assertEquals(PrayerNotificationSettings(), store.read())
         assertEquals(false, store.read().notificationsEnabled)
@@ -29,6 +34,10 @@ class PrayerNotificationSettingsStoreTest {
         assertEquals(0, store.read().leadMinutes)
         assertEquals(5, store.read().enabledPrayers.size)
         assertEquals(false, PrayerNotificationPrayer.SUNRISE in store.read().enabledPrayers)
+        assertEquals(
+            PrayerNotificationSettings.DEFAULT_ENABLED_PRAYERS,
+            store.read().enabledPrayers
+        )
     }
 
     @Test
@@ -46,6 +55,45 @@ class PrayerNotificationSettingsStoreTest {
 
         assertEquals(expected, store.read())
         assertEquals(expected, store.settings.first())
+        val storedPreferences = preferences.data.first()
+        assertEquals(
+            setOf("sunrise", "isha"),
+            storedPreferences[stringSetPreferencesKey("enabled_prayer_keys")]
+        )
+        assertNull(storedPreferences[intPreferencesKey("enabled_prayers_mask")])
+    }
+
+    @Test
+    fun migratesLegacyPrayerMaskToStableKeysAndRemovesLegacyValue() = runBlocking {
+        val preferences = FakePreferencesDataStore()
+        preferences.edit { prefs ->
+            prefs[intPreferencesKey("enabled_prayers_mask")] = (1 shl 0) or (1 shl 2) or (1 shl 5)
+        }
+        val store = PrayerNotificationSettingsStore(preferences)
+
+        assertEquals(
+            setOf(PrayerNotificationPrayer.IMSAK, PrayerNotificationPrayer.DHUHR, PrayerNotificationPrayer.ISHA),
+            store.read().enabledPrayers
+        )
+        val migratedPreferences = preferences.data.first()
+        assertEquals(
+            setOf("imsak", "dhuhr", "isha"),
+            migratedPreferences[stringSetPreferencesKey("enabled_prayer_keys")]
+        )
+        assertNull(migratedPreferences[intPreferencesKey("enabled_prayers_mask")])
+    }
+
+    @Test
+    fun ignoresUnknownPrayerStorageKeys() = runBlocking {
+        val preferences = FakePreferencesDataStore()
+        preferences.edit { prefs ->
+            prefs[stringSetPreferencesKey("enabled_prayer_keys")] = setOf("isha", "unknown-prayer")
+        }
+
+        assertEquals(
+            setOf(PrayerNotificationPrayer.ISHA),
+            PrayerNotificationSettingsStore(preferences).read().enabledPrayers
+        )
     }
 
     @Test
