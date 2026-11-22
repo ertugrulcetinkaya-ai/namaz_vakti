@@ -567,6 +567,52 @@ class PrayerTimesRepositoryTest {
     }
 
     @Test
+    fun midMonthDiyanetRefreshSucceedsEvenIfAladhanBackfillFails() = runTest {
+        val today = LocalDate.of(2026, 8, 16)
+        val month = YearMonth.from(today)
+        val store = FakeStore(location, settings, today)
+        val failure = IOException("AlAdhan unavailable")
+        val api = FakeApi { _, _ -> throw failure }
+        val source = object : DiyanetPrayerTimesRemoteDataSource {
+            override suspend fun fetch(districtId: String) =
+                PrayerTimesCalendarResult(calendar(month).days.filter { it.date >= today })
+        }
+        val logger = RecordingLogger()
+        val repository = repository(
+            api, store, Instant.parse("2026-08-16T10:00:00Z"), logger, diyanetApi = source
+        )
+
+        val result = repository.refreshAndCache() as RefreshResult.Success
+
+        assertEquals(RefreshOrigin.NETWORK, result.origin)
+        assertEquals(store.days[today], result.cache)
+        assertEquals(PrayerDataSource.DIYANET, result.cache.source)
+        assertEquals(PrayerDataSource.DIYANET, store.days[today.plusDays(1)]?.source)
+        assertEquals(listOf(month), api.requestedMonths)
+        assertTrue(logger.events.single().startsWith("calendar_backfill_failure"))
+        assertSame(failure, logger.causes.single())
+    }
+
+    @Test
+    fun aladhanFailureStillFallsBackToCacheWhenDiyanetHasNoTomorrow() = runTest {
+        val today = LocalDate.of(2026, 8, 16)
+        val month = YearMonth.from(today)
+        val store = FakeStore(location, settings, today)
+        val api = FakeApi { _, _ -> throw IOException("AlAdhan unavailable") }
+        val source = object : DiyanetPrayerTimesRemoteDataSource {
+            override suspend fun fetch(districtId: String) =
+                PrayerTimesCalendarResult(calendar(month).days.filter { it.date == today })
+        }
+        val repository = repository(api, store, Instant.parse("2026-08-16T10:00:00Z"), diyanetApi = source)
+
+        val result = repository.refreshAndCache() as RefreshResult.Success
+
+        assertEquals(RefreshOrigin.LOCAL_CACHE, result.origin)
+        assertEquals(PrayerDataSource.DIYANET, result.cache.source)
+        assertEquals(listOf(month), api.requestedMonths)
+    }
+
+    @Test
     fun offlineDiyanetWithCoveredMonthReturnsLocalCache() = runTest {
         val today = LocalDate.of(2026, 8, 6)
         val month = YearMonth.from(today)
@@ -578,22 +624,22 @@ class PrayerTimesRepositoryTest {
         }
         val store = FakeStore(location, settings, today, cached)
         val api = FakeApi { _, _ -> throw AssertionError("AlAdhan should not be called") }
+        val failure = IOException("Diyanet unavailable")
+        val logger = RecordingLogger()
         val source = object : DiyanetPrayerTimesRemoteDataSource {
             override suspend fun fetch(districtId: String): PrayerTimesCalendarResult {
-                throw IOException("offline")
+                throw failure
             }
         }
-        val repository = PrayerTimesRepository(
-            api, store, settings,
-            PrayerTimeProvider(Clock.fixed(Instant.parse("2026-08-06T10:00:00Z"), PrayerTimeProvider.DEFAULT_ZONE)),
-            diyanetApi = source
-        )
+        val repository = repository(api, store, eventLogger = logger, diyanetApi = source)
 
         val result = repository.refreshAndCache() as RefreshResult.Success
 
         assertEquals(RefreshOrigin.LOCAL_CACHE, result.origin)
         assertEquals(cached[today.dayOfMonth - 1], result.cache)
         assertTrue(api.requestedMonths.isEmpty())
+        assertEquals(listOf("diyanet_failure error=network"), logger.events)
+        assertSame(failure, logger.causes.single())
     }
 
     @Test
@@ -630,20 +676,24 @@ class PrayerTimesRepositoryTest {
         api: PrayerTimesRemoteDataSource,
         store: FakeStore,
         instant: Instant = Instant.parse("2026-08-06T10:00:00Z"),
-        eventLogger: PrayerEventLogger = DefaultPrayerEventLogger
+        eventLogger: PrayerEventLogger = DefaultPrayerEventLogger,
+        diyanetApi: DiyanetPrayerTimesRemoteDataSource? = null
     ) = PrayerTimesRepository(
         api,
         store,
         settings,
         PrayerTimeProvider(Clock.fixed(instant, PrayerTimeProvider.DEFAULT_ZONE)),
-        eventLogger
+        eventLogger,
+        diyanetApi
     )
 
     private class RecordingLogger : PrayerEventLogger {
         val events = mutableListOf<String>()
+        val causes = mutableListOf<Throwable>()
 
         override fun warning(event: String, cause: Throwable) {
             events += event
+            causes += cause
         }
     }
 

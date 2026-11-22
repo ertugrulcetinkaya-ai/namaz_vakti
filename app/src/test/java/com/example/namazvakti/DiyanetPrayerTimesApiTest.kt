@@ -5,6 +5,8 @@ import com.example.namazvakti.domain.model.DiyanetDistricts
 import com.example.namazvakti.domain.model.DiyanetHijriCalendar
 import com.example.namazvakti.domain.model.PrayerLocationConfig
 import com.example.namazvakti.domain.model.PrayerTimesApiException
+import com.google.gson.JsonArray
+import com.google.gson.JsonParser
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertThrows
@@ -12,13 +14,16 @@ import org.junit.Test
 import java.time.LocalDate
 
 class DiyanetPrayerTimesApiTest {
+    private val api = DiyanetPrayerTimesApi()
+    private val today = LocalDate.of(2026, 11, 16)
+
     private fun fixture(id: String) = javaClass.getResource("/diyanet/$id.json")!!.readText()
 
     @Test fun snapshotDatesAndHijriCalendarAgree() {
         for (id in listOf("9206", "9541", "9560")) {
-            val days = DiyanetPrayerTimesApi().parseResponse(fixture(id)).days
+            val days = api.parseResponse(fixture(id), today).days
             assertEquals(46, days.size)
-            assertEquals(LocalDate.parse("2026-11-16"), days.first().date)
+            assertEquals(today, days.first().date)
             assertEquals(LocalDate.parse("2026-12-31"), days.last().date)
             days.forEach { day ->
                 val hijri = DiyanetHijriCalendar.hijriDateOf(day.date)!!
@@ -29,13 +34,42 @@ class DiyanetPrayerTimesApiTest {
         }
     }
 
-    @Test fun malformedAndDuplicateRowsAreRejected() {
-        val body = fixture("9206")
-        assertThrows(PrayerTimesApiException::class.java) { DiyanetPrayerTimesApi().parseResponse("bad") }
-        val row = body.substring(1, body.indexOf("},{") + 1)
-        assertThrows(PrayerTimesApiException::class.java) { DiyanetPrayerTimesApi().parseResponse("[$row,$row]") }
-        assertThrows(PrayerTimesApiException::class.java) { DiyanetPrayerTimesApi().parseResponse(body.replace("06:01", "99:99")) }
+    @Test fun malformedOrEmptyResponsesAreRejected() {
+        assertThrows(PrayerTimesApiException::class.java) { api.parseResponse("bad", today) }
+        assertThrows(PrayerTimesApiException::class.java) { api.parseResponse("[]", today) }
     }
+
+    @Test fun skipsInvalidTimeAndDateRowsAndKeepsValidDays() {
+        val rows = fixtureRows()
+        rows[1].asJsonObject.addProperty("Imsak", "99:99")
+        rows[2].asJsonObject.addProperty("MiladiTarihKisa", "31.11.2026")
+
+        val days = api.parseResponse(rows.toString(), today).days
+
+        assertEquals(44, days.size)
+        assertEquals(today, days[0].date)
+        assertEquals(today.plusDays(3), days[1].date)
+    }
+
+    @Test fun rejectsResponseWhenTodaysRowIsInvalid() {
+        val rows = fixtureRows()
+        rows[0].asJsonObject.addProperty("Imsak", "99:99")
+
+        assertThrows(PrayerTimesApiException::class.java) { api.parseResponse(rows.toString(), today) }
+    }
+
+    @Test fun keepsTheFirstValidRowForADuplicateDate() {
+        val rows = fixtureRows()
+        val duplicate = rows[0].asJsonObject.deepCopy()
+        duplicate.addProperty("Imsak", "00:00")
+        rows.add(duplicate)
+
+        val days = api.parseResponse(rows.toString(), today).days
+
+        assertEquals(api.parseResponse(fixture("9206"), today).days, days)
+    }
+
+    private fun fixtureRows(): JsonArray = JsonParser.parseString(fixture("9206")).asJsonArray
 
     @Test fun allCitiesResolveToCentralDistricts() {
         assertEquals(869, DiyanetDistricts.districts.size)
