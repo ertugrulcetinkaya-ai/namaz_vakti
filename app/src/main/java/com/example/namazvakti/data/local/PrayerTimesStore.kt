@@ -1,6 +1,8 @@
 package com.example.namazvakti.data.local
 
 import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -68,8 +70,10 @@ class PrayerTimesStore(
     private val prayerDayDao: PrayerDayDao,
     private val timeProvider: PrayerTimeProvider = PrayerTimeProvider(),
     private val settings: PrayerCalculationSettings = PrayerCalculationSettings(),
-    private val retentionPolicy: PrayerCacheRetentionPolicy = PrayerCacheRetentionPolicy()
+    private val retentionPolicy: PrayerCacheRetentionPolicy = PrayerCacheRetentionPolicy(),
+    suppliedDataStore: DataStore<Preferences>? = null
 ) : PrayerPreferences {
+    private val dataStore = suppliedDataStore ?: context.dataStore
     private val cacheKey = stringPreferencesKey("cached_prayer_day")
     private val legacyWidgetTextKey = stringPreferencesKey("cached_widget_text")
     private val legacyWidgetDateKey = stringPreferencesKey("cached_widget_date")
@@ -105,7 +109,7 @@ class PrayerTimesStore(
     }
 
     override suspend fun saveLocation(location: PrayerLocation) = storageOperation {
-        context.dataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             prefs[cityKey] = location.city
             prefs[countryKey] = location.country
             prefs[locationTimezoneKey] = location.timezone.id
@@ -126,7 +130,7 @@ class PrayerTimesStore(
 
     override suspend fun clearCache() = storageOperation {
         prayerDayDao.clearAll()
-        context.dataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             prefs.remove(cacheKey)
             prefs.remove(legacyWidgetTextKey)
             prefs.remove(legacyWidgetDateKey)
@@ -136,7 +140,7 @@ class PrayerTimesStore(
     }
 
     override suspend fun readLocation(): PrayerLocation = storageOperation {
-        val prefs = context.dataStore.data.first()
+        val prefs = dataStore.data.first()
         val city = prefs[cityKey] ?: PrayerLocationConfig.defaultCity.city
         val country = prefs[countryKey] ?: PrayerLocationConfig.defaultCity.country
         val option = PrayerLocationConfig.optionForCityAndCountry(city, country)
@@ -233,10 +237,10 @@ class PrayerTimesStore(
         if (dataVersionCheckComplete) return
         dataVersionMutex.withLock {
             if (dataVersionCheckComplete) return@withLock
-            val storedVersion = context.dataStore.data.first()[prayerDataVersionKey]
+            val storedVersion = dataStore.data.first()[prayerDataVersionKey]
             dataVersionGate.ensureCurrent(storedVersion) { currentVersion ->
                 prayerDayDao.clearAll()
-                context.dataStore.edit { prefs ->
+                dataStore.edit { prefs ->
                     prefs.remove(cacheKey)
                     prefs.remove(legacyWidgetTextKey)
                     prefs.remove(legacyWidgetDateKey)

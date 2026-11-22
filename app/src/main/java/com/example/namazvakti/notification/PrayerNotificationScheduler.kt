@@ -27,7 +27,8 @@ object PrayerNotificationScheduler {
 
     internal suspend fun scheduleNext(
         context: Context,
-        attemptedEvent: PrayerNotificationEventId?
+        attemptedEvent: PrayerNotificationEventId?,
+        scheduleAlarm: (Context, PrayerNotificationEvent, Boolean) -> Intent = PrayerNotificationAlarm::schedule
     ) = prayerNotificationMutex.withLock {
         val appContext = context.applicationContext
         val container = appContext.appContainer()
@@ -79,7 +80,7 @@ object PrayerNotificationScheduler {
             )
         }
         if (event != null) {
-            PrayerNotificationAlarm.schedule(appContext, event, exact)
+            scheduleAlarm(appContext, event, exact)
             PrayerWidgetScheduler.enqueueRefresh(appContext, force = false)
         } else {
             PrayerNotificationAlarm.scheduleReplan(
@@ -105,11 +106,16 @@ internal object PrayerNotificationAlarm {
     const val EXTRA_LEAD_MINUTES = "notification_lead_minutes"
     const val EXTRA_EXACT = "notification_exact"
     const val EXTRA_REPLAN_ONLY = "notification_replan_only"
-    private const val REQUEST_CODE = 6103
+    internal const val REQUEST_CODE = 6103
     private const val TAG = "PrayerNotification"
 
-    fun schedule(context: Context, event: PrayerNotificationEvent, exact: Boolean) {
-        scheduleAt(
+    fun schedule(
+        context: Context,
+        event: PrayerNotificationEvent,
+        exact: Boolean,
+        setAlarm: (Context, Long, PendingIntent, Boolean) -> Boolean = AlarmScheduling::set
+    ): Intent {
+        return scheduleAt(
             context,
             event.triggerAt,
             exact,
@@ -123,16 +129,18 @@ internal object PrayerNotificationAlarm {
                 putExtra(EXTRA_LOCATION_COUNTRY, event.locationCountry)
                 putExtra(EXTRA_LEAD_MINUTES, event.leadMinutes)
                 putExtra(EXTRA_REPLAN_ONLY, false)
-            }
+            },
+            setAlarm
         )
     }
 
-    fun scheduleReplan(context: Context, target: ZonedDateTime, exact: Boolean) {
-        scheduleAt(
+    fun scheduleReplan(context: Context, target: ZonedDateTime, exact: Boolean): Intent {
+        return scheduleAt(
             context,
             target,
             exact,
-            intent(context).putExtra(EXTRA_REPLAN_ONLY, true)
+            intent(context).putExtra(EXTRA_REPLAN_ONLY, true),
+            AlarmScheduling::set
         )
     }
 
@@ -141,18 +149,27 @@ internal object PrayerNotificationAlarm {
         appContext.getSystemService(AlarmManager::class.java).cancel(pendingIntent(appContext))
     }
 
-    private fun scheduleAt(context: Context, target: ZonedDateTime, exact: Boolean, intent: Intent) {
+    private fun scheduleAt(
+        context: Context,
+        target: ZonedDateTime,
+        exact: Boolean,
+        intent: Intent,
+        setAlarm: (Context, Long, PendingIntent, Boolean) -> Boolean
+    ): Intent {
         val manager = context.getSystemService(AlarmManager::class.java)
         val triggerMillis = target.toInstant().toEpochMilli()
-        val operation = pendingIntent(context, intent.putExtra(EXTRA_EXACT, exact))
+        val initialIntent = intent.putExtra(EXTRA_EXACT, exact)
+        val operation = pendingIntent(context, initialIntent)
         manager.cancel(operation)
-        val scheduledExact = AlarmScheduling.set(context, triggerMillis, operation, exact)
+        val scheduledExact = setAlarm(context, triggerMillis, operation, exact)
+        val scheduledIntent = initialIntent.putExtra(EXTRA_EXACT, scheduledExact)
         if (exact && !scheduledExact) {
             // PendingIntent extras do not affect its identity; update the token already scheduled inexactly.
-            pendingIntent(context, intent.putExtra(EXTRA_EXACT, false))
+            pendingIntent(context, scheduledIntent)
         }
         val precision = if (scheduledExact) "exact" else "inexact"
         Log.d(TAG, "next $precision notification alarm scheduled at=$target")
+        return scheduledIntent
     }
 
     private fun pendingIntent(context: Context, intent: Intent = intent(context)): PendingIntent =
