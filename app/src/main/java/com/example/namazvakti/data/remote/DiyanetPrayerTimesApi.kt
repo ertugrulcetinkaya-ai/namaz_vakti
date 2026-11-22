@@ -3,6 +3,7 @@ package com.example.namazvakti.data.remote
 import com.example.namazvakti.domain.model.PrayerTimeProvider
 import com.example.namazvakti.domain.model.PrayerTimes
 import com.example.namazvakti.domain.model.PrayerTimesApiException
+import com.example.namazvakti.domain.model.HijriMonthNames
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -80,7 +81,7 @@ class DiyanetPrayerTimesApi(
         val hijri = hijriText.split(" ")
         require(hijri.size == 3)
         val day = hijri[0].toInt()
-        val month = MONTHS.indexOf(hijri[1]) + 1
+        val month = HijriMonthNames.numberFromTurkishName(hijri[1])
         val year = hijri[2].toInt()
         require(day in 1..30 && month in 1..12 && year in 1..9999)
         return PrayerTimesApiDayResult(date, PrayerTimesApiResult(
@@ -93,6 +94,5 @@ class DiyanetPrayerTimesApi(
         val logger: Logger = Logger.getLogger("NamazPrayer")
         val TIME_FORMAT = Regex("[0-9]{2}:[0-9]{2}")
         val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.uuuu").withResolverStyle(ResolverStyle.STRICT)
-        val MONTHS = listOf("Muharrem", "Safer", "Rebiülevvel", "Rebiülahir", "Cemaziyelevvel", "Cemaziyelahir", "Recep", "Şaban", "Ramazan", "Şevval", "Zilkade", "Zilhicce")
     }
 }

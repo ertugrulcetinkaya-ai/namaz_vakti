@@ -75,12 +75,27 @@ class NavigationInstrumentedTest {
         description: String,
         matches: (AccessibilityNodeInfo) -> Boolean
     ): AccessibilityNodeInfo {
-        val deadline = SystemClock.uptimeMillis() + 10_000
+        // Cold start on a CI emulator (first DataStore/Room access and the initial refresh) can exceed 10s.
+        val deadline = SystemClock.uptimeMillis() + AWAIT_TIMEOUT_MS
         do {
             instrumentation.uiAutomation.rootInActiveWindow?.findNode(matches)?.let { return it }
-            SystemClock.sleep(50)
+            SystemClock.sleep(100)
         } while (SystemClock.uptimeMillis() < deadline)
-        throw AssertionError("Compose screen did not show $description")
+        val visible = instrumentation.uiAutomation.rootInActiveWindow?.visibleTexts().orEmpty()
+        throw AssertionError("Compose screen did not show $description; visible: $visible")
+    }
+
+    private fun AccessibilityNodeInfo.visibleTexts(): List<String> = buildList {
+        if (isVisibleToUser) {
+            (text ?: contentDescription)?.toString()?.takeIf(String::isNotBlank)?.let(::add)
+        }
+        for (index in 0 until childCount) {
+            getChild(index)?.visibleTexts()?.let(::addAll)
+        }
+    }
+
+    private companion object {
+        const val AWAIT_TIMEOUT_MS = 30_000L
     }
 
     private fun AccessibilityNodeInfo.findNode(

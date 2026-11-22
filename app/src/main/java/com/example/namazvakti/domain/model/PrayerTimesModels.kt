@@ -99,8 +99,6 @@ data class PrayerTimes(
         PrayerTimeName.ISHA -> isha
     }
 
-    fun toWidgetText(): String = displayItems().joinToString(" • ") { "${it.label} ${it.time.format(TIME_FORMATTER)}" }
-
     fun toHighlightedDisplayItems(now: LocalTime): List<PrayerDisplayItem> {
         val items = displayItems()
         val activePrayer = currentPrayerName(now)
@@ -183,27 +181,3 @@ data class PrayerBoundarySchedule(
     val name: String,
     val time: LocalTime
 )
-
-fun parsePrayerTimesText(text: String): PrayerTimes? {
-    val parts = text.trim().split(" • ").map { it.trim() }.filter { it.isNotEmpty() }
-    if (parts.size != 6) return null
-
-    val values = parts.map { part ->
-        part.substringAfter(' ', "").substringBefore(" ").let { raw ->
-            runCatching { LocalTime.parse(raw) }.getOrNull()
-        }
-    }
-    if (values.any { it == null }) return null
-    return try {
-        PrayerTimes(
-            fajr = values[0]!!,
-            sunrise = values[1]!!,
-            dhuhr = values[2]!!,
-            asr = values[3]!!,
-            maghrib = values[4]!!,
-            isha = values[5]!!
-        )
-    } catch (_: IllegalArgumentException) {
-        null
-    }
-}

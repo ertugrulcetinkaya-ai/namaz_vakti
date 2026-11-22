@@ -2,6 +2,7 @@ package com.example.namazvakti.data.remote
 
 import com.google.gson.Gson
 import com.example.namazvakti.domain.model.DiyanetHijriCalendar
+import com.example.namazvakti.domain.model.HijriMonthNames
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.PrayerTimesApiException
 import com.example.namazvakti.domain.model.PrayerTimes
@@ -317,39 +318,23 @@ private fun HijriDate.toDisplayText(): String? {
 }
 
 private fun hijriMonthName(number: Int?, en: String?, ar: String?): String {
-    val byNumber = number?.let {
-        when (it) {
-            1 -> "Muharrem"
-            2 -> "Safer"
-            3 -> "Rebiülevvel"
-            4 -> "Rebiülahir"
-            5 -> "Cemaziyelevvel"
-            6 -> "Cemaziyelahir"
-            7 -> "Recep"
-            8 -> "Şaban"
-            9 -> "Ramazan"
-            10 -> "Şevval"
-            11 -> "Zilkade"
-            12 -> "Zilhicce"
-            else -> null
-        }
-    }
-    if (byNumber != null) return byNumber
+    HijriMonthNames.turkishName(number)?.let { return it }
 
     val raw = (en ?: ar.orEmpty()).lowercase()
-    return when {
-        "muharram" in raw -> "Muharrem"
-        "safar" in raw -> "Safer"
-        "rabi" in raw && "awwal" in raw -> "Rebiülevvel"
-        "rabi" in raw && ("thani" in raw || "akhir" in raw) -> "Rebiülahir"
-        "jumada" in raw && "awwal" in raw -> "Cemaziyelevvel"
-        "jumada" in raw && ("akhir" in raw || "thani" in raw) -> "Cemaziyelahir"
-        "rajab" in raw -> "Recep"
-        "sha" in raw && "ban" in raw -> "Şaban"
-        "ramadan" in raw -> "Ramazan"
-        "shawwal" in raw -> "Şevval"
-        "dhu" in raw && "qadah" in raw -> "Zilkade"
-        "dhu" in raw && "hijjah" in raw -> "Zilhicce"
-        else -> ""
+    val monthNumber = when {
+        "muharram" in raw -> 1
+        "safar" in raw -> 2
+        "rabi" in raw && "awwal" in raw -> 3
+        "rabi" in raw && ("thani" in raw || "akhir" in raw) -> 4
+        "jumada" in raw && "awwal" in raw -> 5
+        "jumada" in raw && ("akhir" in raw || "thani" in raw) -> 6
+        "rajab" in raw -> 7
+        "sha" in raw && "ban" in raw -> 8
+        "ramadan" in raw -> 9
+        "shawwal" in raw -> 10
+        "dhu" in raw && "qadah" in raw -> 11
+        "dhu" in raw && "hijjah" in raw -> 12
+        else -> null
     }
+    return HijriMonthNames.turkishName(monthNumber).orEmpty()
 }
