@@ -11,11 +11,28 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.YearMonth
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PrayerCalendarUiStateTest {
+    @Test
+    fun imsakiyeHeaderUsesSelectedDistrictDisplayName() {
+        val district = DiyanetDistricts.districts.single {
+            it.provinceName == "İSTANBUL" && it.name == "KARTAL"
+        }
+        val location = PrayerLocation(
+            city = "Istanbul",
+            country = "Turkey",
+            displayCity = "İSTANBUL",
+            diyanetDistrictId = district.id,
+            districtName = district.name
+        )
+
+        assertEquals(location.displayName, ImsakiyeUiState(location = location).headerLocationName)
+    }
+
     @Test
     fun monthlyNoticeIsShownWhenAtLeastOneDayUsesProvinceCenterFallback() {
         val province = requireNotNull(DiyanetDistricts.forCity("Istanbul", "Turkey"))

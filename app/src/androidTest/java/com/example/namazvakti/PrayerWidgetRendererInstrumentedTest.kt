@@ -355,6 +355,38 @@ class PrayerWidgetRendererInstrumentedTest {
     }
 
     @Test
+    fun mediumShowsDistrictNameAndSmallKeepsDistrictWhenFullNameDoesNotFit() {
+        val district = DiyanetDistricts.districts.single {
+            it.provinceName == "İSTANBUL" && it.name == "KARTAL"
+        }
+        val selectedLocation = location.copy(
+            diyanetDistrictId = district.id,
+            districtName = district.name
+        )
+        val districtCache = cache().copy(location = selectedLocation)
+
+        val medium = render(
+            districtCache,
+            PrayerWidgetDataState.Fresh,
+            PrayerWidgetSizeClass.MEDIUM,
+            dimensionsDp = 380 to 126
+        )
+        val small = render(
+            districtCache,
+            PrayerWidgetDataState.Fresh,
+            PrayerWidgetSizeClass.SMALL,
+            dimensionsDp = 159 to 81
+        )
+
+        assertTrue(medium.root.text(R.id.prayer_widget_city).contains(selectedLocation.displayName))
+        assertTrue(
+            small.root.text(R.id.prayer_widget_city) in setOf(selectedLocation.displayName, "KARTAL")
+        )
+        assertTrue(medium.root.contentDescription.contains(selectedLocation.displayName))
+        assertTrue(small.root.contentDescription.contains(selectedLocation.displayName))
+    }
+
+    @Test
     fun api30DeviceExportsFallbackColorSample() {
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.R) {
             val rendered = render(cache(), PrayerWidgetDataState.Fresh, PrayerWidgetSizeClass.LARGE)
@@ -375,7 +407,7 @@ class PrayerWidgetRendererInstrumentedTest {
     ): Rendered {
         val snapshot = com.example.namazvakti.widget.PrayerWidgetSnapshot(
             cache = cache,
-            location = location,
+            location = cache?.location ?: location,
             now = now,
             dataState = state,
             ramadanRange = ramadanRange,

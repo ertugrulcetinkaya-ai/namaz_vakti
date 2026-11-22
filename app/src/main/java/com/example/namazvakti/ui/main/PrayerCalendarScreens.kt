@@ -67,6 +67,9 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.max
 
+internal val ImsakiyeUiState.headerLocationName: String?
+    get() = location?.displayName
+
 internal val MonthlyUiState.hasProvinceCenterFallback: Boolean
     get() = days.any { it.usesProvinceCenterFallback }
 
@@ -242,8 +245,8 @@ fun ImsakiyeScreen(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        state.location?.displayCity?.let { city ->
-                            Text(city, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                        state.headerLocationName?.let { locationName ->
+                            Text(locationName, style = MaterialTheme.typography.labelMedium, maxLines = 1)
                         }
                         if (range?.estimated == true) {
                             Text(
