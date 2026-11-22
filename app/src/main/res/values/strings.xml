@@ -128,6 +128,7 @@
     <string name="district_selected">Seçili ilçe</string>
     <string name="notification_settings_open">Bildirim ayarlarını aç</string>
     <string name="notification_settings_save_failed">Bildirim ayarları kaydedilemedi.</string>
+    <string name="exact_alarm_settings_unavailable">Kesin alarm ayarları açılamadı.</string>
     <string name="prayer_countdown_unknown_accessibility">Sıradaki vakit bilinmiyor</string>
     <plurals name="countdown_hours">
         <item quantity="one">%d saat</item>
