@@ -37,6 +37,7 @@ import kotlinx.coroutines.isActive
 import java.time.LocalDate
 import java.time.ZonedDateTime
 import java.time.YearMonth
+import java.time.temporal.ChronoUnit
 
 @Composable
 fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
@@ -56,6 +57,7 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
     val timezone = location?.timezone ?: PrayerTimeProvider.DEFAULT_ZONE
     var now by remember(timezone) { mutableStateOf(ZonedDateTime.now(timezone)) }
     val today = now.withZoneSameInstant(timezone).toLocalDate()
+    val autoRefreshMinute = now.truncatedTo(ChronoUnit.MINUTES)
     var lastObservedDate by remember { mutableStateOf(today) }
     var showCities by rememberSaveable { mutableStateOf(false) }
     var citySelectionStep by rememberSaveable { mutableIntStateOf(1) }
@@ -67,7 +69,7 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
     var showNotificationSettings by rememberSaveable { mutableStateOf(false) }
     var pendingNotificationSettings by remember { mutableStateOf<PrayerNotificationSettings?>(null) }
     var resumeVersion by remember { mutableIntStateOf(0) }
-    val requestedRefreshDates = remember { mutableSetOf<LocalDate>() }
+    val autoRefreshPolicy = remember { AutoRefreshPolicy() }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -98,13 +100,21 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
         now.withZoneSameInstant(readyState.location.timezone).toLocalTime() >= cache.prayerTimes.isha
     } == true
 
-    LaunchedEffect(state, today, lastObservedDate, afterIsha) {
+    LaunchedEffect(state, today, lastObservedDate, afterIsha, autoRefreshMinute) {
         if (lastObservedDate != today) return@LaunchedEffect
         val ready = state as? PrayerUiState.Ready ?: return@LaunchedEffect
-        val cache = ready.cache
-        val missingToday = cache?.date != today
+        if (ready.operation == OperationState.Refreshing) return@LaunchedEffect
+
+        val missingToday = ready.cache?.date != today
         val missingTomorrowAfterIsha = afterIsha && ready.tomorrowCache?.date != today.plusDays(1)
-        if ((missingToday || missingTomorrowAfterIsha) && requestedRefreshDates.add(today)) {
+        val reason = when {
+            missingToday -> Reason.MISSING_TODAY
+            missingTomorrowAfterIsha -> Reason.MISSING_TOMORROW
+            else -> return@LaunchedEffect
+        }
+        val key = AutoRefreshKey(today, ready.location.cacheKey, reason)
+        val lastAttemptFailed = ready.operation == OperationState.RefreshFailed
+        if (autoRefreshPolicy.shouldRefresh(key, now.toInstant(), lastAttemptFailed)) {
             viewModel.refresh()
         }
     }
