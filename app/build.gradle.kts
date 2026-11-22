@@ -1,3 +1,5 @@
+import org.gradle.api.tasks.testing.Test
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -91,6 +93,11 @@ android {
     testOptions {
         managedDevices {
             localDevices {
+                create("pixel2api30") {
+                    device = "Pixel 2"
+                    apiLevel = 30
+                    systemImageSource = "aosp"
+                }
                 create("pixel2api35") {
                     device = "Pixel 2"
                     apiLevel = 35
@@ -100,6 +107,13 @@ android {
         }
     }
 
+}
+
+tasks.withType<Test>().configureEach {
+    systemProperty(
+        "diyanet.contract.enabled",
+        providers.gradleProperty("diyanetContract").orElse("false").get()
+    )
 }
 
 kotlin {
