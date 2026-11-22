@@ -19,7 +19,6 @@
 -keep class com.example.namazvakti.data.remote.PrayerTimesApiResult { *; }
 -keep class com.example.namazvakti.data.remote.PrayerTimesApiDayResult { *; }
 -keep class com.example.namazvakti.data.remote.PrayerTimesCalendarResult { *; }
--keep class com.example.namazvakti.data.local.CachedPrayerDayCodec { *; }
 -keep class com.example.namazvakti.data.local.PrayerDayEntity { *; }
 -keep class com.example.namazvakti.data.local.PrayerTimesDatabase { *; }
 -keep class com.example.namazvakti.data.local.PrayerTimesDatabase$Companion { *; }

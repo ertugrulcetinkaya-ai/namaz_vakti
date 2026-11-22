@@ -225,15 +225,11 @@ data class HijriDate(val day: Int, val month: Int, val year: Int) {
         require(year > 0)
     }
 
-    fun toDisplayText(): String = "$day ${MONTH_NAMES[month - 1]} $year"
+    fun toDisplayText(): String = "$day ${requireNotNull(HijriMonthNames.turkishName(month))} $year"
 
     fun toCompactDisplayText(): String = "$day ${SHORT_MONTH_NAMES[month - 1]}"
 
     companion object {
-        private val MONTH_NAMES = listOf(
-            "Muharrem", "Safer", "Rebiülevvel", "Rebiülahir", "Cemaziyelevvel", "Cemaziyelahir",
-            "Recep", "Şaban", "Ramazan", "Şevval", "Zilkade", "Zilhicce"
-        )
         private val SHORT_MONTH_NAMES = listOf(
             "Muh", "Saf", "R.Ev", "R.Ah", "C.Ev", "C.Ah", "Recep", "Şab", "Ram", "Şev", "Zil", "ZilH"
         )

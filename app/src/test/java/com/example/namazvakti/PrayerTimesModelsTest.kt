@@ -7,7 +7,6 @@ import com.example.namazvakti.domain.model.DiyanetDistricts
 import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.PrayerTimeProvider
 import com.example.namazvakti.domain.model.PrayerTimes
-import com.example.namazvakti.domain.model.parsePrayerTimesText
 import com.example.namazvakti.domain.policy.PrayerBoundaryCalculator
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -117,21 +116,6 @@ class PrayerTimesModelsTest {
         )
     }
 
-    @Test
-    fun parsesWidgetTextOnlyWhenAllSixValuesExist() {
-        val times = parsePrayerTimesText("İmsak 04:12 • Güneş 05:49 • Öğle 13:08 • İkindi 17:02 • Akşam 20:21 • Yatsı 22:01")
-
-        assertEquals("17:02", times?.asr?.toString())
-        assertNull(parsePrayerTimesText("İmsak 04:12 • Güneş 05:49"))
-    }
-
-    @Test
-    fun rejectsNonChronologicalPrayerTimes() {
-        val invalid = sampleTimesText().replace("İkindi 17:02", "İkindi 12:00")
-
-        assertNull(parsePrayerTimesText(invalid))
-    }
-
     @Test(expected = IllegalArgumentException::class)
     fun prayerTimesRejectDuplicateBoundaries() {
         sampleTimes().copy(asr = LocalTime.of(13, 8))
@@ -232,9 +216,6 @@ class PrayerTimesModelsTest {
         LocalTime.of(4, 12), LocalTime.of(5, 49), LocalTime.of(13, 8),
         LocalTime.of(17, 2), LocalTime.of(20, 21), LocalTime.of(22, 1)
     )
-
-    private fun sampleTimesText() =
-        "İmsak 04:12 • Güneş 05:49 • Öğle 13:08 • İkindi 17:02 • Akşam 20:21 • Yatsı 22:01"
 
     private fun sampleCache(
         date: LocalDate = LocalDate.of(2026, 8, 6),

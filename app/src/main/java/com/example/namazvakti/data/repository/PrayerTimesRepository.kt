@@ -31,7 +31,6 @@ import com.example.namazvakti.domain.port.PrayerRefreshRepository
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.YearMonth
-import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -46,7 +45,11 @@ class PrayerTimesRepository(
 ) : PrayerRefreshRepository {
     private val cacheWriteMutex = Mutex()
     private val refreshMutex = Mutex()
-    private val monthMutexes = ConcurrentHashMap<MonthRequestKey, Mutex>()
+    private val monthMutexesLock = Any()
+    private val monthMutexes = mutableMapOf<MonthRequestKey, MonthMutexEntry>()
+
+    internal val monthMutexEntryCount: Int
+        get() = synchronized(monthMutexesLock) { monthMutexes.size }
 
     override suspend fun refreshAndCache(): RefreshResult = refreshMutex.withLock {
         val location = try {
@@ -234,22 +237,34 @@ class PrayerTimesRepository(
     override suspend fun ensureMonth(yearMonth: YearMonth): MonthResult {
         val location = store.readLocation()
         val key = MonthRequestKey(yearMonth, location.cacheKey, location.country, settings)
-        val mutex = monthMutexes.computeIfAbsent(key) { Mutex() }
-        return mutex.withLock {
-            val start = yearMonth.atDay(1)
-            val end = yearMonth.atEndOfMonth()
-            val cached = store.readCaches(start, end, location, settings)
-            val expectedDates = (1..yearMonth.lengthOfMonth()).map(yearMonth::atDay).toSet()
-            if (cached.size == expectedDates.size && cached.map { it.date }.toSet() == expectedDates) {
-                return@withLock MonthResult(yearMonth, cached, MonthDataSource.CACHE)
+        val entry = synchronized(monthMutexesLock) {
+            monthMutexes.getOrPut(key) { MonthMutexEntry(Mutex()) }.also { it.users++ }
+        }
+        return try {
+            entry.mutex.withLock {
+                val start = yearMonth.atDay(1)
+                val end = yearMonth.atEndOfMonth()
+                val cached = store.readCaches(start, end, location, settings)
+                val expectedDates = (1..yearMonth.lengthOfMonth()).map(yearMonth::atDay).toSet()
+                if (cached.size == expectedDates.size && cached.map { it.date }.toSet() == expectedDates) {
+                    return@withLock MonthResult(yearMonth, cached, MonthDataSource.CACHE)
+                }
+                try {
+                    MonthResult(yearMonth, fetchAndCacheMonth(location, yearMonth), MonthDataSource.NETWORK)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    val partial = store.readCaches(start, end, location, settings)
+                    MonthResult(yearMonth, partial, MonthDataSource.PARTIAL, e)
+                }
             }
-            try {
-                MonthResult(yearMonth, fetchAndCacheMonth(location, yearMonth), MonthDataSource.NETWORK)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                val partial = store.readCaches(start, end, location, settings)
-                MonthResult(yearMonth, partial, MonthDataSource.PARTIAL, e)
+        } finally {
+            synchronized(monthMutexesLock) {
+                entry.users--
+                check(entry.users >= 0)
+                if (entry.users == 0) {
+                    monthMutexes.remove(key, entry)
+                }
             }
         }
     }
@@ -351,4 +366,6 @@ class PrayerTimesRepository(
         val country: String,
         val settings: PrayerCalculationSettings
     )
+
+    private class MonthMutexEntry(val mutex: Mutex, var users: Int = 0)
 }
