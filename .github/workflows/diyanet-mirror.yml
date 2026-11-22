@@ -1,0 +1,499 @@
+name: Diyanet mirror
+
+on:
+  schedule:
+    - cron: "17 0 2 1 *"
+  workflow_dispatch:
+    inputs:
+      only_chunk:
+        description: Run all nine chunks, or retry one chunk and republish it
+        required: false
+        type: choice
+        default: all
+        options:
+          - all
+          - "1"
+          - "2"
+          - "3"
+          - "4"
+          - "5"
+          - "6"
+          - "7"
+          - "8"
+          - "9"
+
+concurrency:
+  group: diyanet-data-publication
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  chunk_1:
+    if: ${{ !cancelled() && (github.event_name == 'schedule' || inputs.only_chunk == 'all' || inputs.only_chunk == '1') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    outputs:
+      finished_at: ${{ steps.finished.outputs.finished_at }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Fetch chunk 1
+        run: python3 tools/diyanet_mirror/build_mirror.py --chunk 1 --output "$RUNNER_TEMP/diyanet-chunk-1"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: diyanet-chunk-1
+          path: ${{ runner.temp }}/diyanet-chunk-1/
+          if-no-files-found: error
+          retention-days: 7
+      - id: finished
+        name: Record job completion time
+        run: echo "finished_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
+  chunk_2:
+    needs: chunk_1
+    if: >-
+      ${{ !cancelled() && (
+        ((github.event_name == 'schedule' || inputs.only_chunk == 'all') && needs.chunk_1.result == 'success') ||
+        (github.event_name == 'workflow_dispatch' && inputs.only_chunk == '2')
+      ) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    outputs:
+      finished_at: ${{ steps.finished.outputs.finished_at }}
+    steps:
+      - name: Wait for the previous chunk's rate-limit window
+        env:
+          PREVIOUS_FINISHED_AT: ${{ needs.chunk_1.outputs.finished_at }}
+        run: |
+          python3 - <<'PY'
+          from datetime import datetime, timedelta, timezone
+          import os
+          import time
+          value = os.environ.get("PREVIOUS_FINISHED_AT", "")
+          if value:
+              previous = datetime.fromisoformat(value.replace("Z", "+00:00"))
+              target = previous.astimezone(timezone.utc) + timedelta(minutes=65)
+          else:
+              target = datetime.now(timezone.utc) + timedelta(minutes=65)
+          while True:
+              remaining = (target - datetime.now(timezone.utc)).total_seconds()
+              if remaining <= 0:
+                  break
+              time.sleep(min(60, remaining))
+          PY
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Fetch chunk 2
+        run: python3 tools/diyanet_mirror/build_mirror.py --chunk 2 --output "$RUNNER_TEMP/diyanet-chunk-2"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: diyanet-chunk-2
+          path: ${{ runner.temp }}/diyanet-chunk-2/
+          if-no-files-found: error
+          retention-days: 7
+      - id: finished
+        name: Record job completion time
+        run: echo "finished_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
+  chunk_3:
+    needs: chunk_2
+    if: >-
+      ${{ !cancelled() && (
+        ((github.event_name == 'schedule' || inputs.only_chunk == 'all') && needs.chunk_2.result == 'success') ||
+        (github.event_name == 'workflow_dispatch' && inputs.only_chunk == '3')
+      ) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    outputs:
+      finished_at: ${{ steps.finished.outputs.finished_at }}
+    steps:
+      - name: Wait for the previous chunk's rate-limit window
+        env:
+          PREVIOUS_FINISHED_AT: ${{ needs.chunk_2.outputs.finished_at }}
+        run: |
+          python3 - <<'PY'
+          from datetime import datetime, timedelta, timezone
+          import os
+          import time
+          value = os.environ.get("PREVIOUS_FINISHED_AT", "")
+          if value:
+              previous = datetime.fromisoformat(value.replace("Z", "+00:00"))
+              target = previous.astimezone(timezone.utc) + timedelta(minutes=65)
+          else:
+              target = datetime.now(timezone.utc) + timedelta(minutes=65)
+          while True:
+              remaining = (target - datetime.now(timezone.utc)).total_seconds()
+              if remaining <= 0:
+                  break
+              time.sleep(min(60, remaining))
+          PY
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Fetch chunk 3
+        run: python3 tools/diyanet_mirror/build_mirror.py --chunk 3 --output "$RUNNER_TEMP/diyanet-chunk-3"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: diyanet-chunk-3
+          path: ${{ runner.temp }}/diyanet-chunk-3/
+          if-no-files-found: error
+          retention-days: 7
+      - id: finished
+        name: Record job completion time
+        run: echo "finished_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
+  chunk_4:
+    needs: chunk_3
+    if: >-
+      ${{ !cancelled() && (
+        ((github.event_name == 'schedule' || inputs.only_chunk == 'all') && needs.chunk_3.result == 'success') ||
+        (github.event_name == 'workflow_dispatch' && inputs.only_chunk == '4')
+      ) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    outputs:
+      finished_at: ${{ steps.finished.outputs.finished_at }}
+    steps:
+      - name: Wait for the previous chunk's rate-limit window
+        env:
+          PREVIOUS_FINISHED_AT: ${{ needs.chunk_3.outputs.finished_at }}
+        run: |
+          python3 - <<'PY'
+          from datetime import datetime, timedelta, timezone
+          import os
+          import time
+          value = os.environ.get("PREVIOUS_FINISHED_AT", "")
+          if value:
+              previous = datetime.fromisoformat(value.replace("Z", "+00:00"))
+              target = previous.astimezone(timezone.utc) + timedelta(minutes=65)
+          else:
+              target = datetime.now(timezone.utc) + timedelta(minutes=65)
+          while True:
+              remaining = (target - datetime.now(timezone.utc)).total_seconds()
+              if remaining <= 0:
+                  break
+              time.sleep(min(60, remaining))
+          PY
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Fetch chunk 4
+        run: python3 tools/diyanet_mirror/build_mirror.py --chunk 4 --output "$RUNNER_TEMP/diyanet-chunk-4"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: diyanet-chunk-4
+          path: ${{ runner.temp }}/diyanet-chunk-4/
+          if-no-files-found: error
+          retention-days: 7
+      - id: finished
+        name: Record job completion time
+        run: echo "finished_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
+  chunk_5:
+    needs: chunk_4
+    if: >-
+      ${{ !cancelled() && (
+        ((github.event_name == 'schedule' || inputs.only_chunk == 'all') && needs.chunk_4.result == 'success') ||
+        (github.event_name == 'workflow_dispatch' && inputs.only_chunk == '5')
+      ) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    outputs:
+      finished_at: ${{ steps.finished.outputs.finished_at }}
+    steps:
+      - name: Wait for the previous chunk's rate-limit window
+        env:
+          PREVIOUS_FINISHED_AT: ${{ needs.chunk_4.outputs.finished_at }}
+        run: |
+          python3 - <<'PY'
+          from datetime import datetime, timedelta, timezone
+          import os
+          import time
+          value = os.environ.get("PREVIOUS_FINISHED_AT", "")
+          if value:
+              previous = datetime.fromisoformat(value.replace("Z", "+00:00"))
+              target = previous.astimezone(timezone.utc) + timedelta(minutes=65)
+          else:
+              target = datetime.now(timezone.utc) + timedelta(minutes=65)
+          while True:
+              remaining = (target - datetime.now(timezone.utc)).total_seconds()
+              if remaining <= 0:
+                  break
+              time.sleep(min(60, remaining))
+          PY
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Fetch chunk 5
+        run: python3 tools/diyanet_mirror/build_mirror.py --chunk 5 --output "$RUNNER_TEMP/diyanet-chunk-5"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: diyanet-chunk-5
+          path: ${{ runner.temp }}/diyanet-chunk-5/
+          if-no-files-found: error
+          retention-days: 7
+      - id: finished
+        name: Record job completion time
+        run: echo "finished_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
+  chunk_6:
+    needs: chunk_5
+    if: >-
+      ${{ !cancelled() && (
+        ((github.event_name == 'schedule' || inputs.only_chunk == 'all') && needs.chunk_5.result == 'success') ||
+        (github.event_name == 'workflow_dispatch' && inputs.only_chunk == '6')
+      ) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    outputs:
+      finished_at: ${{ steps.finished.outputs.finished_at }}
+    steps:
+      - name: Wait for the previous chunk's rate-limit window
+        env:
+          PREVIOUS_FINISHED_AT: ${{ needs.chunk_5.outputs.finished_at }}
+        run: |
+          python3 - <<'PY'
+          from datetime import datetime, timedelta, timezone
+          import os
+          import time
+          value = os.environ.get("PREVIOUS_FINISHED_AT", "")
+          if value:
+              previous = datetime.fromisoformat(value.replace("Z", "+00:00"))
+              target = previous.astimezone(timezone.utc) + timedelta(minutes=65)
+          else:
+              target = datetime.now(timezone.utc) + timedelta(minutes=65)
+          while True:
+              remaining = (target - datetime.now(timezone.utc)).total_seconds()
+              if remaining <= 0:
+                  break
+              time.sleep(min(60, remaining))
+          PY
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Fetch chunk 6
+        run: python3 tools/diyanet_mirror/build_mirror.py --chunk 6 --output "$RUNNER_TEMP/diyanet-chunk-6"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: diyanet-chunk-6
+          path: ${{ runner.temp }}/diyanet-chunk-6/
+          if-no-files-found: error
+          retention-days: 7
+      - id: finished
+        name: Record job completion time
+        run: echo "finished_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
+  chunk_7:
+    needs: chunk_6
+    if: >-
+      ${{ !cancelled() && (
+        ((github.event_name == 'schedule' || inputs.only_chunk == 'all') && needs.chunk_6.result == 'success') ||
+        (github.event_name == 'workflow_dispatch' && inputs.only_chunk == '7')
+      ) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    outputs:
+      finished_at: ${{ steps.finished.outputs.finished_at }}
+    steps:
+      - name: Wait for the previous chunk's rate-limit window
+        env:
+          PREVIOUS_FINISHED_AT: ${{ needs.chunk_6.outputs.finished_at }}
+        run: |
+          python3 - <<'PY'
+          from datetime import datetime, timedelta, timezone
+          import os
+          import time
+          value = os.environ.get("PREVIOUS_FINISHED_AT", "")
+          if value:
+              previous = datetime.fromisoformat(value.replace("Z", "+00:00"))
+              target = previous.astimezone(timezone.utc) + timedelta(minutes=65)
+          else:
+              target = datetime.now(timezone.utc) + timedelta(minutes=65)
+          while True:
+              remaining = (target - datetime.now(timezone.utc)).total_seconds()
+              if remaining <= 0:
+                  break
+              time.sleep(min(60, remaining))
+          PY
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Fetch chunk 7
+        run: python3 tools/diyanet_mirror/build_mirror.py --chunk 7 --output "$RUNNER_TEMP/diyanet-chunk-7"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: diyanet-chunk-7
+          path: ${{ runner.temp }}/diyanet-chunk-7/
+          if-no-files-found: error
+          retention-days: 7
+      - id: finished
+        name: Record job completion time
+        run: echo "finished_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
+  chunk_8:
+    needs: chunk_7
+    if: >-
+      ${{ !cancelled() && (
+        ((github.event_name == 'schedule' || inputs.only_chunk == 'all') && needs.chunk_7.result == 'success') ||
+        (github.event_name == 'workflow_dispatch' && inputs.only_chunk == '8')
+      ) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    outputs:
+      finished_at: ${{ steps.finished.outputs.finished_at }}
+    steps:
+      - name: Wait for the previous chunk's rate-limit window
+        env:
+          PREVIOUS_FINISHED_AT: ${{ needs.chunk_7.outputs.finished_at }}
+        run: |
+          python3 - <<'PY'
+          from datetime import datetime, timedelta, timezone
+          import os
+          import time
+          value = os.environ.get("PREVIOUS_FINISHED_AT", "")
+          if value:
+              previous = datetime.fromisoformat(value.replace("Z", "+00:00"))
+              target = previous.astimezone(timezone.utc) + timedelta(minutes=65)
+          else:
+              target = datetime.now(timezone.utc) + timedelta(minutes=65)
+          while True:
+              remaining = (target - datetime.now(timezone.utc)).total_seconds()
+              if remaining <= 0:
+                  break
+              time.sleep(min(60, remaining))
+          PY
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Fetch chunk 8
+        run: python3 tools/diyanet_mirror/build_mirror.py --chunk 8 --output "$RUNNER_TEMP/diyanet-chunk-8"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: diyanet-chunk-8
+          path: ${{ runner.temp }}/diyanet-chunk-8/
+          if-no-files-found: error
+          retention-days: 7
+      - id: finished
+        name: Record job completion time
+        run: echo "finished_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: [chunk_1, chunk_2, chunk_3, chunk_4, chunk_5, chunk_6, chunk_7, chunk_8]
+    if: >-
+      ${{ !cancelled() && (
+        ((github.event_name == 'schedule' || inputs.only_chunk == 'all') && needs.chunk_8.result == 'success') ||
+        (github.event_name == 'workflow_dispatch' && inputs.only_chunk == '9') ||
+        (github.event_name == 'workflow_dispatch' && inputs.only_chunk == '1' && needs.chunk_1.result == 'success' && needs.chunk_8.result == 'skipped') ||
+        (github.event_name == 'workflow_dispatch' && inputs.only_chunk == '2' && needs.chunk_2.result == 'success' && needs.chunk_8.result == 'skipped') ||
+        (github.event_name == 'workflow_dispatch' && inputs.only_chunk == '3' && needs.chunk_3.result == 'success' && needs.chunk_8.result == 'skipped') ||
+        (github.event_name == 'workflow_dispatch' && inputs.only_chunk == '4' && needs.chunk_4.result == 'success' && needs.chunk_8.result == 'skipped') ||
+        (github.event_name == 'workflow_dispatch' && inputs.only_chunk == '5' && needs.chunk_5.result == 'success' && needs.chunk_8.result == 'skipped') ||
+        (github.event_name == 'workflow_dispatch' && inputs.only_chunk == '6' && needs.chunk_6.result == 'success' && needs.chunk_8.result == 'skipped') ||
+        (github.event_name == 'workflow_dispatch' && inputs.only_chunk == '7' && needs.chunk_7.result == 'success' && needs.chunk_8.result == 'skipped') ||
+        (github.event_name == 'workflow_dispatch' && inputs.only_chunk == '8' && needs.chunk_8.result == 'success')
+      ) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - name: Wait for the previous chunk's rate-limit window
+        if: ${{ github.event_name == 'schedule' || inputs.only_chunk == 'all' || inputs.only_chunk == '9' }}
+        env:
+          PREVIOUS_FINISHED_AT: ${{ needs.chunk_8.outputs.finished_at }}
+          ONLY_CHUNK: ${{ inputs.only_chunk }}
+        run: |
+          python3 - <<'PY'
+          from datetime import datetime, timedelta, timezone
+          import os
+          import time
+          value = os.environ.get("PREVIOUS_FINISHED_AT", "")
+          if value:
+              previous = datetime.fromisoformat(value.replace("Z", "+00:00"))
+              target = previous.astimezone(timezone.utc) + timedelta(minutes=65)
+          else:
+              target = datetime.now(timezone.utc) + timedelta(minutes=65)
+          while True:
+              remaining = (target - datetime.now(timezone.utc)).total_seconds()
+              if remaining <= 0:
+                  break
+              time.sleep(min(60, remaining))
+          PY
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Fetch chunk 9
+        if: ${{ github.event_name == 'schedule' || inputs.only_chunk == 'all' || inputs.only_chunk == '9' }}
+        run: python3 tools/diyanet_mirror/build_mirror.py --chunk 9 --output "$RUNNER_TEMP/diyanet-chunk-9"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ github.event_name == 'schedule' || inputs.only_chunk == 'all' || inputs.only_chunk == '9' }}
+        with:
+          name: diyanet-chunk-9
+          path: ${{ runner.temp }}/diyanet-chunk-9/
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: ${{ github.event_name == 'schedule' || inputs.only_chunk == 'all' || inputs.only_chunk != '9' }}
+        with:
+          pattern: diyanet-chunk-*
+          path: ${{ runner.temp }}/diyanet-artifacts
+      - name: Read the current orphan data branch
+        id: current_branch
+        run: |
+          if git ls-remote --heads origin diyanet-data > "$RUNNER_TEMP/diyanet-branch-ref"; then
+            if [ -s "$RUNNER_TEMP/diyanet-branch-ref" ]; then
+              git fetch origin refs/heads/diyanet-data:refs/remotes/origin/diyanet-data
+              mkdir -p "$RUNNER_TEMP/diyanet-existing"
+              git archive origin/diyanet-data v1 | tar -x -C "$RUNNER_TEMP/diyanet-existing"
+              echo "exists=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "exists=false" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            exit 1
+          fi
+      - name: Build or update the publication
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          ONLY_CHUNK: ${{ inputs.only_chunk }}
+          BRANCH_EXISTS: ${{ steps.current_branch.outputs.exists }}
+        run: |
+          set -euo pipefail
+          PUBLISH_ROOT="$RUNNER_TEMP/diyanet-publication"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ -n "$ONLY_CHUNK" ] && [ "$ONLY_CHUNK" != "all" ]; then
+            if [ "$BRANCH_EXISTS" != "true" ]; then
+              echo "Cannot update one chunk before the full mirror has been published." >&2
+              exit 1
+            fi
+            CHUNK_DIR="$RUNNER_TEMP/diyanet-artifacts/diyanet-chunk-$ONLY_CHUNK"
+            if [ "$ONLY_CHUNK" = "9" ]; then
+              CHUNK_DIR="$RUNNER_TEMP/diyanet-chunk-9"
+            fi
+            python3 tools/diyanet_mirror/build_mirror.py \
+              --update-chunk "$CHUNK_DIR" \
+              --chunk-index "$ONLY_CHUNK" \
+              --existing-v1 "$RUNNER_TEMP/diyanet-existing/v1" \
+              --output "$PUBLISH_ROOT"
+          else
+            python3 tools/diyanet_mirror/build_mirror.py \
+              --merge-chunks \
+              "$RUNNER_TEMP/diyanet-artifacts/diyanet-chunk-1" \
+              "$RUNNER_TEMP/diyanet-artifacts/diyanet-chunk-2" \
+              "$RUNNER_TEMP/diyanet-artifacts/diyanet-chunk-3" \
+              "$RUNNER_TEMP/diyanet-artifacts/diyanet-chunk-4" \
+              "$RUNNER_TEMP/diyanet-artifacts/diyanet-chunk-5" \
+              "$RUNNER_TEMP/diyanet-artifacts/diyanet-chunk-6" \
+              "$RUNNER_TEMP/diyanet-artifacts/diyanet-chunk-7" \
+              "$RUNNER_TEMP/diyanet-artifacts/diyanet-chunk-8" \
+              "$RUNNER_TEMP/diyanet-artifacts/diyanet-chunk-9" \
+              --output "$PUBLISH_ROOT"
+            if [ "$BRANCH_EXISTS" = "true" ]; then
+              PREVIOUS_YEAR="$(date -u -d '1 year ago' +%Y)"
+              if [ -d "$RUNNER_TEMP/diyanet-existing/v1/$PREVIOUS_YEAR" ]; then
+                cp -R "$RUNNER_TEMP/diyanet-existing/v1/$PREVIOUS_YEAR" "$PUBLISH_ROOT/v1/"
+              fi
+            fi
+          fi
+      - name: Publish only v1 to the orphan data branch
+        env:
+          BRANCH_EXISTS: ${{ steps.current_branch.outputs.exists }}
+        run: |
+          set -euo pipefail
+          if [ "$BRANCH_EXISTS" = "true" ]; then
+            git checkout -B diyanet-data origin/diyanet-data
+          else
+            git switch --orphan diyanet-data
+          fi
+          git ls-files -z | xargs -0 -r git rm -rf --quiet
+          git clean -fdx
+          mkdir -p v1
+          cp -R "$RUNNER_TEMP/diyanet-publication/v1/." v1/
+          git add -- v1
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update Diyanet mirror"
+          git push origin HEAD:diyanet-data

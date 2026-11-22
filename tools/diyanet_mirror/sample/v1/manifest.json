@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "generatedAt": "2026-11-22T20:19:53Z",
+  "source": "namazvakti.mtopal.dev",
+  "files": {
+    "9146": {
+      "path": "2026/9146.json",
+      "sha256": "b35db8ad0829d1ff8a27e080bdc29faec918d1c2e5d18bf4c90646327c069703",
+      "firstDate": "2026-11-22",
+      "lastDate": "2026-12-31"
+    },
+    "9147": {
+      "path": "2026/9147.json",
+      "sha256": "f90a25681fc66f7aaf029240bfc769fc83c3dc15362341bcd0ab6f8a558f1555",
+      "firstDate": "2026-11-22",
+      "lastDate": "2026-12-31"
+    },
+    "9148": {
+      "path": "2026/9148.json",
+      "sha256": "a804ff88800f12dff2efeb9051ac98d05f3309934c6faea92eb7ccc80d3a92c9",
+      "firstDate": "2026-11-22",
+      "lastDate": "2026-12-31"
+    }
+  }
+}
