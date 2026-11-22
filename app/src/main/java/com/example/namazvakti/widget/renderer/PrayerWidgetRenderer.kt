@@ -82,11 +82,28 @@ class PrayerWidgetRenderer {
             " • ${context.getString(R.string.widget_stale_label)}"
         } else ""
         val hijriText = cache?.displayHijriText()?.trim().orEmpty()
+        val showProvinceCenterNote = sizeClass == PrayerWidgetSizeClass.LARGE &&
+            cache?.usesProvinceCenterFallback == true &&
+            !compactDetails &&
+            widthDp != null &&
+            widthDp >= COMPACT_DETAILS_MIN_WIDTH_DP
+        val provinceCenterNote = if (showProvinceCenterNote) {
+            context.getString(R.string.widget_province_center_short)
+        } else {
+            null
+        }
         val cityText = when (sizeClass) {
             PrayerWidgetSizeClass.LARGE -> if (compactDetails) {
                 location.displayCity
             } else {
-                listOf(location.displayName, hijriText).filter(String::isNotBlank).joinToString(" • ")
+                largeCityText(
+                    context = context,
+                    location = location,
+                    hijriText = hijriText,
+                    provinceCenterNote = provinceCenterNote,
+                    widthDp = widthDp,
+                    reducedTextSize = reducedTextSize
+                )
             }
             PrayerWidgetSizeClass.MEDIUM -> if (compactDetails) {
                 location.displayCity + staleSuffix
@@ -205,18 +222,10 @@ class PrayerWidgetRenderer {
         } else {
             bottomInfoText(context, ramadanText, religiousText)
         }
-        val showProvinceCenterNote = sizeClass == PrayerWidgetSizeClass.LARGE &&
-            cache?.usesProvinceCenterFallback == true &&
-            !compactDetails
-        val displayedBottomInfo = if (showProvinceCenterNote) {
-            appendProvinceCenterNote(context, bottomInfo)
-        } else {
-            bottomInfo
-        }
-        views.setTextViewText(R.id.prayer_widget_ramadan, displayedBottomInfo.orEmpty())
+        views.setTextViewText(R.id.prayer_widget_ramadan, bottomInfo.orEmpty())
         views.setViewVisibility(
             R.id.prayer_widget_ramadan,
-            if (sizeClass == PrayerWidgetSizeClass.LARGE && displayedBottomInfo != null) View.VISIBLE else View.GONE
+            if (sizeClass == PrayerWidgetSizeClass.LARGE && bottomInfo != null) View.VISIBLE else View.GONE
         )
 
         val spoken = when {
@@ -309,23 +318,40 @@ class PrayerWidgetRenderer {
         return if (paint.measureText(combined) <= availableWidth) combined else ramadanText
     }
 
-    private fun appendProvinceCenterNote(context: Context, existing: String?): String {
-        val note = context.getString(R.string.widget_province_center_short)
-        if (existing == null) return note
-        val combined = "$existing • $note"
+    private fun largeCityText(
+        context: Context,
+        location: PrayerLocation,
+        hijriText: String,
+        provinceCenterNote: String?,
+        widthDp: Int?,
+        reducedTextSize: Boolean
+    ): String {
+        val city = location.displayName
+        if (provinceCenterNote == null || widthDp == null) {
+            return listOf(city, hijriText).filter(String::isNotBlank).joinToString(" • ")
+        }
+        val textSizeSp = if (reducedTextSize) COMPACT_TEXT_SIZE_SP else LARGE_CITY_TEXT_SIZE_SP
         val paint = TextPaint().apply {
             textSize = TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_SP,
-                18f,
+                textSizeSp,
                 context.resources.displayMetrics
             )
         }
         val availableWidth = TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
-            204f,
+            widthDp.toFloat(),
             context.resources.displayMetrics
+        ) - context.resources.getDimension(R.dimen.widget_padding_horizontal) * 2
+        val candidates = listOf(
+            listOf(city, hijriText, provinceCenterNote),
+            listOf(city, provinceCenterNote),
+            listOf(location.displayCity, provinceCenterNote)
         )
-        return if (paint.measureText(combined) <= availableWidth) combined else existing
+        return candidates
+            .map { it.filter(String::isNotBlank).joinToString(" • ") }
+            .firstOrNull { paint.measureText(it) <= availableWidth }
+            ?: candidates.last().joinToString(" • ")
     }
 
     private fun religiousText(context: Context, events: List<DiyanetReligiousDay>): String? {
@@ -366,6 +392,7 @@ class PrayerWidgetRenderer {
         const val COMPACT_DETAILS_MIN_WIDTH_DP = 320
         const val REDUCED_TEXT_SIZE_MIN_WIDTH_DP = 400
         const val COMPACT_TEXT_SIZE_SP = 16f
+        const val LARGE_CITY_TEXT_SIZE_SP = 24f
 
         val PRAYER_NAMES_IN_DISPLAY_ORDER = listOf(
             PrayerTimeName.IMSAK,

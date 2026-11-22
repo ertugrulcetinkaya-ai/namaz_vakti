@@ -40,6 +40,7 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -332,18 +333,25 @@ class PrayerWidgetRendererInstrumentedTest {
             PrayerWidgetSizeClass.LARGE,
             dimensionsDp = 515 to 278
         )
+        val large380 = render(
+            fallbackCache,
+            PrayerWidgetDataState.Fresh,
+            PrayerWidgetSizeClass.LARGE,
+            dimensionsDp = 380 to 278
+        )
         val compactLarge = render(
             fallbackCache,
             PrayerWidgetDataState.Fresh,
             PrayerWidgetSizeClass.LARGE,
-            dimensionsDp = 280 to 278
+            dimensionsDp = 300 to 278
         )
 
-        assertEquals(View.GONE, small.root.findViewById<View>(R.id.prayer_widget_ramadan).visibility)
-        assertEquals(View.GONE, medium.root.findViewById<View>(R.id.prayer_widget_ramadan).visibility)
-        assertEquals(View.VISIBLE, large.root.findViewById<View>(R.id.prayer_widget_ramadan).visibility)
-        assertEquals("İl merkezi", large.root.text(R.id.prayer_widget_ramadan))
-        assertEquals(View.GONE, compactLarge.root.findViewById<View>(R.id.prayer_widget_ramadan).visibility)
+        assertFalse(small.root.text(R.id.prayer_widget_city).contains("İl merkezi"))
+        assertFalse(medium.root.text(R.id.prayer_widget_city).contains("İl merkezi"))
+        assertTrue(large.root.text(R.id.prayer_widget_city).contains("• İl merkezi"))
+        assertTrue(large380.root.text(R.id.prayer_widget_city).contains("• İl merkezi"))
+        assertFalse(compactLarge.root.text(R.id.prayer_widget_city).contains("İl merkezi"))
+        assertEquals(View.GONE, large.root.findViewById<View>(R.id.prayer_widget_ramadan).visibility)
     }
 
     @Test
