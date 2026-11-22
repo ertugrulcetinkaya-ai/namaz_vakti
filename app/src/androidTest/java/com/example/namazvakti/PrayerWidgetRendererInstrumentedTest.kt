@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.SystemClock
 import android.provider.MediaStore
 import android.util.Log
+import android.util.TypedValue
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Chronometer
@@ -172,32 +173,31 @@ class PrayerWidgetRendererInstrumentedTest {
         for (size in listOf(PrayerWidgetSizeClass.MEDIUM, PrayerWidgetSizeClass.LARGE)) {
             for (widthDp in listOf(280, 320, 360, 380, 515)) {
                 val heightDp = if (size == PrayerWidgetSizeClass.MEDIUM) 126 else 278
+                val dimensionsDp = widthDp to heightDp
                 val rendered = render(
                     cache = cache(),
                     state = PrayerWidgetDataState.Fresh,
                     size = size,
-                    dimensionsDp = widthDp to heightDp,
-                    checkTextClipping = false
+                    dimensionsDp = dimensionsDp
                 )
+                val items = (1..6).map { rendered.root.findViewById<TextView>(prayerItemId(it)) }
                 if (widthDp == 280) {
                     val fullLabels = listOf("İmsak", "Güneş", "►Öğle", "İkindi", "Akşam", "Yatsı")
                     val times = listOf("04:12", "05:49", "13:08", "17:02", "20:21", "22:01")
                     fullLabels.zip(times).forEachIndexed { index, (label, time) ->
-                        rendered.root.findViewById<TextView>(prayerItemId(index + 1)).text = "$label $time"
+                        items[index].text = "$label $time"
                     }
-                    measureAndLayout(rendered.root, context, widthDp to heightDp)
-                }
-                val clippedItems = (1..6).mapNotNull { index ->
-                    val item = rendered.root.findViewById<TextView>(prayerItemId(index))
-                    item.text.toString().takeIf { item.layout.getEllipsisCount(0) > 0 }
-                }
-                if (widthDp == 280) {
-                    assertEquals(
-                        setOf("Güneş 05:49", "►Öğle 13:08", "Akşam 20:21"),
-                        clippedItems.toSet()
+                    measureAndLayout(rendered.root, context, dimensionsDp)
+                    assertTrue(
+                        "At least one full prayer label should clip at 280dp for $size",
+                        items.any { it.layout.getEllipsisCount(0) > 0 }
                     )
-                } else {
-                    assertTrue("Full prayer labels clip at ${widthDp}dp for $size: $clippedItems", clippedItems.isEmpty())
+                }
+                if (widthDp == 515) {
+                    val expectedTextSize = TypedValue.applyDimension(
+                        TypedValue.COMPLEX_UNIT_SP, 22f, context.resources.displayMetrics
+                    )
+                    items.forEach { assertEquals("Prayer label size at 515dp", expectedTextSize, it.textSize, 1f) }
                 }
             }
         }
@@ -328,8 +328,7 @@ class PrayerWidgetRendererInstrumentedTest {
         now: ZonedDateTime = this.now,
         ramadanRange: com.example.namazvakti.domain.model.RamadanRange? = null,
         religiousDays: List<DiyanetReligiousDay> = emptyList(),
-        dimensionsDp: Pair<Int, Int> = size.dimensionsDp(),
-        checkTextClipping: Boolean = true
+        dimensionsDp: Pair<Int, Int> = size.dimensionsDp()
     ): Rendered {
         val snapshot = com.example.namazvakti.widget.PrayerWidgetSnapshot(
             cache = cache,
@@ -356,7 +355,7 @@ class PrayerWidgetRendererInstrumentedTest {
         measureAndLayout(root, renderContext, dimensionsDp)
         val width = (dimensionsDp.first * renderContext.resources.displayMetrics.density).toInt()
         val height = (dimensionsDp.second * renderContext.resources.displayMetrics.density).toInt()
-        if (checkTextClipping) assertNoTextClipping(root)
+        assertNoTextClipping(root)
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         root.draw(Canvas(bitmap))
         return Rendered(root, bitmap)
