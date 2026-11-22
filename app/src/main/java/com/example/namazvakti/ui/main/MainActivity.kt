@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.example.namazvakti.notification.PrayerNotificationScheduler
+import com.example.namazvakti.notification.ReligiousDayNotificationScheduler
 import com.example.namazvakti.widget.alarm.PrayerWidgetScheduler
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -29,6 +30,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 PrayerWidgetScheduler.scheduleNextPrayerBoundaryRerender(applicationContext)
                 PrayerNotificationScheduler.scheduleNext(applicationContext)
+                ReligiousDayNotificationScheduler.scheduleNext(applicationContext)
             } catch (exception: CancellationException) {
                 throw exception
             } catch (exception: Exception) {

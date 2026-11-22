@@ -1,12 +1,12 @@
 package com.example.namazvakti.notification
 
-import android.annotation.SuppressLint
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.util.Log
 import androidx.core.net.toUri
+import com.example.namazvakti.app.AlarmScheduling
 import com.example.namazvakti.app.appContainer
 import com.example.namazvakti.domain.policy.PrayerNotificationDeliveryPolicy
 import com.example.namazvakti.domain.policy.PrayerNotificationEvent
@@ -141,28 +141,18 @@ internal object PrayerNotificationAlarm {
         appContext.getSystemService(AlarmManager::class.java).cancel(pendingIntent(appContext))
     }
 
-    @SuppressLint("ScheduleExactAlarm")
     private fun scheduleAt(context: Context, target: ZonedDateTime, exact: Boolean, intent: Intent) {
         val manager = context.getSystemService(AlarmManager::class.java)
         val triggerMillis = target.toInstant().toEpochMilli()
         val operation = pendingIntent(context, intent.putExtra(EXTRA_EXACT, exact))
         manager.cancel(operation)
-        if (exact) {
-            try {
-                manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMillis, operation)
-                Log.d(TAG, "next exact notification alarm scheduled at=$target")
-                return
-            } catch (exception: SecurityException) {
-                Log.w(TAG, "exact notification alarm access changed; using inexact alarm", exception)
-            }
-        }
-        val inexactOperation = if (exact) {
+        val scheduledExact = AlarmScheduling.set(context, triggerMillis, operation, exact)
+        if (exact && !scheduledExact) {
+            // PendingIntent extras do not affect its identity; update the token already scheduled inexactly.
             pendingIntent(context, intent.putExtra(EXTRA_EXACT, false))
-        } else {
-            operation
         }
-        manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMillis, inexactOperation)
-        Log.d(TAG, "next inexact notification alarm scheduled at=$target")
+        val precision = if (scheduledExact) "exact" else "inexact"
+        Log.d(TAG, "next $precision notification alarm scheduled at=$target")
     }
 
     private fun pendingIntent(context: Context, intent: Intent = intent(context)): PendingIntent =
