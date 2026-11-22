@@ -140,14 +140,18 @@ class PrayerWidgetWorker : CoroutineWorker {
         Log.d(TAG, "cachedDate=${snapshot.cache?.date}")
         Log.d(TAG, "cache stale=$cacheStale")
 
+        var refreshedSnapshot: PrayerWidgetSnapshot? = null
         val cache = if (fetch || cacheStale) {
             if (!fetch && cacheStale) {
                 Log.d(TAG, "fetch=false upgraded to fetch because cache is stale")
             }
             when (val refreshed = dependencies.refresh()) {
-                is RefreshResult.Success -> refreshed.cache
+                is RefreshResult.Success -> {
+                    refreshedSnapshot = loadSnapshotAfterRefresh(refreshed.cache, snapshot)
+                    refreshed.cache
+                }
                 is RefreshResult.StaleCache -> {
-                    val staleSnapshot = dependencies.snapshotFor(refreshed.cache, snapshot)
+                    val staleSnapshot = loadSnapshotAfterRefresh(refreshed.cache, snapshot)
                     Log.w(
                         TAG,
                         "using stale cache category=${refreshed.error.code}",
@@ -175,7 +179,7 @@ class PrayerWidgetWorker : CoroutineWorker {
             snapshot.cache
         }
 
-        val renderSnapshot = dependencies.snapshotFor(cache, snapshot)
+        val renderSnapshot = refreshedSnapshot ?: dependencies.snapshotFor(cache, snapshot)
         if (widgetsExist) {
             dependencies.render(renderSnapshot)
             dependencies.scheduleBoundary(renderSnapshot)
@@ -183,6 +187,18 @@ class PrayerWidgetWorker : CoroutineWorker {
         }
         if (notificationsEnabled) dependencies.scheduleNotifications()
         return Result.success()
+    }
+
+    private suspend fun loadSnapshotAfterRefresh(
+        cache: CachedPrayerDay,
+        previousSnapshot: PrayerWidgetSnapshot
+    ): PrayerWidgetSnapshot = try {
+        dependencies.loadSnapshot()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.w(TAG, "widget snapshot reload failed; using refresh result", e)
+        dependencies.snapshotFor(cache, previousSnapshot)
     }
 
     private fun retryOrFailure(error: PrayerError): Result {
