@@ -152,9 +152,7 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
         PrayerExactAlarmAccess.requiresUserAccess() &&
             !PrayerExactAlarmAccess.canScheduleExactAlarms(context)
     }
-    val requestExactAlarm = {
-        context.startActivity(PrayerExactAlarmAccess.requestAccessIntent(context))
-    }
+    val requestExactAlarm = { openExactAlarmSettings(context) }
 
     BackHandler(enabled = showCities || showMonthly || showImsakiye || showReligiousDays) {
         when {
