@@ -178,6 +178,9 @@ object DiyanetHijriCalendar {
 
     private val startsByHijriMonth = monthStarts.associateBy { it.hijriYear to it.hijriMonth }
 
+    /** Last date in the final Hijri month whose next official start is known. */
+    fun lastCoveredDate(): LocalDate = monthStarts.last().gregorianStart.minusDays(1)
+
     fun startDateOf(hijriYear: Int, hijriMonth: Int): LocalDate? =
         startsByHijriMonth[hijriYear to hijriMonth]?.gregorianStart
 
