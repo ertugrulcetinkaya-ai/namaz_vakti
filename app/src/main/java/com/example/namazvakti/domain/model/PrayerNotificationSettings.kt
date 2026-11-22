@@ -1,12 +1,12 @@
 package com.example.namazvakti.domain.model
 
-enum class PrayerNotificationPrayer {
-    IMSAK,
-    SUNRISE,
-    DHUHR,
-    ASR,
-    MAGHRIB,
-    ISHA
+enum class PrayerNotificationPrayer(val storageKey: String) {
+    IMSAK("imsak"),
+    SUNRISE("sunrise"),
+    DHUHR("dhuhr"),
+    ASR("asr"),
+    MAGHRIB("maghrib"),
+    ISHA("isha")
 }
 
 enum class PrayerNotificationType {
