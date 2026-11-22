@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import androidx.core.net.toUri
+import com.example.namazvakti.app.AlarmScheduling
 import com.example.namazvakti.app.appContainer
 import com.example.namazvakti.domain.policy.ReligiousDayNotificationEvent
 import com.example.namazvakti.domain.policy.ReligiousDayNotificationPlanner
@@ -14,12 +15,13 @@ import java.time.ZonedDateTime
 object ReligiousDayNotificationScheduler {
     suspend fun scheduleNext(context: Context) {
         val appContext = context.applicationContext
-        val settings = appContext.appContainer().notificationSettingsStore.read()
+        val container = appContext.appContainer()
+        val settings = container.notificationSettingsStore.read()
         if (!settings.religiousDaysEnabled) {
             ReligiousDayNotificationAlarm.cancel(appContext)
             return
         }
-        val event = ReligiousDayNotificationPlanner.nextEvent(ZonedDateTime.now(ZoneId.systemDefault()))
+        val event = ReligiousDayNotificationPlanner.nextEvent(container.timeProvider.now(ZoneId.systemDefault()))
         if (event == null) {
             ReligiousDayNotificationAlarm.cancel(appContext)
         } else {
@@ -49,7 +51,12 @@ internal object ReligiousDayNotificationAlarm {
         )
         manager.cancel(operation)
         // Inexact idle-capable alarms avoid requiring exact-alarm access for this reminder.
-        manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, event.triggerAt.toInstant().toEpochMilli(), operation)
+        AlarmScheduling.set(
+            appContext,
+            event.triggerAt.toInstant().toEpochMilli(),
+            operation,
+            exact = false
+        )
     }
 
     fun cancel(context: Context) {

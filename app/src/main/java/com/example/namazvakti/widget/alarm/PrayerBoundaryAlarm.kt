@@ -1,12 +1,12 @@
 package com.example.namazvakti.widget.alarm
 
-import android.annotation.SuppressLint
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.util.Log
+import com.example.namazvakti.app.AlarmScheduling
 import androidx.core.net.toUri
 import java.time.ZonedDateTime
 
@@ -47,46 +47,23 @@ internal object PrayerBoundaryAlarm {
         val alarmManager = appContext.getSystemService(AlarmManager::class.java)
         val operation = pendingIntent(appContext)
         val exactAllowed = PrayerExactAlarmAccess.canScheduleExactAlarms(appContext)
-        val precision = PrayerAlarmPolicy.precision(Build.VERSION.SDK_INT, exactAllowed)
+        val shouldScheduleExact = PrayerAlarmPolicy.precision(Build.VERSION.SDK_INT, exactAllowed) ==
+            PrayerAlarmPrecision.Exact
 
         alarmManager.cancel(operation)
-        if (precision == PrayerAlarmPrecision.Exact) {
-            scheduleExactOrFallback(alarmManager, target, operation)
-        } else {
-            alarmManager.setAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                target.toInstant().toEpochMilli(),
-                operation
-            )
-        }
+        val scheduledExact = AlarmScheduling.set(
+            appContext,
+            target.toInstant().toEpochMilli(),
+            operation,
+            exact = shouldScheduleExact
+        )
+        val precision = if (scheduledExact) PrayerAlarmPrecision.Exact else PrayerAlarmPrecision.Inexact
         Log.d(TAG, "next boundary alarm scheduled at=$target precision=$precision")
     }
 
     fun cancel(context: Context) {
         val appContext = context.applicationContext
         appContext.getSystemService(AlarmManager::class.java).cancel(pendingIntent(appContext))
-    }
-
-    @SuppressLint("ScheduleExactAlarm")
-    private fun scheduleExactOrFallback(
-        alarmManager: AlarmManager,
-        target: ZonedDateTime,
-        operation: PendingIntent
-    ) {
-        try {
-            alarmManager.setExactAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                target.toInstant().toEpochMilli(),
-                operation
-            )
-        } catch (exception: SecurityException) {
-            Log.w(TAG, "exact alarm access changed; using inexact alarm", exception)
-            alarmManager.setAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                target.toInstant().toEpochMilli(),
-                operation
-            )
-        }
     }
 
     private fun pendingIntent(context: Context): PendingIntent = PendingIntent.getBroadcast(
