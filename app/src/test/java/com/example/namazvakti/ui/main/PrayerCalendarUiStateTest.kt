@@ -35,18 +35,16 @@ class PrayerCalendarUiStateTest {
 
     @Test
     fun monthlyNoticeIsShownWhenAtLeastOneDayUsesProvinceCenterFallback() {
-        val province = requireNotNull(DiyanetDistricts.forCity("Istanbul", "Turkey"))
-        val district = DiyanetDistricts.districts.first {
-            it.provinceId == province.id && it.name == "MALTEPE"
-        }
         val centralLocation = PrayerLocation("Istanbul", "Turkey", "İSTANBUL")
-        val districtLocation = centralLocation.copy(
-            diyanetDistrictId = district.id,
-            districtName = district.name
+        val districtWithoutCoordinates = centralLocation.copy(
+            diyanetDistrictId = "unmapped-district",
+            districtName = "UNKNOWN"
         )
         val month = YearMonth.of(2026, 11)
         val officialDay = cache(LocalDate.of(2026, 11, 1), centralLocation, PrayerDataSource.DIYANET)
-        val fallbackDay = cache(LocalDate.of(2026, 11, 2), districtLocation, PrayerDataSource.ALADHAN)
+        val fallbackDay = cache(
+            LocalDate.of(2026, 11, 2), districtWithoutCoordinates, PrayerDataSource.ALADHAN
+        )
 
         assertFalse(MonthlyUiState(month, days = listOf(officialDay)).hasProvinceCenterFallback)
         assertTrue(MonthlyUiState(month, days = listOf(officialDay, fallbackDay)).hasProvinceCenterFallback)

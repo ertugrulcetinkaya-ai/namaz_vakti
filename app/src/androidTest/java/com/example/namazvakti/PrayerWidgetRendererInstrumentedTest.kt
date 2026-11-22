@@ -316,12 +316,11 @@ class PrayerWidgetRendererInstrumentedTest {
 
     @Test
     fun provinceCenterFallbackNoteAppearsOnlyInLargeNonCompactLayout() {
-        val province = requireNotNull(DiyanetDistricts.forCity("Istanbul", "Turkey"))
-        val district = DiyanetDistricts.districts.first {
-            it.provinceId == province.id && it.name == "MALTEPE"
-        }
         val fallbackCache = cache().copy(
-            location = location.copy(diyanetDistrictId = district.id, districtName = district.name),
+            location = location.copy(
+                diyanetDistrictId = "unmapped-district",
+                districtName = "UNKNOWN"
+            ),
             source = PrayerDataSource.ALADHAN
         )
 

@@ -9,7 +9,7 @@ Namaz Vakti, Türkiye'deki şehirler ve ilçeler için namaz vakitlerini göster
 - Geçmiş, aktif ve gelecek vakitleri ayırt eden ana ekran; Android 12+ dinamik renkler ve sistem açık/koyu teması
 - Ana ekrandan şehir/ilçe arama ve bildirim ayarlarına erişim
 - İlçe vakitleri için Diyanet verisi (üçüncü taraf ara servis üzerinden); eksik veya erişilemeyen tarihler için AlAdhan yedeği
-- AlAdhan ile il merkezi koordinatları kullanılarak yapılan yedek hesaplamanın arayüzde il merkezi olarak belirtilmesi
+- AlAdhan yedek hesaplamasında ilçe koordinatlarının kullanılması; koordinatı olmayan ilçelerde il merkezi yedeğinin arayüzde belirtilmesi
 - Dini günler ve kandiller için ana ekran duyuruları ve isteğe bağlı hatırlatma bildirimleri
 - Günlük ve aylık vakit tablosu, Ramazan imsakiyesi, iftar sütunu ve bayram tarihleri
 - İkindi vakti için varsayılan Şafii/standart hesaplama (`school=0`)
@@ -25,9 +25,9 @@ Namaz Vakti, Türkiye'deki şehirler ve ilçeler için namaz vakitlerini göster
 
 ## Veri kaynakları ve önbellek
 
-İlçe vakitleri [namazvakti.mtopal.dev](https://namazvakti.mtopal.dev/docs.html) üzerinden sunulan Diyanet verisini kullanır. Bu adres, Diyanet İşleri Başkanlığı'nın resmi servisi değil, veriye erişim sağlayan üçüncü taraf bir ara servistir. İsteklerde yalnızca seçili ilçe kimliği gönderilir. Ara servis bugünden yıl sonuna kadar veri döndürür; geçmiş/gelecek tarihler ve erişim hatalarında yedek hesaplama için [AlAdhan API](https://aladhan.com/prayer-times-api) kullanılır. AlAdhan isteğine şehir, ülke ve il merkezi koordinatları eklenir.
+İlçe vakitleri [namazvakti.mtopal.dev](https://namazvakti.mtopal.dev/docs.html) üzerinden sunulan Diyanet verisini kullanır. Bu adres, Diyanet İşleri Başkanlığı'nın resmi servisi değil, veriye erişim sağlayan üçüncü taraf bir ara servistir. İsteklerde yalnızca seçili ilçe kimliği gönderilir. Ara servis bugünden yıl sonuna kadar veri döndürür; geçmiş/gelecek tarihler ve erişim hatalarında yedek hesaplama için [AlAdhan API](https://aladhan.com/prayer-times-api) kullanılır. AlAdhan isteğinde ilçe poligonundan türetilen koordinat varsa bu koordinatlar, yoksa il merkezi koordinatları kullanılır.
 
-İlçe listesi, `tools/diyanet_locations` tarafından `tools/diyanet_snapshot` içindeki ara servis yanıtlarından üretilir. Diyanet kayıtları AlAdhan sonuçları tarafından üzerine yazılmaz. Hicri Ramazan aralıklarında Diyanet takvimindeki kayıtlar, AlAdhan `hToGCalendar` tahminlerine öncelik verir.
+İlçe listesi, `tools/diyanet_locations` tarafından `tools/diyanet_snapshot` içindeki ara servis yanıtları ve OCHA/Harita Genel Komutanlığı ADM2 poligonlarından üretilir. Kaynak, eşleştirme ve yeniden üretim adımları [araç README'sinde](tools/diyanet_locations/README.md) açıklanmıştır. Diyanet kayıtları AlAdhan sonuçları tarafından üzerine yazılmaz. Hicri Ramazan aralıklarında Diyanet takvimindeki kayıtlar, AlAdhan `hToGCalendar` tahminlerine öncelik verir.
 
 `PrayerTimesStore` seçili konumu DataStore'da, günlük vakitleri ve sayısal hicri alanları Room'da `konum + tarih + yöntem + mezhep` anahtarıyla saklar. Room şemasının 1'den 2'ye geçişi açık migration kullanır. Namaz veri sürümü `4`'tür. Veri sürümü değiştiğinde Room vakit önbelleği ilk kullanımda temizlenir; cihaz güncelleme sırasında çevrimdışıysa yeni vakit verisinin yeniden indirilmesi gerekir.
 

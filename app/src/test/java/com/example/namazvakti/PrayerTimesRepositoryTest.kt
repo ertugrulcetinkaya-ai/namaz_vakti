@@ -547,6 +547,31 @@ class PrayerTimesRepositoryTest {
     }
 
     @Test
+    fun alAdhanMonthRequestUsesSelectedDistrictCoordinates() = runTest {
+        val month = YearMonth.of(2026, 8)
+        val province = requireNotNull(DiyanetDistricts.forCity("Istanbul", "Turkey"))
+        val district = DiyanetDistricts.districts.first {
+            it.provinceId == province.id && it.name == "KARTAL"
+        }
+        val option = PrayerLocationConfig.cityOptions.first { it.city == "Istanbul" }
+        val selectedLocation = PrayerLocation(
+            city = option.city,
+            country = option.country,
+            displayCity = option.displayCity,
+            latitude = district.latitude,
+            longitude = district.longitude,
+            diyanetDistrictId = district.id,
+            districtName = district.name
+        )
+        val store = FakeStore(selectedLocation, settings, month.atDay(6))
+        val api = FakeApi { year, monthNumber -> calendar(YearMonth.of(year, monthNumber)) }
+
+        repository(api, store).ensureMonth(month)
+
+        assertEquals(district.latitude to district.longitude, api.requestedCoordinates)
+    }
+
+    @Test
     fun districtAmonthRowsAreNotReturnedForDistrictBOfTheSameProvince() = runTest {
         val month = YearMonth.of(2026, 8)
         val today = month.atDay(6)
@@ -738,6 +763,7 @@ class PrayerTimesRepositoryTest {
     ) : PrayerTimesRemoteDataSource {
         val requestedMonths = mutableListOf<YearMonth>()
         val hijriMonthsRequested = mutableListOf<Pair<Int, Int>>()
+        var requestedCoordinates: Pair<Double?, Double?>? = null
 
         override suspend fun fetchMonth(
             city: String,
@@ -750,6 +776,7 @@ class PrayerTimesRepositoryTest {
             timezone: String
         ): PrayerTimesCalendarResult {
             requestedMonths += YearMonth.of(year, month)
+            requestedCoordinates = latitude to longitude
             return calendarOutcome(year, month)
         }
 

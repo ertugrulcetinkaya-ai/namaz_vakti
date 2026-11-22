@@ -195,7 +195,7 @@ class ComposeSmokeInstrumentedTest {
                 )
                 assertTrue(notificationsSwitch.isChecked)
                 notificationsSwitch.click()
-                awaitNode(context.getString(R.string.notification_save)) {
+                awaitNodeAfterScrolling(context.getString(R.string.notification_save)) {
                     it.text?.toString() == context.getString(R.string.notification_save)
                 }.click()
                 awaitCondition("notification preference write") {
@@ -285,6 +285,21 @@ class ComposeSmokeInstrumentedTest {
         } while (SystemClock.uptimeMillis() < deadline)
         val visibleNodes = instrumentation.uiAutomation.rootInActiveWindow?.visibleNodeSummary().orEmpty()
         throw AssertionError("Compose screen did not show $description. Visible nodes: $visibleNodes")
+    }
+
+    private fun awaitNodeAfterScrolling(
+        description: String,
+        matches: (AccessibilityNodeInfo) -> Boolean
+    ): AccessibilityNodeInfo {
+        val deadline = SystemClock.uptimeMillis() + TIMEOUT_MILLIS
+        do {
+            val root = instrumentation.uiAutomation.rootInActiveWindow
+            root?.findNode(matches)?.let { return it }
+            val scrollContainer = root?.findNode { it.isScrollable } ?: break
+            if (!scrollContainer.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)) break
+            SystemClock.sleep(POLL_MILLIS)
+        } while (SystemClock.uptimeMillis() < deadline)
+        return awaitNode(description, matches)
     }
 
     @Suppress("DEPRECATION")

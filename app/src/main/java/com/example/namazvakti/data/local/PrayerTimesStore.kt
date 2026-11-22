@@ -3,6 +3,7 @@ package com.example.namazvakti.data.local
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -86,8 +87,11 @@ class PrayerTimesStore(
     private val districtIdKey = stringPreferencesKey("selected_district_id")
     private val districtNameKey = stringPreferencesKey("selected_district_name")
     private val prayerDataVersionKey = intPreferencesKey("prayer_data_version")
+    private val districtCacheCleanupKey = booleanPreferencesKey("district_aladhan_cache_cleanup_v1")
+    private val districtCacheCleanupMutex = Mutex()
     private val dataVersionMutex = Mutex()
     private val dataVersionGate = PrayerDataVersionGate(PrayerDataVersionGate.CURRENT_VERSION)
+    @Volatile private var districtCacheCleanupComplete = false
     @Volatile private var dataVersionCheckComplete = false
     @Volatile private var lastRetentionDate: LocalDate? = null
 
@@ -109,12 +113,27 @@ class PrayerTimesStore(
     }
 
     override suspend fun saveLocation(location: PrayerLocation) = storageOperation {
+        val provinceCoordinates = if (!location.isCentralDistrict) {
+            PrayerLocationConfig.optionForCityAndCountry(location.city, location.country).let { option ->
+                option.latitude?.let { latitude -> option.longitude?.let { longitude -> latitude to longitude } }
+            }
+        } else {
+            null
+        }
+        val coordinatesToPersist = provinceCoordinates ?: location.latitude?.let { latitude ->
+            location.longitude?.let { longitude -> latitude to longitude }
+        }
         dataStore.edit { prefs ->
             prefs[cityKey] = location.city
             prefs[countryKey] = location.country
             prefs[locationTimezoneKey] = location.timezone.id
-            location.latitude?.let { prefs[latitudeKey] = it.toString() } ?: prefs.remove(latitudeKey)
-            location.longitude?.let { prefs[longitudeKey] = it.toString() } ?: prefs.remove(longitudeKey)
+            coordinatesToPersist?.let { (latitude, longitude) ->
+                prefs[latitudeKey] = latitude.toString()
+                prefs[longitudeKey] = longitude.toString()
+            } ?: run {
+                prefs.remove(latitudeKey)
+                prefs.remove(longitudeKey)
+            }
             if (location.isCentralDistrict) {
                 prefs.remove(districtIdKey)
                 prefs.remove(districtNameKey)
@@ -157,7 +176,12 @@ class PrayerTimesStore(
         val storedCoordinates = prefs[latitudeKey]?.toDoubleOrNull()?.let { latitude ->
             prefs[longitudeKey]?.toDoubleOrNull()?.let { longitude -> latitude to longitude }
         }
-        val coordinates = storedCoordinates ?: option.latitude?.let { latitude ->
+        val districtCoordinates = district?.let { selectedDistrict ->
+            selectedDistrict.latitude?.let { latitude ->
+                selectedDistrict.longitude?.let { longitude -> latitude to longitude }
+            }
+        }
+        val coordinates = districtCoordinates ?: storedCoordinates ?: option.latitude?.let { latitude ->
             option.longitude?.let { longitude -> latitude to longitude }
         }
         PrayerLocation(
@@ -252,8 +276,22 @@ class PrayerTimesStore(
         }
     }
 
+    private suspend fun ensureDistrictAlAdhanCacheCleanup() {
+        if (districtCacheCleanupComplete) return
+        districtCacheCleanupMutex.withLock {
+            if (districtCacheCleanupComplete) return@withLock
+            val alreadyCleaned = dataStore.data.first()[districtCacheCleanupKey] == true
+            if (!alreadyCleaned) {
+                prayerDayDao.deleteDistrictAlAdhanCaches()
+                dataStore.edit { preferences -> preferences[districtCacheCleanupKey] = true }
+            }
+            districtCacheCleanupComplete = true
+        }
+    }
+
     private suspend fun <T> storageOperation(block: suspend () -> T): T = try {
         ensurePrayerDataVersion()
+        ensureDistrictAlAdhanCacheCleanup()
         block()
     } catch (e: CancellationException) {
         throw e

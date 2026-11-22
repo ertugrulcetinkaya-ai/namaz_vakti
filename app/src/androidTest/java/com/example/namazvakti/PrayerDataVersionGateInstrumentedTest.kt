@@ -2,6 +2,7 @@ package com.example.namazvakti
 
 import android.content.Context
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -12,9 +13,11 @@ import com.example.namazvakti.data.local.PrayerTimesDatabase
 import com.example.namazvakti.data.local.PrayerTimesStore
 import com.example.namazvakti.data.local.toEntity
 import com.example.namazvakti.domain.model.CachedPrayerDay
+import com.example.namazvakti.domain.model.DiyanetDistricts
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.PrayerDataSource
 import com.example.namazvakti.domain.model.PrayerLocation
+import com.example.namazvakti.domain.model.PrayerLocationConfig
 import com.example.namazvakti.domain.model.PrayerTimeProvider
 import com.example.namazvakti.domain.model.PrayerTimes
 import java.io.File
@@ -32,6 +35,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -91,6 +95,83 @@ class PrayerDataVersionGateInstrumentedTest {
         val secondOpen = newStore()
         assertNotNull(secondOpen.readCache())
         assertNotNull(dao.find(date.toString(), location.cacheKey, location.country, 13, 0))
+        assertEquals(4, dataStore.data.first()[intPreferencesKey("prayer_data_version")])
+    }
+
+    @Test
+    fun readLocationUsesDistrictCoordinatesInsteadOfStoredProvinceCenter() = runBlocking {
+        val province = requireNotNull(DiyanetDistricts.forCity("Istanbul", "Turkey"))
+        val district = DiyanetDistricts.districts.first {
+            it.provinceId == province.id && it.name == "MALTEPE"
+        }
+        val city = PrayerLocationConfig.optionForCityAndCountry("Istanbul", "Turkey")
+        dataStore.edit { preferences ->
+            preferences[intPreferencesKey("prayer_data_version")] = 4
+            preferences[stringPreferencesKey("selected_city")] = city.city
+            preferences[stringPreferencesKey("selected_country")] = city.country
+            preferences[stringPreferencesKey("selected_latitude")] = city.latitude.toString()
+            preferences[stringPreferencesKey("selected_longitude")] = city.longitude.toString()
+            preferences[stringPreferencesKey("selected_district_id")] = district.id
+            preferences[stringPreferencesKey("selected_district_name")] = district.name
+        }
+
+        val location = newStore().readLocation()
+
+        assertEquals(district.id, location.diyanetDistrictId)
+        assertEquals(district.latitude, location.latitude)
+        assertEquals(district.longitude, location.longitude)
+        assertTrue(
+            location.latitude != city.latitude || location.longitude != city.longitude
+        )
+
+        newStore().saveLocation(location)
+
+        val preferences = dataStore.data.first()
+        assertEquals(city.latitude.toString(), preferences[stringPreferencesKey("selected_latitude")])
+        assertEquals(city.longitude.toString(), preferences[stringPreferencesKey("selected_longitude")])
+        assertEquals(district.latitude, newStore().readLocation().latitude)
+    }
+
+    @Test
+    fun oneTimeCleanupDeletesOnlyDistrictAlAdhanRows() = runBlocking {
+        val date = LocalDate.of(2026, 8, 23)
+        val district = PrayerLocation(
+            city = "Istanbul",
+            country = "Turkey",
+            displayCity = "İSTANBUL",
+            diyanetDistrictId = "9544",
+            districtName = "MALTEPE"
+        )
+        val provinceCenter = PrayerLocation("Istanbul", "Turkey", "İSTANBUL")
+        dataStore.edit { preferences ->
+            preferences[intPreferencesKey("prayer_data_version")] = 4
+        }
+        val dao = database.prayerDayDao()
+        dao.upsertAll(
+            listOf(
+                cache(date.minusDays(1), district).toEntity(),
+                cache(date, district).copy(source = PrayerDataSource.DIYANET).toEntity(),
+                cache(date.plusDays(1), provinceCenter).toEntity()
+            )
+        )
+
+        newStore().readLocation()
+
+        assertNull(dao.find(date.minusDays(1).toString(), district.cacheKey, district.country, 13, 0))
+        assertEquals(
+            PrayerDataSource.DIYANET.name,
+            dao.find(date.toString(), district.cacheKey, district.country, 13, 0)?.source
+        )
+        assertNotNull(dao.find(date.plusDays(1).toString(), provinceCenter.cacheKey, provinceCenter.country, 13, 0))
+        assertEquals(true, dataStore.data.first()[booleanPreferencesKey("district_aladhan_cache_cleanup_v1")])
+
+        val rowAfterCleanup = cache(date.plusDays(2), district)
+        dao.upsertAll(listOf(rowAfterCleanup.toEntity()))
+        newStore().readLocation()
+
+        assertNotNull(
+            dao.find(rowAfterCleanup.date.toString(), district.cacheKey, district.country, 13, 0)
+        )
         assertEquals(4, dataStore.data.first()[intPreferencesKey("prayer_data_version")])
     }
 
