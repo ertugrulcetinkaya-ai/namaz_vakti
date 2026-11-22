@@ -85,10 +85,12 @@ Bağlı cihazda küçültülmüş release benzeri varyanttaki instrumentation te
 Gradle Managed Device emulator'ında CI ile aynı instrumentation testleri için:
 
 ```bash
-./gradlew --dependency-verification=strict pixel2api35MinifiedAndroidTest -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect
+./gradlew --dependency-verification=strict pixel2api30MinifiedAndroidTest pixel2api35MinifiedAndroidTest -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect
 ```
 
-Managed-device ve bağlı cihaz testleri debug keystore ile imzalanan, R8 ve resource shrinking etkin `minified` varyantta çalışır. Testler küçük, orta ve büyük widget'ları güncel, eski ve önbelleksiz durumlarda inflate edip ölçer; render görüntülerini uygulamanın dış dosya klasörüne kaydeder. Legacy Gson cache migration'ı ve widget reflection yolları da küçültülmüş çalışma zamanında sınanır. Compose UI smoke testi eklenmedi: minified testte Compose test rule, uygulama APK'sında R8 tarafından yeniden adlandırılan veya kaldırılan `InfiniteAnimationPolicy`, `IntObjectMapKt.mutableIntObjectMapOf` ve `ViewTreeLifecycleOwner` API'lerine erişemedi.
+Managed-device ve bağlı cihaz testleri debug keystore ile imzalanan, R8 ve resource shrinking etkin `minified` varyantta çalışır. Testler küçük, orta ve büyük widget'ları güncel, eski ve önbelleksiz durumlarda inflate edip ölçer; render görüntülerini uygulamanın dış dosya klasörüne kaydeder. Legacy Gson cache migration'ı ve widget reflection yolları da küçültülmüş çalışma zamanında sınanır.
+
+Minified instrumentation testleri API 30 ve API 35 managed emulator matrisinde çalışır. Compose smoke testleri başlangıç yüklemesini, il/ilçe seçimi ve geri dönüşü, aylık takvim/imsakiye gezinmesini, çevrimdışı eski veri için yeniden denemeyi ve bildirim tercihi kaydını sahte repository/store ile doğrular; bu akışlar ağa çıkmaz. Ek instrumentation testleri gerçek DataStore ve Room ile 3→4 veri yükseltmesini, merkez ilçe ve seçili ilçenin farklı cache anahtarlarıyla saklanmasını, bildirim alıcısının konum değişiminde eski alarmı elemesini, bildirim yayınını ve cihaz saat diliminden bağımsız alarm anını sınar. Bildirim alarmı testleri hem kesin planlamayı hem de inexact yedek planlamasında `EXTRA_EXACT=false` değerini doğrular.
 
 Unit testler cache şema dönüşümünü, Room migration'ını, retention penceresini, Ramazan tarihi önceliğini, API hicri alan doğrulamasını, timezone'a göre tarih üretimini, geri sayım sınırlarını, coroutine iptalini ve eşzamanlı kullanıcı işlemlerini kapsar. Legacy DataStore JSON alanları `@SerializedName` ile sabitlenmiştir; migration davranışı JVM ve minified instrumentation regression testleriyle denetlenir.
 

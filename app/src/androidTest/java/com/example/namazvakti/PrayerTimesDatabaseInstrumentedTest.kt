@@ -102,6 +102,38 @@ class PrayerTimesDatabaseInstrumentedTest {
     }
 
     @Test
+    fun districtAndProvinceCenterRoundTripUnderDifferentCacheKeys() = runBlocking {
+        val date = LocalDate.of(2026, 8, 23)
+        val center = PrayerLocation(
+            city = "Istanbul",
+            country = "Turkey",
+            displayCity = "İSTANBUL",
+            diyanetDistrictId = "9541",
+            districtName = "İSTANBUL"
+        )
+        val district = center.copy(diyanetDistrictId = "9544", districtName = "MALTEPE")
+        assertEquals("Istanbul", center.cacheKey)
+        assertEquals("Istanbul#9544", district.cacheKey)
+
+        dao.upsertAll(
+            listOf(
+                cache(date).copy(location = center, timezone = center.timezone).toEntity(),
+                cache(date).copy(location = district, timezone = district.timezone).toEntity()
+            )
+        )
+
+        val centerRow = requireNotNull(
+            dao.find(date.toString(), center.cacheKey, center.country, 13, 0)
+        )
+        val districtRow = requireNotNull(
+            dao.find(date.toString(), district.cacheKey, district.country, 13, 0)
+        )
+        assertEquals(center.cacheKey, centerRow.toDomain().location.cacheKey)
+        assertEquals(district.cacheKey, districtRow.toDomain().location.cacheKey)
+        assertEquals("MALTEPE", districtRow.toDomain().location.districtName)
+    }
+
+    @Test
     fun storeSelectsTodayInsteadOfAFuturePrefetchedDay() = runBlocking {
         val instant = Instant.parse("2026-08-23T08:00:00Z")
         val settings = PrayerCalculationSettings()

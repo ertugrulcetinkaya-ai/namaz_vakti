@@ -25,7 +25,7 @@ class PrayerNotificationReceiver : BroadcastReceiver() {
         }
     }
 
-    private suspend fun handle(context: Context, intent: Intent) {
+    internal suspend fun handle(context: Context, intent: Intent) {
         if (intent.getBooleanExtra(PrayerNotificationAlarm.EXTRA_REPLAN_ONLY, false)) {
             PrayerNotificationScheduler.scheduleNext(context)
             PrayerWidgetScheduler.enqueueRefresh(context, force = false)
