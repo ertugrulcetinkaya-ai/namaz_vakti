@@ -6,9 +6,13 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.namazvakti.domain.model.PrayerNotificationPrayer
 import com.example.namazvakti.domain.model.PrayerNotificationSettings
+import com.example.namazvakti.domain.model.PrayerNotificationType
+import com.example.namazvakti.domain.policy.PrayerNotificationEventId
+import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -54,6 +58,27 @@ class PrayerNotificationSettingsStore(
             prefs[religiousDaysEnabledKey] = settings.religiousDaysEnabled
         }
     }
+
+    suspend fun readShownEvents(): Set<PrayerNotificationEventId> {
+        val preferences = dataStore.data.first()
+        return buildSet {
+            for (prayer in PrayerNotificationPrayer.entries) {
+                for (type in PrayerNotificationType.entries) {
+                    val date = preferences[shownDateKey(prayer, type)] ?: continue
+                    add(PrayerNotificationEventId(prayer, LocalDate.parse(date), type))
+                }
+            }
+        }
+    }
+
+    suspend fun recordShownEvent(event: PrayerNotificationEventId) {
+        dataStore.edit { prefs ->
+            prefs[shownDateKey(event.prayer, event.type)] = event.date.toString()
+        }
+    }
+
+    private fun shownDateKey(prayer: PrayerNotificationPrayer, type: PrayerNotificationType) =
+        stringPreferencesKey("last_shown_${prayer.name}_${type.name}")
 
     private fun decode(
         enabled: Boolean?,

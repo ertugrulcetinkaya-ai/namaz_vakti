@@ -6,6 +6,9 @@ import androidx.datastore.preferences.core.emptyPreferences
 import com.example.namazvakti.data.local.PrayerNotificationSettingsStore
 import com.example.namazvakti.domain.model.PrayerNotificationPrayer
 import com.example.namazvakti.domain.model.PrayerNotificationSettings
+import com.example.namazvakti.domain.model.PrayerNotificationType
+import com.example.namazvakti.domain.policy.PrayerNotificationEventId
+import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -43,6 +46,30 @@ class PrayerNotificationSettingsStoreTest {
 
         assertEquals(expected, store.read())
         assertEquals(expected, store.settings.first())
+    }
+
+    @Test
+    fun keepsTheLastShownDateForEachPrayerAndTypeAcrossStoreInstances() = runBlocking {
+        val preferences = FakePreferencesDataStore()
+        val store = PrayerNotificationSettingsStore(preferences)
+        val atTime = PrayerNotificationEventId(
+            PrayerNotificationPrayer.DHUHR, LocalDate.of(2026, 8, 6), PrayerNotificationType.AT_TIME
+        )
+        val reminder = atTime.copy(type = PrayerNotificationType.REMINDER)
+        val anotherPrayer = atTime.copy(prayer = PrayerNotificationPrayer.ASR)
+        val nextDay = atTime.copy(date = atTime.date.plusDays(1))
+
+        assertEquals(emptySet<PrayerNotificationEventId>(), store.readShownEvents())
+        store.recordShownEvent(atTime)
+        store.recordShownEvent(reminder)
+        store.recordShownEvent(anotherPrayer)
+        store.recordShownEvent(nextDay)
+        store.save(PrayerNotificationSettings(notificationsEnabled = true))
+
+        assertEquals(
+            setOf(reminder, anotherPrayer, nextDay),
+            PrayerNotificationSettingsStore(preferences).readShownEvents()
+        )
     }
 
     private class FakePreferencesDataStore : DataStore<Preferences> {

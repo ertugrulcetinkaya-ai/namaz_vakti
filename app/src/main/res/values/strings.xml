@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">Namaz Vakti</string>
     <string name="search_city">Şehir ara</string>
-    <string name="precise_widget_updates_disabled">Widget ve bildirimlerin dakik çalışması için alarm erişimini etkinleştirin; erişim olmadan bildirimler birkaç dakika gecikebilir.</string>
+    <string name="precise_widget_updates_disabled">Widget güncellemelerinin ve vakit bildirimlerinin zamanında çalışması için kesin alarm iznini etkinleştirin. İzin verilmezse vakit bildirimleri gecikebilir veya atlanabilir.</string>
     <string name="enable_precise_widget_updates">Dakik alarm güncellemelerini etkinleştir</string>
     <string name="notification_settings_title">Bildirimler</string>
     <string name="religious_day_notifications_enabled">Dini gün hatırlatmaları</string>

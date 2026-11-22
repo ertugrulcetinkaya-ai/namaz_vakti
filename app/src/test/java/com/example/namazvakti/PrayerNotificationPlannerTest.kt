@@ -10,6 +10,7 @@ import com.example.namazvakti.domain.model.PrayerNotificationSettings
 import com.example.namazvakti.domain.model.PrayerNotificationType
 import com.example.namazvakti.domain.model.PrayerTimes
 import com.example.namazvakti.domain.policy.PrayerNotificationDeliveryPolicy
+import com.example.namazvakti.domain.policy.PrayerNotificationEventId
 import com.example.namazvakti.domain.policy.PrayerNotificationPlanner
 import java.time.Instant
 import java.time.LocalDate
@@ -122,23 +123,108 @@ class PrayerNotificationPlannerTest {
     }
 
     @Test
-    fun lateDeliveryPolicyRejectsChangedTimesAndAlarmsOverTenMinutesLate() {
-        val trigger = Instant.parse("2026-08-06T10:00:00Z")
-        val prayer = trigger
-        fun allowed(now: Instant, current: Instant? = prayer) = PrayerNotificationDeliveryPolicy.shouldShow(
-            PrayerNotificationType.AT_TIME,
-            now,
-            trigger,
-            prayer,
-            current,
-            currentLeadMinutes = 0,
-            prayerEnabled = true
+    fun replanRecoversTheLatestUnshownPrayerImmediately() {
+        val day = today().let { it.copy(prayerTimes = it.prayerTimes.copy(dhuhr = LocalTime.of(12, 30))) }
+        val now = ZonedDateTime.parse("2026-08-06T12:32:00Z")
+        val event = requireNotNull(planner().nextEvent(day, tomorrow(), settings(), now, exact = false))
+
+        assertEquals(PrayerNotificationPrayer.DHUHR, event.prayer)
+        assertEquals(PrayerNotificationType.AT_TIME, event.type)
+        assertEquals(now.toInstant(), event.triggerAt.toInstant())
+        assertEquals(LocalTime.of(12, 30), event.prayerTime.toLocalTime())
+        assertTrue(
+            PrayerNotificationDeliveryPolicy.shouldShow(
+                event.type, now.toInstant(), event.triggerAt.toInstant(),
+                event.prayerTime.toInstant(), event.prayerTime.toInstant(),
+                currentLeadMinutes = 0, prayerEnabled = true, exact = false
+            )
         )
 
-        assertTrue(allowed(trigger.plusSeconds(10 * 60L)))
-        assertFalse(allowed(trigger.minusSeconds(1)))
-        assertFalse(allowed(trigger.plusSeconds(10 * 60L + 1)))
-        assertFalse(allowed(trigger, current = prayer.plusSeconds(60)))
+        val next = planner().nextEvent(
+            day, tomorrow(), settings(), now, exact = false, shownEvents = setOf(event.id)
+        )
+        assertEquals(LocalDate.of(2026, 8, 7), next?.id?.date)
+    }
+
+    @Test
+    fun replanUsesTheAlarmModeAndExcludesTheStartOfTheWindow() {
+        val atPrayerTime = ZonedDateTime.parse("2026-08-06T10:00:00Z")
+        fun next(exact: Boolean, now: ZonedDateTime) =
+            planner().nextEvent(today(), tomorrow(), settings(), now, exact = exact)?.triggerAt?.toInstant()
+
+        val fifteenMinutesLater = atPrayerTime.plusMinutes(15)
+        assertEquals(atPrayerTime.toInstant(), next(false, atPrayerTime))
+        assertEquals(fifteenMinutesLater.toInstant(), next(false, fifteenMinutesLater))
+        assertEquals(atPrayerTime.plusDays(1).toInstant(), next(true, fifteenMinutesLater))
+        assertEquals(atPrayerTime.plusDays(1).toInstant(), next(false, atPrayerTime.plusMinutes(30)))
+    }
+
+    @Test
+    fun replanRecoversYesterdayWhenTheWindowCrossesMidnight() {
+        val yesterday = today().let { it.copy(prayerTimes = it.prayerTimes.copy(isha = LocalTime.of(23, 55))) }
+        val now = ZonedDateTime.parse("2026-08-07T00:10:00Z")
+        val event = planner().nextEvent(
+            tomorrow(), null, settings(enabledPrayers = setOf(PrayerNotificationPrayer.ISHA)),
+            now, exact = false, yesterday = yesterday
+        )
+
+        assertEquals(yesterday.date, event?.id?.date)
+        assertEquals(now.toInstant(), event?.triggerAt?.toInstant())
+    }
+
+    @Test
+    fun replanStillSchedulesAChangedPrayerIfItsNewTimeIsUpcoming() {
+        val attempted = PrayerNotificationEventId(
+            PrayerNotificationPrayer.DHUHR, today().date, PrayerNotificationType.AT_TIME
+        )
+        val day = today().let { it.copy(prayerTimes = it.prayerTimes.copy(dhuhr = LocalTime.of(10, 5))) }
+        val originalTime = ZonedDateTime.parse("2026-08-06T10:00:00Z")
+
+        val upcoming = planner().nextEvent(day, tomorrow(), settings(), originalTime, attemptedEvent = attempted)
+        val past = planner().nextEvent(day, tomorrow(), settings(), originalTime.plusMinutes(6), attemptedEvent = attempted)
+
+        assertEquals(originalTime.plusMinutes(5).toInstant(), upcoming?.triggerAt?.toInstant())
+        assertEquals(tomorrow().date, past?.id?.date)
+    }
+
+    @Test
+    fun deliveryPolicyUsesTheModeOfTheScheduledAlarm() {
+        assertTrue(allowedAtTime(15, exact = false))
+        assertTrue(allowedAtTime(30, exact = false))
+        assertFalse(allowedAtTime(35, exact = false))
+        assertFalse(allowedAtTime(15, exact = true))
+        assertTrue(allowedAtTime(10, exact = true))
+        assertFalse(allowedAtTime(-1, exact = true))
+        assertFalse(allowedAtTime(35, exact = false, triggerDelayMinutes = 29))
+    }
+
+    @Test
+    fun deliveryPolicyAllowsSmallTimeShiftsAndRejectsDuplicates() {
+        assertTrue(allowedAtTime(1, shiftMinutes = 1))
+        assertTrue(allowedAtTime(1, shiftMinutes = -2))
+        assertFalse(allowedAtTime(1, shiftMinutes = 5))
+        assertFalse(allowedAtTime(1, alreadyShown = true))
+    }
+
+    private fun allowedAtTime(
+        delayMinutes: Long,
+        exact: Boolean = true,
+        shiftMinutes: Long = 0,
+        triggerDelayMinutes: Long = 0,
+        alreadyShown: Boolean = false
+    ): Boolean {
+        val prayer = Instant.parse("2026-08-06T10:00:00Z")
+        return PrayerNotificationDeliveryPolicy.shouldShow(
+            type = PrayerNotificationType.AT_TIME,
+            now = prayer.plusSeconds(delayMinutes * 60),
+            scheduledTriggerAt = prayer.plusSeconds(triggerDelayMinutes * 60),
+            scheduledPrayerTime = prayer,
+            currentPrayerTime = prayer.plusSeconds(shiftMinutes * 60),
+            currentLeadMinutes = 0,
+            prayerEnabled = true,
+            exact = exact,
+            alreadyShown = alreadyShown
+        )
     }
 
     @Test

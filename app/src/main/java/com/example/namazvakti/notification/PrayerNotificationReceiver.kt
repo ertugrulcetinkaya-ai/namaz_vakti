@@ -4,10 +4,13 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import androidx.core.app.NotificationManagerCompat
 import com.example.namazvakti.app.appContainer
 import com.example.namazvakti.domain.model.PrayerNotificationPrayer
 import com.example.namazvakti.domain.model.PrayerNotificationType
 import com.example.namazvakti.domain.policy.PrayerNotificationDeliveryPolicy
+import com.example.namazvakti.domain.policy.PrayerNotificationEventId
+import com.example.namazvakti.domain.policy.timeIn
 import com.example.namazvakti.widget.alarm.PrayerWidgetScheduler
 import java.time.Instant
 import java.time.LocalDate
@@ -15,6 +18,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 
 class PrayerNotificationReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -34,13 +38,6 @@ class PrayerNotificationReceiver : BroadcastReceiver() {
     }
 
     private suspend fun handle(context: Context, intent: Intent) {
-        val container = context.appContainer()
-        val settings = container.notificationSettingsStore.read()
-        if (!settings.notificationsEnabled) {
-            PrayerNotificationAlarm.cancel(context)
-            return
-        }
-
         if (intent.getBooleanExtra(PrayerNotificationAlarm.EXTRA_REPLAN_ONLY, false)) {
             PrayerNotificationScheduler.scheduleNext(context)
             PrayerWidgetScheduler.enqueueRefresh(context, force = false)
@@ -55,7 +52,6 @@ class PrayerNotificationReceiver : BroadcastReceiver() {
             ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
         val triggerMillis = intent.getLongExtra(PrayerNotificationAlarm.EXTRA_TRIGGER_AT, Long.MIN_VALUE)
         val prayerMillis = intent.getLongExtra(PrayerNotificationAlarm.EXTRA_PRAYER_TIME, Long.MIN_VALUE)
-        val leadMinutes = intent.getIntExtra(PrayerNotificationAlarm.EXTRA_LEAD_MINUTES, -1)
 
         if (prayer == null || type == null || date == null ||
             triggerMillis == Long.MIN_VALUE || prayerMillis == Long.MIN_VALUE
@@ -64,52 +60,67 @@ class PrayerNotificationReceiver : BroadcastReceiver() {
             return
         }
 
-        val location = container.store.readLocation()
-        val cache = container.store.readCache(date, location, container.settings)
-        val currentPrayerTime = cache?.let {
-            date.atTime(prayer.timeIn(it)).atZone(it.timezone).toInstant()
-        }
-        val locationMatches = cache != null &&
-            cache.location.cacheKey == intent.getStringExtra(PrayerNotificationAlarm.EXTRA_LOCATION_CITY) &&
-            cache.location.country == intent.getStringExtra(PrayerNotificationAlarm.EXTRA_LOCATION_COUNTRY)
-        val scheduledTrigger = Instant.ofEpochMilli(triggerMillis)
-        val scheduledPrayer = Instant.ofEpochMilli(prayerMillis)
-        val allowed = PrayerNotificationDeliveryPolicy.shouldShow(
-            type = type,
-            now = container.timeProvider.now().toInstant(),
-            scheduledTriggerAt = scheduledTrigger,
-            scheduledPrayerTime = scheduledPrayer,
-            currentPrayerTime = currentPrayerTime,
-            currentLeadMinutes = settings.leadMinutes,
-            prayerEnabled = prayer in settings.enabledPrayers,
-            locationMatches = locationMatches
-        )
-
-        if (allowed && cache != null) {
-            PrayerNotificationPublisher.show(
+        val event = PrayerNotificationEventId(prayer, date, type)
+        prayerNotificationMutex.withLock {
+            deliverIfAllowed(
                 context,
-                prayer = prayer,
-                type = type,
-                leadMinutes = settings.leadMinutes,
-                prayerTime = scheduledPrayer.atZone(cache.timezone),
-                displayCity = cache.location.displayCity
+                event,
+                Instant.ofEpochMilli(triggerMillis),
+                Instant.ofEpochMilli(prayerMillis),
+                intent.getStringExtra(PrayerNotificationAlarm.EXTRA_LOCATION_CITY),
+                intent.getStringExtra(PrayerNotificationAlarm.EXTRA_LOCATION_COUNTRY),
+                intent.getBooleanExtra(PrayerNotificationAlarm.EXTRA_EXACT, true)
             )
         }
-        PrayerNotificationScheduler.scheduleNext(context)
+        PrayerNotificationScheduler.scheduleNext(context, attemptedEvent = event)
         PrayerWidgetScheduler.enqueueRefresh(context, force = false)
     }
 
-    private companion object {
-        const val TAG = "PrayerNotification"
+    companion object {
+        private const val TAG = "PrayerNotification"
+
+        internal suspend fun deliverIfAllowed(
+            context: Context,
+            event: PrayerNotificationEventId,
+            scheduledTrigger: Instant,
+            scheduledPrayer: Instant,
+            locationCity: String?,
+            locationCountry: String?,
+            exact: Boolean
+        ) {
+            val container = context.appContainer()
+            val settingsStore = container.notificationSettingsStore
+            val settings = settingsStore.read()
+            if (!settings.notificationsEnabled ||
+                !NotificationManagerCompat.from(context).areNotificationsEnabled()
+            ) return
+
+            val location = container.store.readLocation()
+            val cache = container.store.readCache(event.date, location, container.settings) ?: return
+            val currentPrayerTime = event.date.atTime(event.prayer.timeIn(cache)).atZone(cache.timezone)
+            val allowed = PrayerNotificationDeliveryPolicy.shouldShow(
+                type = event.type,
+                now = container.timeProvider.now().toInstant(),
+                scheduledTriggerAt = scheduledTrigger,
+                scheduledPrayerTime = scheduledPrayer,
+                currentPrayerTime = currentPrayerTime.toInstant(),
+                currentLeadMinutes = settings.leadMinutes,
+                prayerEnabled = event.prayer in settings.enabledPrayers,
+                locationMatches = cache.location.cacheKey == locationCity && cache.location.country == locationCountry,
+                exact = exact,
+                alreadyShown = event in settingsStore.readShownEvents()
+            )
+            if (!allowed) return
+
+            PrayerNotificationPublisher.show(
+                context,
+                prayer = event.prayer,
+                type = event.type,
+                leadMinutes = settings.leadMinutes,
+                prayerTime = currentPrayerTime,
+                displayCity = cache.location.displayCity
+            )
+            settingsStore.recordShownEvent(event)
+        }
     }
 }
-
-private fun PrayerNotificationPrayer.timeIn(cache: com.example.namazvakti.domain.model.CachedPrayerDay) =
-    when (this) {
-        PrayerNotificationPrayer.IMSAK -> cache.prayerTimes.fajr
-        PrayerNotificationPrayer.SUNRISE -> cache.prayerTimes.sunrise
-        PrayerNotificationPrayer.DHUHR -> cache.prayerTimes.dhuhr
-        PrayerNotificationPrayer.ASR -> cache.prayerTimes.asr
-        PrayerNotificationPrayer.MAGHRIB -> cache.prayerTimes.maghrib
-        PrayerNotificationPrayer.ISHA -> cache.prayerTimes.isha
-    }
