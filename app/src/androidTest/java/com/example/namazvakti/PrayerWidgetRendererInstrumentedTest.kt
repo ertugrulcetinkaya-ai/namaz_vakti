@@ -20,10 +20,12 @@ import android.widget.TextView
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.namazvakti.domain.model.CachedPrayerDay
+import com.example.namazvakti.domain.model.DiyanetDistricts
 import com.example.namazvakti.domain.model.DiyanetRamadanCalendar
 import com.example.namazvakti.domain.model.DiyanetReligiousDay
 import com.example.namazvakti.domain.model.DiyanetReligiousDays
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
+import com.example.namazvakti.domain.model.PrayerDataSource
 import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.PrayerTimes
 import com.example.namazvakti.widget.PrayerWidgetSizeClass
@@ -309,6 +311,39 @@ class PrayerWidgetRendererInstrumentedTest {
         assertTrue(text.startsWith("Bu akşam Regaip Kandili"))
         assertTrue(text.split(" · ").size <= events.size)
         saveBitmap(rendered.bitmap, "religious_day_same_date_large_light")
+    }
+
+    @Test
+    fun provinceCenterFallbackNoteAppearsOnlyInLargeNonCompactLayout() {
+        val province = requireNotNull(DiyanetDistricts.forCity("Istanbul", "Turkey"))
+        val district = DiyanetDistricts.districts.first {
+            it.provinceId == province.id && it.name == "MALTEPE"
+        }
+        val fallbackCache = cache().copy(
+            location = location.copy(diyanetDistrictId = district.id, districtName = district.name),
+            source = PrayerDataSource.ALADHAN
+        )
+
+        val small = render(fallbackCache, PrayerWidgetDataState.Fresh, PrayerWidgetSizeClass.SMALL)
+        val medium = render(fallbackCache, PrayerWidgetDataState.Fresh, PrayerWidgetSizeClass.MEDIUM)
+        val large = render(
+            fallbackCache,
+            PrayerWidgetDataState.Fresh,
+            PrayerWidgetSizeClass.LARGE,
+            dimensionsDp = 515 to 278
+        )
+        val compactLarge = render(
+            fallbackCache,
+            PrayerWidgetDataState.Fresh,
+            PrayerWidgetSizeClass.LARGE,
+            dimensionsDp = 280 to 278
+        )
+
+        assertEquals(View.GONE, small.root.findViewById<View>(R.id.prayer_widget_ramadan).visibility)
+        assertEquals(View.GONE, medium.root.findViewById<View>(R.id.prayer_widget_ramadan).visibility)
+        assertEquals(View.VISIBLE, large.root.findViewById<View>(R.id.prayer_widget_ramadan).visibility)
+        assertEquals("İl merkezi", large.root.text(R.id.prayer_widget_ramadan))
+        assertEquals(View.GONE, compactLarge.root.findViewById<View>(R.id.prayer_widget_ramadan).visibility)
     }
 
     @Test

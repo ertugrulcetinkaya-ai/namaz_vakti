@@ -1,6 +1,7 @@
 package com.example.namazvakti
 
 import com.example.namazvakti.domain.model.CachedPrayerDay
+import com.example.namazvakti.domain.model.PrayerDataSource
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.DiyanetDistricts
 import com.example.namazvakti.domain.model.PrayerLocation
@@ -11,6 +12,7 @@ import com.example.namazvakti.domain.policy.PrayerBoundaryCalculator
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
 import java.time.LocalTime
@@ -62,6 +64,30 @@ class PrayerTimesModelsTest {
         val kartalLocation = base.location.copy(diyanetDistrictId = kartal.id, districtName = kartal.name)
 
         assertFalse(maltepeCache.matches(base.date, kartalLocation, base.settings))
+    }
+
+    @Test
+    fun provinceCenterFallbackRequiresAlAdhanAndASelectedDistrict() {
+        val province = requireNotNull(DiyanetDistricts.forCity("Istanbul", "Turkey"))
+        val district = DiyanetDistricts.districts.first {
+            it.provinceId == province.id && it.name == "MALTEPE"
+        }
+        val selectedDistrict = PrayerLocation(
+            city = "Istanbul",
+            country = "Turkey",
+            displayCity = "İSTANBUL",
+            diyanetDistrictId = district.id,
+            districtName = district.name
+        )
+        val central = PrayerLocation("Istanbul", "Turkey", "İSTANBUL")
+        val cache = sampleCache()
+
+        assertFalse(cache.copy(source = PrayerDataSource.DIYANET, location = selectedDistrict)
+            .usesProvinceCenterFallback)
+        assertFalse(cache.copy(source = PrayerDataSource.ALADHAN, location = central)
+            .usesProvinceCenterFallback)
+        assertTrue(cache.copy(source = PrayerDataSource.ALADHAN, location = selectedDistrict)
+            .usesProvinceCenterFallback)
     }
 
     @Test
