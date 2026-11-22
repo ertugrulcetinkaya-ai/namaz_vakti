@@ -12,11 +12,8 @@ import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.PrayerLocationConfig
 import com.example.namazvakti.domain.model.PrayerStorageException
 import com.example.namazvakti.domain.model.PrayerTimeProvider
-import com.example.namazvakti.domain.model.PrayerTimes
 import com.example.namazvakti.domain.model.StorageFailureKind
 import com.example.namazvakti.domain.policy.PrayerCacheRetentionPolicy
-import com.google.gson.Gson
-import com.google.gson.annotations.SerializedName
 import android.database.sqlite.SQLiteDatabaseCorruptException
 import android.database.sqlite.SQLiteDatabaseLockedException
 import android.database.sqlite.SQLiteDiskIOException
@@ -25,9 +22,7 @@ import android.database.sqlite.SQLiteTableLockedException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.time.Instant
 import java.time.LocalDate
-import java.time.LocalTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.CancellationException
@@ -87,23 +82,18 @@ class PrayerTimesStore(
     private val districtIdKey = stringPreferencesKey("selected_district_id")
     private val districtNameKey = stringPreferencesKey("selected_district_name")
     private val prayerDataVersionKey = intPreferencesKey("prayer_data_version")
-    private val codec = CachedPrayerDayCodec()
-    private val migrationMutex = Mutex()
     private val dataVersionMutex = Mutex()
     private val dataVersionGate = PrayerDataVersionGate(PrayerDataVersionGate.CURRENT_VERSION)
-    @Volatile private var migrationComplete = false
     @Volatile private var dataVersionCheckComplete = false
     @Volatile private var lastRetentionDate: LocalDate? = null
 
     override suspend fun saveCache(cache: CachedPrayerDay) = storageOperation {
-        migrateLegacyCache()
         prayerDayDao.upsertAll(listOf(cache.toEntity()))
         pruneIfDue(cache.location)
     }
 
     override suspend fun saveCaches(caches: List<CachedPrayerDay>) = storageOperation {
         if (caches.isEmpty()) return@storageOperation
-        migrateLegacyCache()
         val retainedCaches = caches.filter { cache ->
             val window = retentionPolicy.window(timeProvider.today(cache.location.timezone))
             cache.date in window.minimumDate..window.maximumDate
@@ -135,7 +125,6 @@ class PrayerTimesStore(
     }
 
     override suspend fun clearCache() = storageOperation {
-        migrateLegacyCache()
         prayerDayDao.clearAll()
         context.dataStore.edit { prefs ->
             prefs.remove(cacheKey)
@@ -182,7 +171,6 @@ class PrayerTimesStore(
     }
 
     override suspend fun readCache(): CachedPrayerDay? = storageOperation {
-        migrateLegacyCache()
         val location = readLocation()
         val today = timeProvider.today(location.timezone)
         prayerDayDao.find(
@@ -197,7 +185,6 @@ class PrayerTimesStore(
         location: PrayerLocation,
         settings: PrayerCalculationSettings
     ): CachedPrayerDay? = storageOperation {
-        migrateLegacyCache()
         prayerDayDao.find(
             date.toString(), location.cacheKey, location.country, settings.method, settings.school
         )?.toDomain()
@@ -211,7 +198,6 @@ class PrayerTimesStore(
     ): Boolean {
         require(!endDate.isBefore(startDate)) { "End date must not be before start date" }
         return storageOperation {
-            migrateLegacyCache()
             val expectedDays = ChronoUnit.DAYS.between(startDate, endDate).toInt() + 1
             prayerDayDao.countBetween(
                 startDate.toString(), endDate.toString(), location.cacheKey, location.country,
@@ -226,7 +212,6 @@ class PrayerTimesStore(
         location: PrayerLocation,
         settings: PrayerCalculationSettings
     ): List<CachedPrayerDay> = storageOperation {
-        migrateLegacyCache()
         prayerDayDao.findBetween(
             startDate.toString(), endDate.toString(), location.cacheKey, location.country,
             settings.method, settings.school
@@ -242,24 +227,6 @@ class PrayerTimesStore(
             maximumDate = window.maximumDate.toString()
         )
         lastRetentionDate = today
-    }
-
-    private suspend fun migrateLegacyCache() {
-        if (migrationComplete) return
-        migrationMutex.withLock {
-            if (migrationComplete) return@withLock
-            val prefs = context.dataStore.data.first()
-            prefs[cacheKey]?.let(codec::decode)?.let { legacy ->
-                prayerDayDao.upsertAll(listOf(legacy.toEntity()))
-            }
-            context.dataStore.edit {
-                it.remove(cacheKey)
-                it.remove(legacyWidgetTextKey)
-                it.remove(legacyWidgetDateKey)
-                it.remove(legacyWidgetHijriKey)
-            }
-            migrationComplete = true
-        }
     }
 
     private suspend fun ensurePrayerDataVersion() {
@@ -311,90 +278,3 @@ class PrayerTimesStore(
         }
     }
 }
-
-internal class CachedPrayerDayCodec(private val gson: Gson = Gson()) {
-    fun encode(cache: CachedPrayerDay): String = gson.toJson(cache.toDto())
-
-    fun decode(json: String): CachedPrayerDay? = runCatching {
-        gson.fromJson(json, CachedPrayerDayDto::class.java).toDomain()
-    }.getOrNull()
-}
-
-internal data class CachedPrayerDayDto(
-    @field:SerializedName("schemaVersion") val schemaVersion: Int? = null,
-    @field:SerializedName("date") val date: String? = null,
-    @field:SerializedName("city") val city: String? = null,
-    @field:SerializedName("country") val country: String? = null,
-    @field:SerializedName("displayCity") val displayCity: String? = null,
-    @field:SerializedName("locationTimezone") val locationTimezone: String? = null,
-    @field:SerializedName("timezone") val timezone: String? = null,
-    @field:SerializedName("method") val method: Int? = null,
-    @field:SerializedName("school") val school: Int? = null,
-    @field:SerializedName("fajr") val fajr: String? = null,
-    @field:SerializedName("sunrise") val sunrise: String? = null,
-    @field:SerializedName("dhuhr") val dhuhr: String? = null,
-    @field:SerializedName("asr") val asr: String? = null,
-    @field:SerializedName("maghrib") val maghrib: String? = null,
-    @field:SerializedName("isha") val isha: String? = null,
-    @field:SerializedName("hijriText") val hijriText: String? = null,
-    @field:SerializedName("hijriDay") val hijriDay: Int? = null,
-    @field:SerializedName("hijriMonth") val hijriMonth: Int? = null,
-    @field:SerializedName("hijriYear") val hijriYear: Int? = null,
-    @field:SerializedName("fetchedAtEpochMillis") val fetchedAtEpochMillis: Long? = null
-) {
-    fun toDomain(): CachedPrayerDay {
-        require(schemaVersion == null || schemaVersion == CACHE_SCHEMA_VERSION) {
-            "Unsupported cache schema"
-        }
-        val cityValue = city?.trim().orEmpty()
-        val countryValue = country?.trim().orEmpty()
-        require(cityValue.isNotEmpty() && countryValue.isNotEmpty()) { "Missing cache location" }
-        val cacheTimezone = ZoneId.of(requireNotNull(timezone))
-        val location = PrayerLocation(
-            city = cityValue,
-            country = countryValue,
-            displayCity = displayCity?.trim().takeUnless { it.isNullOrEmpty() } ?: cityValue.uppercase(),
-            timezone = locationTimezone?.let(ZoneId::of) ?: cacheTimezone
-        )
-        return CachedPrayerDay(
-            date = LocalDate.parse(requireNotNull(date)),
-            location = location,
-            timezone = cacheTimezone,
-            settings = PrayerCalculationSettings(method ?: PrayerCalculationSettings.DEFAULT_METHOD, school ?: PrayerCalculationSettings.DEFAULT_SCHOOL),
-            prayerTimes = PrayerTimes(
-                LocalTime.parse(fajr.orEmpty()), LocalTime.parse(sunrise.orEmpty()), LocalTime.parse(dhuhr.orEmpty()),
-                LocalTime.parse(asr.orEmpty()), LocalTime.parse(maghrib.orEmpty()), LocalTime.parse(isha.orEmpty())
-            ),
-            hijriText = hijriText,
-            fetchedAt = Instant.ofEpochMilli(requireNotNull(fetchedAtEpochMillis)),
-            hijriDay = hijriDay,
-            hijriMonth = hijriMonth,
-            hijriYear = hijriYear
-        )
-    }
-}
-
-private fun CachedPrayerDay.toDto() = CachedPrayerDayDto(
-    schemaVersion = CACHE_SCHEMA_VERSION,
-    date = date.toString(),
-    city = location.city,
-    country = location.country,
-    displayCity = location.displayCity,
-    locationTimezone = location.timezone.id,
-    timezone = timezone.id,
-    method = settings.method,
-    school = settings.school,
-    fajr = prayerTimes.fajr.toString(),
-    sunrise = prayerTimes.sunrise.toString(),
-    dhuhr = prayerTimes.dhuhr.toString(),
-    asr = prayerTimes.asr.toString(),
-    maghrib = prayerTimes.maghrib.toString(),
-    isha = prayerTimes.isha.toString(),
-    hijriText = hijriText,
-    hijriDay = hijriDay,
-    hijriMonth = hijriMonth,
-    hijriYear = hijriYear,
-    fetchedAtEpochMillis = fetchedAt.toEpochMilli()
-)
-
-private const val CACHE_SCHEMA_VERSION = 1

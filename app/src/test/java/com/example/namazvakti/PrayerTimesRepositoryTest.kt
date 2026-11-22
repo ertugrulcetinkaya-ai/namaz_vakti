@@ -254,6 +254,19 @@ class PrayerTimesRepositoryTest {
     }
 
     @Test
+    fun ensureMonthRemovesItsMutexEntryAfterTheRequestCompletes() = runTest {
+        val month = YearMonth.of(2026, 8)
+        val initial = (1..month.lengthOfMonth()).map { sampleCache(month.atDay(it), location) }
+        val store = FakeStore(location, settings, month.atDay(6), initial)
+        val api = FakeApi { _, _ -> error("covered month must not use network") }
+        val repository = repository(api, store)
+
+        repository.ensureMonth(month)
+
+        assertEquals(0, repository.monthMutexEntryCount)
+    }
+
+    @Test
     fun ensureMonthDoesNotTreatAnIncompleteInitialReadAsCompleteCoverage() = runTest {
         val month = YearMonth.of(2026, 8)
         val store = FakeStore(
@@ -329,6 +342,7 @@ class PrayerTimesRepositoryTest {
         second.await()
 
         assertEquals(1, requests)
+        assertEquals(0, repository.monthMutexEntryCount)
     }
 
     @Test

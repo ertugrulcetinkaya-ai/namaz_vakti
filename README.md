@@ -88,9 +88,9 @@ Gradle Managed Device emulator'ında CI ile aynı instrumentation testleri için
 ./gradlew --dependency-verification=strict pixel2api35MinifiedAndroidTest -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect
 ```
 
-Managed-device ve bağlı cihaz testleri debug keystore ile imzalanan, R8 ve resource shrinking etkin `minified` varyantta çalışır. Testler küçük, orta ve büyük widget'ları güncel, eski ve önbelleksiz durumlarda inflate edip ölçer; render görüntülerini uygulamanın dış dosya klasörüne kaydeder. Legacy Gson cache migration'ı ve widget reflection yolları da küçültülmüş çalışma zamanında sınanır. Compose UI smoke testi eklenmedi: minified testte Compose test rule, uygulama APK'sında R8 tarafından yeniden adlandırılan veya kaldırılan `InfiniteAnimationPolicy`, `IntObjectMapKt.mutableIntObjectMapOf` ve `ViewTreeLifecycleOwner` API'lerine erişemedi.
+Managed-device ve bağlı cihaz testleri debug keystore ile imzalanan, R8 ve resource shrinking etkin `minified` varyantta çalışır. Testler küçük, orta ve büyük widget'ları güncel, eski ve önbelleksiz durumlarda inflate edip ölçer; render görüntülerini uygulamanın dış dosya klasörüne kaydeder. Widget reflection yolları da küçültülmüş çalışma zamanında sınanır. Compose UI smoke testi eklenmedi: minified testte Compose test rule, uygulama APK'sında R8 tarafından yeniden adlandırılan veya kaldırılan `InfiniteAnimationPolicy`, `IntObjectMapKt.mutableIntObjectMapOf` ve `ViewTreeLifecycleOwner` API'lerine erişemedi.
 
-Unit testler cache şema dönüşümünü, Room migration'ını, retention penceresini, Ramazan tarihi önceliğini, API hicri alan doğrulamasını, timezone'a göre tarih üretimini, geri sayım sınırlarını, coroutine iptalini ve eşzamanlı kullanıcı işlemlerini kapsar. Legacy DataStore JSON alanları `@SerializedName` ile sabitlenmiştir; migration davranışı JVM ve minified instrumentation regression testleriyle denetlenir.
+Unit testler Room şema migration'ını, retention penceresini, Ramazan tarihi önceliğini, API hicri alan doğrulamasını, timezone'a göre tarih üretimini, geri sayım sınırlarını, coroutine iptalini ve eşzamanlı kullanıcı işlemlerini kapsar. Eski DataStore cache ve widget anahtarları veri sürümü değiştiğinde temizlenir; günlük vakitler Room'dan okunur.
 
 ## Beta sürüm üretimi
 
