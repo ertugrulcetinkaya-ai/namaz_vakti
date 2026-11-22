@@ -363,11 +363,23 @@ class ComposeSmokeInstrumentedTest {
         do {
             val root = instrumentation.uiAutomation.rootInActiveWindow
             root?.findNode(matches)?.let { return it }
-            val scrollContainer = root?.findNode { it.isScrollable } ?: break
-            if (!scrollContainer.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)) break
+            // Screens such as the imsakiye contain a horizontal table scroller before the vertical list, so
+            // prefer an explicit downward scroll on any scrollable node and only then fall back to "forward".
+            val scrollables = root?.collectScrollables().orEmpty()
+            val scrolled = scrollables.any {
+                it.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_DOWN.id)
+            } || scrollables.any { it.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) }
+            if (!scrolled) break
             SystemClock.sleep(POLL_MILLIS)
         } while (SystemClock.uptimeMillis() < deadline)
         return awaitNode(description, matches)
+    }
+
+    private fun AccessibilityNodeInfo.collectScrollables(): List<AccessibilityNodeInfo> = buildList {
+        if (isVisibleToUser && isScrollable) add(this@collectScrollables)
+        for (index in 0 until childCount) {
+            getChild(index)?.collectScrollables()?.let(::addAll)
+        }
     }
 
     @Suppress("DEPRECATION")
