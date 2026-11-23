@@ -20,12 +20,12 @@ class DiyanetPrayerTimesContractTest {
         )
 
         val today = PrayerTimeProvider().today()
-        val api = DiyanetPrayerTimesApi()
         val client = OkHttpClient.Builder()
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
             .callTimeout(20, TimeUnit.SECONDS)
             .build()
+        val api = DiyanetPrayerTimesApi(client = client)
         val districts = listOf(
             "İSTANBUL" to "9541",
             "ANKARA" to "9206",

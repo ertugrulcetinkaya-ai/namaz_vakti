@@ -12,11 +12,13 @@ import org.junit.Assert.fail
 import org.junit.Test
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.OkHttpClient
 import kotlinx.coroutines.test.runTest
 import java.time.LocalDate
 
 class PrayerTimesApiTest {
-    private val api = PrayerTimesApi()
+    private val client = OkHttpClient()
+    private val api = PrayerTimesApi(client = client)
 
     @Test
     fun preservesHttpStatusForRetryClassification() = runTest {
@@ -25,7 +27,7 @@ class PrayerTimesApiTest {
         server.start()
         try {
             try {
-                PrayerTimesApi(baseUrl = server.url("/v1/")).fetchMonth(
+                PrayerTimesApi(client = client, baseUrl = server.url("/v1/")).fetchMonth(
                     "Ankara", "Turkey", 2026, 8, PrayerCalculationSettings()
                 )
                 fail("HTTP 503 should fail the API request")
@@ -59,7 +61,7 @@ class PrayerTimesApiTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(calendarBody()))
         server.start()
         try {
-            PrayerTimesApi(baseUrl = server.url("/v1/")).fetchMonth(
+            PrayerTimesApi(client = client, baseUrl = server.url("/v1/")).fetchMonth(
                 "Ankara", "Turkey", 2026, 8,
                 PrayerCalculationSettings(method = 3, school = PrayerCalculationSettings.SCHOOL_HANAFI),
                 latitude = 39.9199,
@@ -87,7 +89,7 @@ class PrayerTimesApiTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(calendarBody()))
         server.start()
         try {
-            PrayerTimesApi(baseUrl = server.url("/v1/")).fetchMonth(
+            PrayerTimesApi(client = client, baseUrl = server.url("/v1/")).fetchMonth(
                 "Baku", "Azerbaijan", 2026, 8, PrayerCalculationSettings()
             )
             val request = server.takeRequest()
@@ -111,7 +113,7 @@ class PrayerTimesApiTest {
         )
         server.start()
         try {
-            val dates = PrayerTimesApi(baseUrl = server.url("/v1/")).fetchHijriMonth(9, 1448)
+            val dates = PrayerTimesApi(client = client, baseUrl = server.url("/v1/")).fetchHijriMonth(9, 1448)
             val request = server.takeRequest()
             assertEquals(listOf(LocalDate.of(2027, 2, 8), LocalDate.of(2027, 2, 9)), dates)
             assertEquals("/v1/hToGCalendar/9/1448", request.requestUrl?.encodedPath)

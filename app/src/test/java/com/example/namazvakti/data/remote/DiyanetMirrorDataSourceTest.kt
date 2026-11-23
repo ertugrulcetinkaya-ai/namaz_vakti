@@ -170,7 +170,10 @@ class DiyanetMirrorDataSourceTest {
         clock = clock
     )
 
-    private fun result(): PrayerTimesCalendarResult = DiyanetPrayerTimesApi(timeProvider = timeProvider)
+    private fun result(): PrayerTimesCalendarResult = DiyanetPrayerTimesApi(
+        client = okhttp3.OkHttpClient(),
+        timeProvider = timeProvider
+    )
         .parseResponse(fixture("9206").toString(Charsets.UTF_8), timeProvider.today())
 
     private fun fixture(id: String): ByteArray = javaClass.getResource("/diyanet/$id.json")!!.readBytes()

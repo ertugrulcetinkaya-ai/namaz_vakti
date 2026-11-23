@@ -3,6 +3,7 @@ package com.example.namazvakti.data.repository
 import com.example.namazvakti.data.local.PrayerPreferences
 import com.example.namazvakti.data.remote.PrayerTimesApi
 import com.example.namazvakti.data.remote.DiyanetPrayerTimesRemoteDataSource
+import com.example.namazvakti.data.remote.createPrayerHttpClient
 import com.example.namazvakti.domain.model.DiyanetDistricts
 import com.example.namazvakti.data.remote.PrayerTimesApiDayResult
 import com.example.namazvakti.data.remote.PrayerTimesApiResult
@@ -36,7 +37,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 class PrayerTimesRepository(
-    private val api: PrayerTimesRemoteDataSource = PrayerTimesApi(),
+    private val api: PrayerTimesRemoteDataSource = PrayerTimesApi(client = createPrayerHttpClient()),
     private val store: PrayerPreferences,
     private val settings: PrayerCalculationSettings = PrayerCalculationSettings(),
     private val timeProvider: PrayerTimeProvider = PrayerTimeProvider(),

@@ -23,8 +23,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -50,35 +52,46 @@ fun CitySelectionScreen(
     onSelectDistrict: (PrayerLocationConfig.CityOption, String?) -> Unit
 ) {
     var query by rememberSaveable(selectionStep, selectedProvinceCity) { mutableStateOf("") }
-    val selectedProvince = selectedProvinceCity?.let { city ->
-        PrayerLocationConfig.cityOptions.firstOrNull { it.city == city }
+    val selectedProvince = remember(selectedProvinceCity) {
+        selectedProvinceCity?.let { city ->
+            PrayerLocationConfig.cityOptions.firstOrNull { it.city == city }
+        }
     }
-    val searchKey = query.trim().citySearchKey()
-    val filteredCities = PrayerLocationConfig.cityOptions.filter { city ->
-        searchKey.isBlank() || city.displayCity.citySearchKey().contains(searchKey) ||
-            city.city.citySearchKey().contains(searchKey)
+    val searchKey by remember(query) {
+        derivedStateOf { query.trim().citySearchKey() }
     }
     val province = selectedProvince
     val centralLabel = stringResource(R.string.district_central)
-    val provinceDistricts = province?.let { city ->
-        val provinceData = DiyanetDistricts.forCity(city.city, city.country)
-        val districts = DiyanetDistricts.districts.filter { it.provinceId == provinceData?.id }
-        val central = districts.firstOrNull { it.id == provinceData?.centralDistrictId }
-        val collator = Collator.getInstance(Locale.forLanguageTag("tr-TR"))
-        listOfNotNull(central) + districts
-            .filterNot { it.id == central?.id }
-            .sortedWith { left, right -> collator.compare(left.name, right.name) }
-    }.orEmpty()
-    val filteredDistricts = provinceDistricts.filter { district ->
-        val name = if (district.id == province?.let {
-                DiyanetDistricts.forCity(it.city, it.country)?.centralDistrictId
-            }) {
-            centralLabel
-        } else {
-            district.name
+    val collator = remember { Collator.getInstance(Locale.forLanguageTag("tr-TR")) }
+    val provinceData = remember(province) {
+        province?.let { DiyanetDistricts.forCity(it.city, it.country) }
+    }
+    val centralDistrictId = provinceData?.centralDistrictId
+    val provinceDistricts by remember(provinceData, collator) {
+        derivedStateOf {
+            val districts = provinceData?.let { DiyanetDistricts.byProvinceId[it.id] }.orEmpty()
+            val central = centralDistrictId?.let(DiyanetDistricts.byId::get)
+            listOfNotNull(central) + districts
+                .filterNot { it.id == central?.id }
+                .sortedWith { left, right -> collator.compare(left.name, right.name) }
         }
-        searchKey.isBlank() || name.citySearchKey().contains(searchKey) ||
-            district.name.citySearchKey().contains(searchKey)
+    }
+    val filteredCities by remember(searchKey) {
+        derivedStateOf {
+            PrayerLocationConfig.cityOptions.filter { city ->
+                searchKey.isBlank() || city.displayCity.citySearchKey().contains(searchKey) ||
+                    city.city.citySearchKey().contains(searchKey)
+            }
+        }
+    }
+    val filteredDistricts by remember(provinceDistricts, searchKey, centralLabel, centralDistrictId) {
+        derivedStateOf {
+            provinceDistricts.filter { district ->
+                val name = if (district.id == centralDistrictId) centralLabel else district.name
+                searchKey.isBlank() || name.citySearchKey().contains(searchKey) ||
+                    district.name.citySearchKey().contains(searchKey)
+            }
+        }
     }
 
     Scaffold(
@@ -182,8 +195,7 @@ fun CitySelectionScreen(
                 }
             } else {
                 items(filteredDistricts, key = { it.id }) { district ->
-                    val provinceData = DiyanetDistricts.forCity(province.city, province.country)
-                    val central = district.id == provinceData?.centralDistrictId
+                    val central = district.id == centralDistrictId
                     val districtName = if (central) {
                         stringResource(R.string.district_central)
                     } else {

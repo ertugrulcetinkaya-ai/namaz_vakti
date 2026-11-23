@@ -172,9 +172,7 @@ class PrayerTimesStore(
         val storedDistrictId = prefs[districtIdKey]
         val storedDistrictName = prefs[districtNameKey]
         val district = storedDistrictId?.let { id ->
-            DiyanetDistricts.districts.firstOrNull {
-                it.id == id && it.provinceId == province?.id
-            }
+            DiyanetDistricts.byId[id]?.takeIf { it.provinceId == province?.id }
         }?.takeUnless { it.id == province?.centralDistrictId }
         val timezone = prefs[locationTimezoneKey]?.let { runCatching { ZoneId.of(it) }.getOrNull() }
             ?: PrayerTimeProvider.DEFAULT_ZONE

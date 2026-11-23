@@ -6,14 +6,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -35,6 +32,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -47,6 +49,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import com.example.namazvakti.R
 import com.example.namazvakti.domain.model.CachedPrayerDay
 import com.example.namazvakti.domain.model.PrayerError
@@ -61,9 +66,12 @@ import com.example.namazvakti.domain.policy.RamadanCountdownKind
 import com.example.namazvakti.domain.policy.ReligiousDayAnnouncementPolicy
 import java.time.Duration
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 
 internal sealed interface HomeEmptyMessage {
     data object NoPrayerData : HomeEmptyMessage
@@ -135,7 +143,6 @@ fun PrayerHomeScreen(
             now = localNow
         )
     }
-    val isTomorrow = countdown?.nextPrayerAt?.toLocalDate()?.isAfter(localNow.toLocalDate()) == true
     val ramadanDay = ramadanRange?.dayNumber(today)
     val ramadanCountdown = if (ramadanDay != null && todayCache != null) {
         RamadanCountdownCalculator.calculate(
@@ -208,14 +215,13 @@ fun PrayerHomeScreen(
                 .padding(top = innerPadding.calculateTopPadding())
         ) {
             val layoutDirection = LocalLayoutDirection.current
-            val navigationBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
                     start = 20.dp + innerPadding.calculateStartPadding(layoutDirection),
                     top = 8.dp,
                     end = 20.dp + innerPadding.calculateEndPadding(layoutDirection),
-                    bottom = 8.dp + innerPadding.calculateBottomPadding() + navigationBarPadding
+                    bottom = 8.dp + innerPadding.calculateBottomPadding()
                 ),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
@@ -250,7 +256,11 @@ fun PrayerHomeScreen(
                 }
 
                 item {
-                    NextPrayerCard(countdown = countdown, isTomorrow = isTomorrow)
+                    NextPrayerCard(
+                        todayCache = todayCache,
+                        tomorrowCache = ready?.tomorrowCache,
+                        timezone = zone
+                    )
                     ramadanDay?.let { day ->
                         if (ramadanCountdownText != null) {
                             RamadanCountdownCard(
@@ -397,7 +407,48 @@ private fun ExactAlarmWarning(onRequestExactAlarm: () -> Unit) {
 }
 
 @Composable
-private fun NextPrayerCard(countdown: PrayerCountdown?, isTomorrow: Boolean) {
+private fun NextPrayerCard(
+    todayCache: CachedPrayerDay?,
+    tomorrowCache: CachedPrayerDay?,
+    timezone: ZoneId
+) {
+    if (todayCache == null) {
+        NextPrayerCardContent(countdown = null, isTomorrow = false)
+        return
+    }
+
+    val now = rememberSecondNow(timezone)
+    val localNow = now.withZoneSameInstant(timezone)
+    val countdown = PrayerCountdownCalculator.calculate(
+        today = todayCache.prayerTimes,
+        date = todayCache.date,
+        timezone = todayCache.timezone,
+        tomorrow = tomorrowCache
+            ?.takeIf { it.date == todayCache.date.plusDays(1) }
+            ?.prayerTimes,
+        now = localNow
+    )
+    val isTomorrow = countdown.nextPrayerAt?.toLocalDate()?.isAfter(localNow.toLocalDate()) == true
+    NextPrayerCardContent(countdown = countdown, isTomorrow = isTomorrow)
+}
+
+@Composable
+private fun rememberSecondNow(timezone: ZoneId): ZonedDateTime {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var now by remember(timezone) { mutableStateOf(ZonedDateTime.now(timezone)) }
+    LaunchedEffect(lifecycleOwner, timezone) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (isActive) {
+                now = ZonedDateTime.now(timezone)
+                delay(COUNTDOWN_TICK_MILLIS)
+            }
+        }
+    }
+    return now
+}
+
+@Composable
+private fun NextPrayerCardContent(countdown: PrayerCountdown?, isTomorrow: Boolean) {
     val context = LocalContext.current
     val unknownCountdownAccessibility = stringResource(R.string.prayer_countdown_unknown_accessibility)
     Card(
@@ -701,6 +752,7 @@ private val TURKISH_DATE_FORMATTER: DateTimeFormatter =
 private val METADATA_TIME_FORMATTER: DateTimeFormatter =
     DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm", Locale.forLanguageTag("tr-TR"))
 
+private const val COUNTDOWN_TICK_MILLIS = 1_000L
 private const val SECONDS_PER_MINUTE = 60L
 private const val SECONDS_PER_HOUR = 3_600L
 private const val SECONDS_PER_DAY = 86_400L

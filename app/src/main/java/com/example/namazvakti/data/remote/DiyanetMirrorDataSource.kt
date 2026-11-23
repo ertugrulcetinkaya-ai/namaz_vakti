@@ -10,35 +10,28 @@ import com.google.gson.JsonParser
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import okhttp3.Call
-import okhttp3.Callback
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.Response
-import kotlinx.coroutines.suspendCancellableCoroutine
-import java.io.IOException
 import java.security.MessageDigest
 import java.time.Clock
 import java.time.LocalDate
-import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
 
 class DiyanetMirrorDataSource(
     private val stateStore: DiyanetSourceStateStore,
-    private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
-        .callTimeout(20, TimeUnit.SECONDS)
-        .retryOnConnectionFailure(true)
-        .build(),
+    client: OkHttpClient,
     private val baseUrl: HttpUrl = MIRROR_BASE_URL.toHttpUrl(),
     private val timeProvider: PrayerTimeProvider = PrayerTimeProvider(),
     private val clock: Clock = Clock.systemUTC(),
-    private val api: DiyanetPrayerTimesApi = DiyanetPrayerTimesApi(timeProvider = timeProvider)
+    private val api: DiyanetPrayerTimesApi = DiyanetPrayerTimesApi(
+        client = client,
+        timeProvider = timeProvider
+    )
 ) : DiyanetPrayerTimesRemoteDataSource {
     private val manifestMutex = Mutex()
+    private val httpFetcher = HttpFetcher(client)
 
     override suspend fun fetch(districtId: String): PrayerTimesCalendarResult {
         require(DISTRICT_ID_PATTERN.matches(districtId)) { "Invalid Diyanet district ID" }
@@ -93,29 +86,10 @@ class DiyanetMirrorDataSource(
         manifest
     }
 
-    private suspend fun execute(request: Request): ByteArray = suspendCancellableCoroutine { continuation ->
-        val call = client.newCall(request)
-        continuation.invokeOnCancellation { call.cancel() }
-        call.enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                continuation.resumeWith(Result.failure(e))
-            }
-
-            override fun onResponse(call: Call, response: Response) {
-                val result = runCatching {
-                    response.use {
-                        if (!it.isSuccessful) {
-                            throw PrayerTimesApiException("HTTP ${it.code}", statusCode = it.code)
-                        }
-                        val body = it.body.bytes()
-                        if (body.isEmpty()) throw PrayerTimesApiException("Diyanet mirror response is empty")
-                        body
-                    }
-                }
-                continuation.resumeWith(result)
-            }
-        })
-    }
+    private suspend fun execute(request: Request): ByteArray =
+        httpFetcher.fetchBytes(request).also { body ->
+            if (body.isEmpty()) throw PrayerTimesApiException("Diyanet mirror response is empty")
+        }
 
     private fun parseManifest(body: String): MirrorManifest = try {
         val root = JsonParser.parseString(body).asJsonObject

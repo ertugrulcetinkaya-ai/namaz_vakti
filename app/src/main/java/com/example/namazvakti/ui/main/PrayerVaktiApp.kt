@@ -59,7 +59,9 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
         PrayerUiState.Loading -> null
     }
     val timezone = location?.timezone ?: PrayerTimeProvider.DEFAULT_ZONE
-    var now by remember(timezone) { mutableStateOf(ZonedDateTime.now(timezone)) }
+    var now by remember(timezone) {
+        mutableStateOf(ZonedDateTime.now(timezone).truncatedTo(ChronoUnit.MINUTES))
+    }
     val today = now.withZoneSameInstant(timezone).toLocalDate()
     val autoRefreshMinute = now.truncatedTo(ChronoUnit.MINUTES)
     var lastObservedDate by remember { mutableStateOf(today) }
@@ -89,8 +91,11 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
     LaunchedEffect(lifecycleOwner, timezone) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             while (isActive) {
-                now = ZonedDateTime.now(timezone)
-                delay(CLOCK_TICK_MILLIS)
+                val currentTime = ZonedDateTime.now(timezone)
+                val currentMinute = currentTime.truncatedTo(ChronoUnit.MINUTES)
+                now = currentMinute
+                val nextMinute = currentMinute.plusMinutes(1)
+                delay(ChronoUnit.MILLIS.between(currentTime, nextMinute).coerceAtLeast(1L))
             }
         }
     }
@@ -121,7 +126,8 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
         }
         val key = AutoRefreshKey(today, ready.location.cacheKey, reason)
         val lastAttemptFailed = ready.operation == OperationState.RefreshFailed
-        if (autoRefreshPolicy.shouldRefresh(key, now.toInstant(), lastAttemptFailed)) {
+        val refreshNow = ZonedDateTime.now(timezone)
+        if (autoRefreshPolicy.shouldRefresh(key, refreshNow.toInstant(), lastAttemptFailed)) {
             viewModel.refresh()
         }
     }
@@ -280,5 +286,3 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
         )
     }
 }
-
-private const val CLOCK_TICK_MILLIS = 1_000L

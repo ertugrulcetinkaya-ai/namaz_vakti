@@ -1908,13 +1908,16 @@ object DiyanetReligiousDays {
         ),
     ).sortedBy(DiyanetReligiousDay::date)
 
+    val byDate: Map<LocalDate, List<DiyanetReligiousDay>> by lazy {
+        entries.groupBy(DiyanetReligiousDay::date)
+    }
+
     fun lastCoveredDate(): LocalDate = entries.last().date
 
     fun forYear(year: Int): List<DiyanetReligiousDay> =
         entries.filter { it.date.year == year }
 
-    fun on(date: LocalDate): List<DiyanetReligiousDay> =
-        entries.filter { it.date == date }
+    fun on(date: LocalDate): List<DiyanetReligiousDay> = byDate[date].orEmpty()
 
     fun inMonth(year: Int, month: Int): List<DiyanetReligiousDay> =
         entries.filter { it.date.year == year && it.date.monthValue == month }

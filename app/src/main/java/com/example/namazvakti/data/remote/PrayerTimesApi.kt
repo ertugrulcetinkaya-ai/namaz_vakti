@@ -8,20 +8,14 @@ import com.example.namazvakti.domain.model.PrayerTimesApiException
 import com.example.namazvakti.domain.model.PrayerTimes
 import com.example.namazvakti.domain.model.PrayerTimeAdjustments
 import com.example.namazvakti.domain.model.PrayerTimeProvider
-import okhttp3.Call
-import okhttp3.Callback
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.Response
 import okhttp3.HttpUrl.Companion.toHttpUrl
-import java.util.concurrent.TimeUnit
 import java.time.LocalTime
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.ResolverStyle
 import com.google.gson.annotations.SerializedName
-import java.io.IOException
-import kotlinx.coroutines.suspendCancellableCoroutine
 
 data class PrayerTimesCalendarResponse(
     @field:SerializedName("code") val code: Int? = null,
@@ -86,15 +80,11 @@ interface PrayerTimesRemoteDataSource {
 }
 
 class PrayerTimesApi(
-    private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
-        .callTimeout(20, TimeUnit.SECONDS)
-        .retryOnConnectionFailure(true)
-        .build(),
+    client: OkHttpClient,
     private val baseUrl: okhttp3.HttpUrl = "https://api.aladhan.com/v1/".toHttpUrl()
 ) : PrayerTimesRemoteDataSource {
     private val gson = Gson()
+    private val httpFetcher = HttpFetcher(client)
 
     override suspend fun fetchMonth(
         city: String,
@@ -171,31 +161,8 @@ class PrayerTimesApi(
         return dates
     }
 
-    internal suspend fun execute(request: Request): String = suspendCancellableCoroutine { continuation ->
-        val call = client.newCall(request)
-        continuation.invokeOnCancellation { call.cancel() }
-        call.enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                continuation.resumeWith(Result.failure(e))
-            }
-
-            override fun onResponse(call: Call, response: Response) {
-                val result = runCatching {
-                    response.use {
-                        if (!it.isSuccessful) {
-                            throw PrayerTimesApiException("HTTP ${it.code}", statusCode = it.code)
-                        }
-                        val body = it.body.string()
-                        if (body.isBlank()) {
-                            throw PrayerTimesApiException("API response has no body")
-                        }
-                        body
-                    }
-                }
-                continuation.resumeWith(result)
-            }
-        })
-    }
+    internal suspend fun execute(request: Request): String =
+        httpFetcher.fetchText(request, "API response has no body")
 
     internal fun parseCalendarResponse(body: String): PrayerTimesCalendarResult {
         val parsed = runCatching { gson.fromJson(body, PrayerTimesCalendarResponse::class.java) }
