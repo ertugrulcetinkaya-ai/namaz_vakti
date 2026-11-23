@@ -7,12 +7,13 @@ import java.time.LocalTime
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
+import okhttp3.OkHttpClient
 
 @RunWith(AndroidJUnit4::class)
 class PrayerTimesApiInstrumentedTest {
     @Test
     fun representativeAlAdhanJsonParsesOnMinifiedRuntime() {
-        val result = PrayerTimesApi().parseCalendarResponse(
+        val result = PrayerTimesApi(client = OkHttpClient()).parseCalendarResponse(
             """
                 {
                   "code": 200,

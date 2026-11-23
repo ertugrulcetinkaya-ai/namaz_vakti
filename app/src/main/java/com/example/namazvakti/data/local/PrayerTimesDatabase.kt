@@ -174,9 +174,7 @@ internal fun PrayerDayEntity.toDomain(): CachedPrayerDay {
     val (locationCity, districtId) = PrayerLocation.fromCacheKey(city)
     val province = DiyanetDistricts.forCity(locationCity, country)
     val district = districtId?.let { id ->
-        DiyanetDistricts.districts.firstOrNull {
-            it.id == id && it.provinceId == province?.id
-        }
+        DiyanetDistricts.byId[id]?.takeIf { it.provinceId == province?.id }
     }?.takeUnless { it.id == province?.centralDistrictId }
     return CachedPrayerDay(
         date = LocalDate.parse(date),

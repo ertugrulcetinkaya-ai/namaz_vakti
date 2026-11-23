@@ -28,9 +28,7 @@ data class PrayerLocation(
             if (isCentralDistrict) return displayCity
             val name = districtName ?: diyanetDistrictId?.let { id ->
                 val provinceId = DiyanetDistricts.forCity(city, country)?.id
-                DiyanetDistricts.districts.firstOrNull {
-                    it.id == id && it.provinceId == provinceId
-                }?.name
+                DiyanetDistricts.byId[id]?.takeIf { it.provinceId == provinceId }?.name
             }
             return name?.let { "$it, $displayCity" } ?: displayCity
         }
@@ -166,9 +164,8 @@ data class CachedPrayerDay(
 
     private fun PrayerLocation.hasDistrictCoordinates(): Boolean {
         val province = DiyanetDistricts.forCity(city, country) ?: return false
-        val district = DiyanetDistricts.districts.firstOrNull {
-            it.id == diyanetDistrictId && it.provinceId == province.id
-        } ?: return false
+        val district = DiyanetDistricts.byId[diyanetDistrictId]
+            ?.takeIf { it.provinceId == province.id } ?: return false
         return district.latitude != null && district.longitude != null
     }
 

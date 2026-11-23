@@ -7,6 +7,7 @@ import com.example.namazvakti.domain.model.PrayerLocationConfig
 import com.example.namazvakti.domain.model.PrayerTimesApiException
 import com.google.gson.JsonArray
 import com.google.gson.JsonParser
+import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertThrows
@@ -14,7 +15,7 @@ import org.junit.Test
 import java.time.LocalDate
 
 class DiyanetPrayerTimesApiTest {
-    private val api = DiyanetPrayerTimesApi()
+    private val api = DiyanetPrayerTimesApi(client = OkHttpClient())
     private val today = LocalDate.of(2026, 11, 16)
 
     private fun fixture(id: String) = javaClass.getResource("/diyanet/$id.json")!!.readText()

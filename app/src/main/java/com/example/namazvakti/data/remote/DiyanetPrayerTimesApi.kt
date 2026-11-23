@@ -14,7 +14,6 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.ResolverStyle
-import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
 
 interface DiyanetPrayerTimesRemoteDataSource {
@@ -22,21 +21,20 @@ interface DiyanetPrayerTimesRemoteDataSource {
 }
 
 class DiyanetPrayerTimesApi(
-    client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
-        .callTimeout(20, TimeUnit.SECONDS)
-        .retryOnConnectionFailure(true)
-        .build(),
+    client: OkHttpClient,
     private val baseUrl: okhttp3.HttpUrl = "https://namazvakti.mtopal.dev/".toHttpUrl(),
     private val timeProvider: PrayerTimeProvider = PrayerTimeProvider()
 ) : DiyanetPrayerTimesRemoteDataSource {
-    private val transport = PrayerTimesApi(client)
+    private val httpFetcher = HttpFetcher(client)
 
     override suspend fun fetch(districtId: String): PrayerTimesCalendarResult {
         val today = timeProvider.today()
         val url = baseUrl.newBuilder().addPathSegment("vakitler").addPathSegment(districtId).build()
-        return parseResponse(transport.execute(Request.Builder().url(url).get().build()), today)
+        val body = httpFetcher.fetchText(
+            Request.Builder().url(url).get().build(),
+            emptyBodyMessage = "API response has no body"
+        )
+        return parseResponse(body, today)
     }
 
     internal fun parseResponse(body: String, today: LocalDate): PrayerTimesCalendarResult {

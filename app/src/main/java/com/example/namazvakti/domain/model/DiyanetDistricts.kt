@@ -964,6 +964,9 @@ object DiyanetDistricts {
         District("580", "ZONGULDAK", "9955", "ZONGULDAK", null, null),
     )
 
+    val byId: Map<String, District> by lazy { districts.associateBy { it.id } }
+    val byProvinceId: Map<String, List<District>> by lazy { districts.groupBy { it.provinceId } }
+
     fun forCity(city: String, country: String): Province? {
         val option = PrayerLocationConfig.cityOptions.firstOrNull { it.city == city && it.country == country }
             ?: return null

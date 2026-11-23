@@ -8,6 +8,7 @@ import com.example.namazvakti.data.local.DataStoreDiyanetSourceStateStore
 import com.example.namazvakti.data.remote.DiyanetMirrorDataSource
 import com.example.namazvakti.data.remote.DiyanetPrayerTimesApi
 import com.example.namazvakti.data.remote.FallbackDiyanetDataSource
+import com.example.namazvakti.data.remote.createPrayerHttpClient
 import com.example.namazvakti.data.remote.PrayerTimesApi
 import com.example.namazvakti.data.repository.PrayerTimesRepository
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
@@ -17,6 +18,7 @@ import com.example.namazvakti.domain.policy.PrayerCacheRetentionPolicy
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import okhttp3.OkHttpClient
 
 class NamazVaktiApp : Application() {
     val container: AppContainer by lazy { AppContainer(this) }
@@ -37,11 +39,16 @@ class AppContainer(application: Application) {
         cacheRetentionPolicy
     )
     val notificationSettingsStore = PrayerNotificationSettingsStore(application)
-    val api = PrayerTimesApi()
+    val httpClient: OkHttpClient = createPrayerHttpClient()
+    val api = PrayerTimesApi(client = httpClient)
     val diyanetSourceStateStore = DataStoreDiyanetSourceStateStore(application)
     val diyanetApi = FallbackDiyanetDataSource(
-        mirror = DiyanetMirrorDataSource(diyanetSourceStateStore, timeProvider = timeProvider),
-        mtopal = DiyanetPrayerTimesApi(timeProvider = timeProvider),
+        mirror = DiyanetMirrorDataSource(
+            diyanetSourceStateStore,
+            client = httpClient,
+            timeProvider = timeProvider
+        ),
+        mtopal = DiyanetPrayerTimesApi(client = httpClient, timeProvider = timeProvider),
         stateStore = diyanetSourceStateStore
     )
     val repository = PrayerTimesRepository(api, store, settings, timeProvider, diyanetApi = diyanetApi)
