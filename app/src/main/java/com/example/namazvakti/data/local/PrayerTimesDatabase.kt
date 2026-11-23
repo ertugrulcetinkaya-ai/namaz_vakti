@@ -113,6 +113,18 @@ interface PrayerDayDao {
         school: Int
     ): List<PrayerDayEntity>
 
+    @Query(
+        """SELECT MIN(date) AS firstDate, MAX(date) AS lastDate FROM prayer_days
+            WHERE city = :city AND country = :country
+              AND method = :method AND school = :school"""
+    )
+    suspend fun findDateBounds(
+        city: String,
+        country: String,
+        method: Int,
+        school: Int
+    ): PrayerCacheDateBoundsRow
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(days: List<PrayerDayEntity>)
 
@@ -125,6 +137,11 @@ interface PrayerDayDao {
     @Query("DELETE FROM prayer_days")
     suspend fun clearAll()
 }
+
+data class PrayerCacheDateBoundsRow(
+    val firstDate: String?,
+    val lastDate: String?
+)
 
 @Database(entities = [PrayerDayEntity::class], version = 2, exportSchema = true)
 abstract class PrayerTimesDatabase : RoomDatabase() {

@@ -28,6 +28,7 @@ data class DiyanetSourceHealth(
 
 interface DiyanetSourceStateStore {
     suspend fun readCachedManifest(): CachedDiyanetManifest?
+    suspend fun readSourceHealth(): DiyanetSourceHealth?
     suspend fun cacheManifest(manifest: CachedDiyanetManifest)
     suspend fun recordSuccessfulSource(health: DiyanetSourceHealth)
 }
@@ -63,7 +64,7 @@ class DataStoreDiyanetSourceStateStore(
         }
     }
 
-    suspend fun readSourceHealth(): DiyanetSourceHealth? {
+    override suspend fun readSourceHealth(): DiyanetSourceHealth? {
         val preferences = dataStore.data.first()
         val source = preferences[successfulSourceKey]
             ?.let { value -> runCatching { DiyanetDataSourceName.valueOf(value) }.getOrNull() }

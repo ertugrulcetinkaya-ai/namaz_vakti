@@ -173,6 +173,7 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
         backStack = backStack.push(Screen.Imsakiye)
     }
     val openReligiousDays = { backStack = backStack.push(Screen.ReligiousDays) }
+    val openAbout = { backStack = backStack.push(Screen.About) }
 
     when (screen) {
         is Screen.Cities -> CitySelectionScreen(
@@ -192,6 +193,10 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
             today = today,
             eventsForYear = viewModel::religiousDaysFor,
             ramadanRange = ramadanRange,
+            onBack = goBack
+        )
+        Screen.About -> AboutScreen(
+            location = location,
             onBack = goBack
         )
         Screen.Monthly -> MonthlyPrayerScreen(
@@ -225,7 +230,8 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
             ramadanRange = ramadanRange,
             onOpenNotificationSettings = { showNotificationSettings = true },
             exactAlarmNeeded = exactAlarmNeeded,
-            onRequestExactAlarm = requestExactAlarm
+            onRequestExactAlarm = requestExactAlarm,
+            onOpenAbout = openAbout
         )
         null -> Unit
     }

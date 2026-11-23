@@ -182,6 +182,7 @@ fun MonthlyPrayerScreen(
                     ?: hijriDate?.takeIf { it.month == 9 }?.day
                 PrayerCalendarRow(
                     cache = cache,
+                    sourceBadge = prayerSourceBadgeFor(cache.source, cache.usesProvinceCenterFallback),
                     dateLabel = buildString {
                         append(cache.date.format(MONTHLY_DATE_LABEL_FORMATTER))
                         hijriDate?.toDisplayText()?.let {
@@ -207,6 +208,7 @@ fun MonthlyPrayerScreen(
             ) {
                 item { CalendarRetry(onRetry, showFailureMessage = false) }
             }
+            item { CalendarNotice(stringResource(R.string.calendar_source_legend)) }
         }
     }
 }
@@ -314,6 +316,7 @@ fun ImsakiyeScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
                     PrayerCalendarRow(
                         cache = cache,
+                        sourceBadge = prayerSourceBadgeFor(cache.source, cache.usesProvinceCenterFallback),
                         dateLabel = buildString {
                             append(dayNumber?.let { "$it. gün" } ?: "–")
                             append('\n')
@@ -336,6 +339,7 @@ fun ImsakiyeScreen(
                     )
                 }
             }
+            item { CalendarNotice(stringResource(R.string.calendar_source_legend)) }
             if (range != null) {
                 item {
                     Text(
@@ -379,6 +383,7 @@ private fun PrayerTableHeader(
 @Composable
 private fun PrayerCalendarRow(
     cache: CachedPrayerDay,
+    sourceBadge: PrayerSourceBadge,
     dateLabel: String,
     accessibilityDate: String,
     highlighted: Boolean,
@@ -390,12 +395,16 @@ private fun PrayerCalendarRow(
     isIftar: Boolean = false,
     religiousDays: List<DiyanetReligiousDay> = emptyList()
 ) {
+    val sourceMark = stringResource(sourceBadge.label)
+    val sourceDescription = stringResource(sourceBadge.description)
     val prayerLabels = PrayerTimeName.entries.map { name ->
         val time = cache.prayerTimes.timeAt(name).format(PrayerTimes.TIME_FORMATTER)
         time
     }
     val fullDescription = buildString {
         append(accessibilityDate)
+        append(", ")
+        append(stringResource(R.string.calendar_source_accessibility, sourceDescription))
         cache.displayHijriText()?.let {
             append(", ")
             append(it)
@@ -432,6 +441,7 @@ private fun PrayerCalendarRow(
                     append(dateLabel)
                     if (ramadan && ramadanDay == null) append("\n☾")
                 },
+                sourceMark = sourceMark,
                 prayerLabels = prayerLabels,
                 columnWidths = columnWidths,
                 horizontalScrollState = horizontalScrollState,
@@ -463,6 +473,7 @@ private fun PrayerCalendarRow(
 @Composable
 private fun PrayerTableRowShell(
     dayLabel: String,
+    sourceMark: String? = null,
     prayerLabels: List<String>,
     columnWidths: List<androidx.compose.ui.unit.Dp>,
     horizontalScrollState: ScrollState,
@@ -478,15 +489,28 @@ private fun PrayerTableRowShell(
             .padding(horizontal = 4.dp, vertical = if (header) 4.dp else 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = dayLabel,
+        Column(
             modifier = Modifier.width(dayColumnWidth),
-            style = if (header) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium,
-            fontWeight = if (bold || header) FontWeight.Bold else FontWeight.Normal,
-            textAlign = TextAlign.Start,
-            maxLines = if (header) 1 else 4,
-            overflow = TextOverflow.Clip
-        )
+            verticalArrangement = Arrangement.spacedBy(1.dp)
+        ) {
+            Text(
+                text = dayLabel,
+                style = if (header) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium,
+                fontWeight = if (bold || header) FontWeight.Bold else FontWeight.Normal,
+                textAlign = TextAlign.Start,
+                maxLines = if (header) 1 else 4,
+                overflow = TextOverflow.Clip
+            )
+            if (sourceMark != null) {
+                Text(
+                    text = sourceMark,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.tertiary,
+                    maxLines = 1
+                )
+            }
+        }
         Row(
             modifier = Modifier.weight(1f).horizontalScroll(horizontalScrollState),
             verticalAlignment = Alignment.CenterVertically

@@ -144,7 +144,7 @@ class DiyanetMirrorDataSourceTest {
             scope = backgroundScope,
             produceFile = { File(temporaryFolder.root, "diyanet.preferences_pb") }
         )
-        val stateStore = DataStoreDiyanetSourceStateStore(dataStore)
+        val stateStore: DiyanetSourceStateStore = DataStoreDiyanetSourceStateStore(dataStore)
         val cachedManifest = CachedDiyanetManifest("{\"schema\":1}", instant.toEpochMilli())
         val health = DiyanetSourceHealth(DiyanetDataSourceName.MIRROR, instant.toEpochMilli())
 
@@ -227,6 +227,8 @@ class DiyanetMirrorDataSourceTest {
         var health: DiyanetSourceHealth? = null
 
         override suspend fun readCachedManifest(): CachedDiyanetManifest? = cachedManifest
+
+        override suspend fun readSourceHealth(): DiyanetSourceHealth? = health
 
         override suspend fun cacheManifest(manifest: CachedDiyanetManifest) {
             cachedManifest = manifest

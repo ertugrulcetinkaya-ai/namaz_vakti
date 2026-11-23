@@ -74,6 +74,34 @@ class ComposeSmokeInstrumentedTest {
     }
 
     @Test
+    fun aboutScreenShowsVersionAndBackReturnsHome() {
+        val harness = launchHarness()
+        try {
+            harness.scenario.use {
+                val about = context.getString(R.string.about_open)
+                awaitNode("about entry") {
+                    it.text?.toString() == about && it.hasClickableAncestor()
+                }.click()
+
+                awaitNode("application version and package") {
+                    it.text?.toString()?.let { text ->
+                        text.contains(com.example.namazvakti.BuildConfig.VERSION_NAME) &&
+                            text.contains(com.example.namazvakti.BuildConfig.APPLICATION_ID)
+                    } == true
+                }
+
+                instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+
+                awaitNode("home app title") {
+                    it.text?.toString() == context.getString(R.string.app_name)
+                }
+            }
+        } finally {
+            harness.scope.cancel()
+        }
+    }
+
+    @Test
     fun provinceAndDistrictSelectionHasTwoStepsAndBackNavigation() {
         val harness = launchHarness()
         try {

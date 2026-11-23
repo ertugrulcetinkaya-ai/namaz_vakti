@@ -31,6 +31,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -113,7 +114,8 @@ fun PrayerHomeScreen(
     ramadanRange: RamadanRange?,
     onOpenNotificationSettings: () -> Unit,
     exactAlarmNeeded: Boolean,
-    onRequestExactAlarm: () -> Unit
+    onRequestExactAlarm: () -> Unit,
+    onOpenAbout: () -> Unit = {}
 ) {
     val ready = state as? PrayerUiState.Ready
     val location = ready?.location ?: (state as? PrayerUiState.Error)?.location
@@ -182,6 +184,9 @@ fun PrayerHomeScreen(
                     )
                 },
                 actions = {
+                    TextButton(onClick = onOpenAbout) {
+                        Text(stringResource(R.string.about_open))
+                    }
                     IconButton(
                         onClick = onOpenNotificationSettings,
                         enabled = state != PrayerUiState.Loading

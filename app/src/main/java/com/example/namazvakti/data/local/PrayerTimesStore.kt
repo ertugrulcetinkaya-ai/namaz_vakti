@@ -32,6 +32,11 @@ import kotlinx.coroutines.CancellationException
 
 private val Context.dataStore by preferencesDataStore(name = "prayer_times_store")
 
+data class PrayerCacheDateBounds(
+    val firstDate: LocalDate,
+    val lastDate: LocalDate
+)
+
 interface PrayerPreferences {
     suspend fun readCache(): CachedPrayerDay?
     suspend fun readCache(
@@ -232,6 +237,18 @@ class PrayerTimesStore(
                 settings.method, settings.school
             ) == expectedDays
         }
+    }
+
+    suspend fun readCacheDateBounds(location: PrayerLocation): PrayerCacheDateBounds? = storageOperation {
+        val bounds = prayerDayDao.findDateBounds(
+            location.cacheKey,
+            location.country,
+            settings.method,
+            settings.school
+        )
+        val firstDate = bounds.firstDate?.let(LocalDate::parse) ?: return@storageOperation null
+        val lastDate = bounds.lastDate?.let(LocalDate::parse) ?: return@storageOperation null
+        PrayerCacheDateBounds(firstDate, lastDate)
     }
 
     override suspend fun readCaches(
