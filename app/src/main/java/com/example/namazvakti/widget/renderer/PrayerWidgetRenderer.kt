@@ -3,6 +3,9 @@ package com.example.namazvakti.widget.renderer
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
 import android.text.TextPaint
 import android.util.TypedValue
 import android.view.View
@@ -23,6 +26,7 @@ import com.example.namazvakti.widget.PrayerWidgetCountdownCalculator
 import com.example.namazvakti.widget.PrayerWidgetSizeClass
 import com.example.namazvakti.widget.PrayerWidgetSnapshot
 import java.time.ZonedDateTime
+import java.util.Locale
 
 enum class PrayerWidgetDataState { Fresh, Stale, Unavailable }
 
@@ -60,13 +64,9 @@ class PrayerWidgetRenderer {
         religiousDays: List<DiyanetReligiousDay> = emptyList(),
         widthDp: Int? = null
     ): RemoteViews {
-        val views = RemoteViews(context.packageName, layoutFor(sizeClass))
-        val compactDetails = sizeClass != PrayerWidgetSizeClass.SMALL &&
-            widthDp != null &&
-            widthDp < COMPACT_DETAILS_MIN_WIDTH_DP
-        val reducedTextSize = sizeClass != PrayerWidgetSizeClass.SMALL &&
-            widthDp != null &&
-            widthDp < REDUCED_TEXT_SIZE_MIN_WIDTH_DP
+        val compactDetails = sizeClass == PrayerWidgetSizeClass.MEDIUM &&
+            widthDp != null && widthDp < COMPACT_DETAILS_MIN_WIDTH_DP
+        val views = RemoteViews(context.packageName, layoutFor(sizeClass, widthDp))
         val localNow = now.withZoneSameInstant(cache?.timezone ?: location.timezone)
         views.setOnClickPendingIntent(
             android.R.id.background,
@@ -79,90 +79,101 @@ class PrayerWidgetRenderer {
         )
 
         val staleSuffix = if (dataState == PrayerWidgetDataState.Stale) {
-            context.getString(R.string.widget_stale_label)
+            context.getString(R.string.widget_stale_short)
         } else ""
         val hijriText = cache?.displayHijriText()?.trim().orEmpty()
         val showProvinceCenterNote = sizeClass == PrayerWidgetSizeClass.LARGE &&
             cache?.usesProvinceCenterFallback == true &&
-            !compactDetails &&
-            widthDp != null &&
-            widthDp >= COMPACT_DETAILS_MIN_WIDTH_DP
+            (widthDp == null || widthDp >= COMPACT_DETAILS_MIN_WIDTH_DP)
         val provinceCenterNote = if (showProvinceCenterNote) {
             context.getString(R.string.widget_province_center_short)
         } else {
             null
         }
-        val cityText = when (sizeClass) {
-            PrayerWidgetSizeClass.LARGE -> if (compactDetails) {
-                location.displayCity
-            } else {
-                largeCityText(
-                    context = context,
-                    location = location,
-                    hijriText = hijriText,
-                    provinceCenterNote = provinceCenterNote,
-                    widthDp = widthDp,
-                    reducedTextSize = reducedTextSize
-                )
-            }
-            PrayerWidgetSizeClass.MEDIUM -> mediumCityText(
-                context = context,
-                location = location,
-                hijriText = hijriText,
-                staleSuffix = staleSuffix,
-                widthDp = widthDp,
-                compactDetails = compactDetails,
-                reducedTextSize = reducedTextSize
-            )
-            PrayerWidgetSizeClass.SMALL -> measuredCityText(
-                context = context,
-                candidates = listOfNotNull(
-                    listOf(location.displayName),
-                    location.selectedDistrictName()?.let(::listOf),
-                    listOf(location.displayCity)
+        val city = when {
+            sizeClass == PrayerWidgetSizeClass.SMALL -> location.displayCity.uppercase(TURKISH_LOCALE)
+            compactDetails -> measuredCityText(
+                context,
+                listOf(
+                    listOf(location.widgetTitleCaseName(), staleSuffix),
+                    listOf(location.displayCity.widgetTitleCase(), staleSuffix)
                 ),
-                widthDp = widthDp,
-                textSizeSp = SMALL_CITY_TEXT_SIZE_SP
-            )
-        }
-        views.setTextViewText(R.id.prayer_widget_city, cityText)
-        if (reducedTextSize) {
-            views.setTextViewTextSize(
-                R.id.prayer_widget_city,
-                TypedValue.COMPLEX_UNIT_SP,
+                widthDp,
                 COMPACT_TEXT_SIZE_SP
             )
+            else -> location.widgetTitleCaseName()
         }
-        views.setTextViewText(R.id.prayer_widget_date, "")
+        val smallNextPrayer = cache?.prayerTimes?.nextPrayerName(localNow.toLocalTime())
+            ?: tomorrowCache?.let { PrayerTimeName.IMSAK }
+        val smallNextTime = smallNextPrayer?.let { prayer ->
+            val prayerCache = if (cache?.prayerTimes?.nextPrayerName(localNow.toLocalTime()) == prayer) cache else tomorrowCache
+            prayerCache?.prayerTimes?.timeAt(prayer)?.format(PrayerTimes.TIME_FORMATTER)
+        }
+        val cityText = if (sizeClass == PrayerWidgetSizeClass.SMALL && smallNextTime != null) {
+            context.getString(R.string.widget_small_city_time, city, smallNextTime)
+        } else {
+            city
+        }
+        val renderedCity = if (staleSuffix.isNotEmpty() && sizeClass != PrayerWidgetSizeClass.SMALL) {
+            styledStaleSuffix(cityText, staleSuffix, context.getColor(R.color.widget_secondary_text))
+        } else cityText
+        views.setTextViewText(R.id.prayer_widget_city, renderedCity)
+        views.setTextViewText(R.id.prayer_widget_date, if (compactDetails) "" else hijriText)
+        if (sizeClass == PrayerWidgetSizeClass.LARGE) {
+            views.setTextViewText(R.id.prayer_widget_province_center, provinceCenterNote.orEmpty())
+            views.setViewVisibility(
+                R.id.prayer_widget_province_center,
+                if (provinceCenterNote != null) View.VISIBLE else View.GONE
+            )
+        }
 
         val activeItems = cache?.prayerTimes?.toHighlightedDisplayItems(localNow.toLocalTime())
         if (activeItems == null) {
-            views.setTextViewText(R.id.prayer_widget_item_1, context.getString(R.string.prayer_times_unavailable))
-            PRAYER_ITEM_IDS.drop(1).forEach { views.setTextViewText(it, "") }
-        } else {
+            if (compactDetails) {
+                views.setTextViewText(R.id.prayer_widget_item_1, context.getString(R.string.prayer_times_unavailable))
+                COMPACT_PRAYER_ITEM_IDS.drop(1).forEach { views.setTextViewText(it, "") }
+            }
+        } else if (sizeClass != PrayerWidgetSizeClass.SMALL) {
             activeItems.forEachIndexed { index, item ->
-                val viewId = PRAYER_ITEM_IDS[index]
-                val label = if (compactDetails) {
-                    context.getString(PRAYER_SHORT_LABELS.getValue(PRAYER_NAMES_IN_DISPLAY_ORDER[index]))
-                } else {
-                    item.label
-                }
-                views.setTextViewText(
-                    viewId,
-                    buildString {
-                        if (item.highlighted) append('►')
-                        append(label)
-                        append(' ')
-                        append(item.time.format(PrayerTimes.TIME_FORMATTER))
+                val prayerName = PRAYER_NAMES_IN_DISPLAY_ORDER[index]
+                val timeText = item.time.format(PrayerTimes.TIME_FORMATTER)
+                val cellId = PRAYER_CELL_IDS[index]
+                views.setContentDescription(
+                    cellId,
+                    if (item.highlighted) {
+                        context.getString(R.string.current_prayer_value, item.label)
+                    } else {
+                        context.getString(R.string.prayer_time_with_time, item.label, timeText)
                     }
                 )
-                if (reducedTextSize) {
-                    views.setTextViewTextSize(viewId, TypedValue.COMPLEX_UNIT_SP, COMPACT_TEXT_SIZE_SP)
+                val label = if (compactDetails) {
+                    context.getString(PRAYER_SHORT_LABELS.getValue(prayerName))
+                } else {
+                    item.label.uppercase(TURKISH_LOCALE)
                 }
-                views.setTextColor(
-                    viewId,
-                    if (item.highlighted) context.getColor(R.color.widget_active_text)
-                    else context.getColor(R.color.widget_text)
+                if (compactDetails) {
+                    views.setTextViewText(COMPACT_PRAYER_ITEM_IDS[index], "$label $timeText")
+                    views.setTextColor(
+                        COMPACT_PRAYER_ITEM_IDS[index],
+                        context.getColor(if (item.highlighted) R.color.widget_active_text else R.color.widget_text)
+                    )
+                } else {
+                    val activeLabelId = PRAYER_ACTIVE_LABEL_IDS[index]
+                    val labelId = PRAYER_LABEL_IDS[index]
+                    val activeTimeId = PRAYER_ACTIVE_TIME_IDS[index]
+                    val timeId = PRAYER_TIME_IDS[index]
+                    views.setTextViewText(labelId, label)
+                    views.setTextViewText(activeLabelId, label)
+                    views.setTextViewText(timeId, timeText)
+                    views.setTextViewText(activeTimeId, timeText)
+                    views.setViewVisibility(labelId, if (item.highlighted) View.GONE else View.VISIBLE)
+                    views.setViewVisibility(timeId, if (item.highlighted) View.GONE else View.VISIBLE)
+                    views.setViewVisibility(activeLabelId, if (item.highlighted) View.VISIBLE else View.GONE)
+                    views.setViewVisibility(activeTimeId, if (item.highlighted) View.VISIBLE else View.GONE)
+                }
+                views.setViewVisibility(
+                    PRAYER_UNDERLINE_IDS[index],
+                    if (item.highlighted) View.VISIBLE else View.GONE
                 )
             }
         }
@@ -180,28 +191,24 @@ class PrayerWidgetRenderer {
         )
         val nextText = countdown?.let(::nextPrayerText)
             ?: fallbackNextPrayerText(cache, localNow, dataState)
-        val displayNextText = if (
-            sizeClass == PrayerWidgetSizeClass.SMALL && dataState == PrayerWidgetDataState.Unavailable
-        ) context.getString(R.string.widget_times_unavailable_short) else nextText
+        val displayNextText = when {
+            sizeClass == PrayerWidgetSizeClass.SMALL && dataState == PrayerWidgetDataState.Unavailable ->
+                context.getString(R.string.widget_times_unavailable_short)
+            sizeClass == PrayerWidgetSizeClass.SMALL -> smallNextPrayer?.let { prayer ->
+                context.getString(SMALL_NEXT_LABELS.getValue(prayer))
+            } ?: ""
+            else -> nextText
+        }
         views.setTextViewText(
             R.id.prayer_widget_next_prayer,
             displayNextText ?: if (dataState == PrayerWidgetDataState.Unavailable) {
                 context.getString(R.string.prayer_times_unavailable)
             } else ""
         )
-        views.setTextColor(R.id.prayer_widget_next_prayer, context.getColor(R.color.widget_active_text))
-        if (reducedTextSize) {
-            views.setTextViewTextSize(
-                R.id.prayer_widget_next_prayer,
-                TypedValue.COMPLEX_UNIT_SP,
-                COMPACT_TEXT_SIZE_SP
-            )
-            views.setTextViewTextSize(
-                R.id.prayer_widget_chronometer,
-                TypedValue.COMPLEX_UNIT_SP,
-                COMPACT_TEXT_SIZE_SP
-            )
-        }
+        views.setTextColor(
+            R.id.prayer_widget_next_prayer,
+            context.getColor(if (sizeClass == PrayerWidgetSizeClass.SMALL) R.color.widget_hijri_text else R.color.widget_active_text)
+        )
         val showCountdown = countdown != null &&
             dataState == PrayerWidgetDataState.Fresh &&
             sizeClass != PrayerWidgetSizeClass.MEDIUM
@@ -220,7 +227,8 @@ class PrayerWidgetRenderer {
             )
             views.setChronometerCountDown(R.id.prayer_widget_chronometer, true)
         } else if (showSmallStaleLabel) {
-            views.setTextViewText(R.id.prayer_widget_chronometer, context.getString(R.string.widget_stale_label))
+            views.setTextViewText(R.id.prayer_widget_chronometer, context.getString(R.string.widget_stale_short))
+            views.setTextColor(R.id.prayer_widget_chronometer, context.getColor(R.color.widget_secondary_text))
         }
         views.setViewVisibility(
             R.id.prayer_widget_chronometer,
@@ -230,7 +238,7 @@ class PrayerWidgetRenderer {
         val ramadanText = ramadanText(context, cache, tomorrowCache, ramadanRange, localNow, dataState)
         val religiousText = religiousText(context, religiousDays)
         val bottomInfo = if (dataState == PrayerWidgetDataState.Stale) {
-            context.getString(R.string.widget_stale_label)
+            context.getString(R.string.widget_stale_short)
         } else {
             bottomInfoText(context, ramadanText, religiousText)
         }
@@ -248,6 +256,10 @@ class PrayerWidgetRenderer {
                     append(context.getString(R.string.stale_data))
                     append(". ")
                 }
+                activeItems?.firstOrNull { it.highlighted }?.let { active ->
+                    append(context.getString(R.string.current_prayer_value, active.label))
+                    append(". ")
+                }
                 if (countdown != null) {
                     append(context.getString(
                         R.string.widget_next_prayer_accessibility,
@@ -263,7 +275,7 @@ class PrayerWidgetRenderer {
         }
         views.setContentDescription(
             android.R.id.background,
-            context.getString(R.string.widget_content_description, location.displayName, spoken.trim())
+            context.getString(R.string.widget_content_description, location.widgetTitleCaseName(), spoken.trim())
         )
         return views
     }
@@ -403,6 +415,18 @@ class PrayerWidgetRenderer {
     private fun PrayerLocation.selectedDistrictName(): String? =
         displayName.takeIf { it != displayCity }?.substringBefore(',')?.trim()?.takeIf(String::isNotBlank)
 
+    private fun PrayerLocation.widgetTitleCaseName(): String = displayName.widgetTitleCase()
+
+    private fun String.widgetTitleCase(): String = lowercase(TURKISH_LOCALE)
+        .split(' ')
+        .joinToString(" ") { word ->
+            word.split('-').joinToString("-") { part ->
+                part.replaceFirstChar { character ->
+                    if (character.isLowerCase()) character.titlecase(TURKISH_LOCALE) else character.toString()
+                }
+            }
+        }
+
     private fun religiousText(context: Context, events: List<DiyanetReligiousDay>): String? {
         if (events.isEmpty()) return null
         val paint = TextPaint().apply {
@@ -429,20 +453,38 @@ class PrayerWidgetRenderer {
         return selected.takeIf { it.isNotEmpty() }?.joinToString(" · ")
     }
 
-    private fun layoutFor(sizeClass: PrayerWidgetSizeClass): Int = when (sizeClass) {
+    private fun layoutFor(sizeClass: PrayerWidgetSizeClass, widthDp: Int?): Int = when (sizeClass) {
         PrayerWidgetSizeClass.SMALL -> R.layout.prayer_widget_small
-        PrayerWidgetSizeClass.MEDIUM -> R.layout.prayer_widget
+        PrayerWidgetSizeClass.MEDIUM -> when {
+            widthDp != null && widthDp < COMPACT_DETAILS_MIN_WIDTH_DP -> R.layout.prayer_widget_compact
+            widthDp != null && widthDp >= WIDE_LAYOUT_MIN_WIDTH_DP -> R.layout.prayer_widget_wide
+            else -> R.layout.prayer_widget
+        }
         PrayerWidgetSizeClass.LARGE -> R.layout.prayer_widget_large
+    }
+
+    private fun styledStaleSuffix(text: String, suffix: String, color: Int): CharSequence {
+        val fullText = "$text $suffix"
+        return SpannableString(fullText).apply {
+            setSpan(
+                ForegroundColorSpan(color),
+                text.length + 1,
+                fullText.length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
     }
 
     private companion object {
         // Applied RemoteViews fit full 16sp labels at 320/360/380dp (and 22sp at 515dp);
         // at 280dp, Güneş, active Öğle, and Akşam clip, so short labels are only needed below 320dp.
         const val COMPACT_DETAILS_MIN_WIDTH_DP = 320
-        const val REDUCED_TEXT_SIZE_MIN_WIDTH_DP = 400
+        const val WIDE_LAYOUT_MIN_WIDTH_DP = 400
         const val COMPACT_TEXT_SIZE_SP = 16f
         const val LARGE_CITY_TEXT_SIZE_SP = 24f
         const val SMALL_CITY_TEXT_SIZE_SP = 18f
+        const val REDUCED_TEXT_SIZE_MIN_WIDTH_DP = 400
+        val TURKISH_LOCALE: Locale = Locale.forLanguageTag("tr-TR")
 
         val PRAYER_NAMES_IN_DISPLAY_ORDER = listOf(
             PrayerTimeName.IMSAK,
@@ -468,6 +510,71 @@ class PrayerWidgetRenderer {
             R.id.prayer_widget_item_4,
             R.id.prayer_widget_item_5,
             R.id.prayer_widget_item_6
+        )
+
+        val COMPACT_PRAYER_ITEM_IDS = PRAYER_ITEM_IDS
+
+        val PRAYER_CELL_IDS = listOf(
+            R.id.prayer_widget_cell_1,
+            R.id.prayer_widget_cell_2,
+            R.id.prayer_widget_cell_3,
+            R.id.prayer_widget_cell_4,
+            R.id.prayer_widget_cell_5,
+            R.id.prayer_widget_cell_6
+        )
+
+        val PRAYER_LABEL_IDS = listOf(
+            R.id.prayer_widget_label_1,
+            R.id.prayer_widget_label_2,
+            R.id.prayer_widget_label_3,
+            R.id.prayer_widget_label_4,
+            R.id.prayer_widget_label_5,
+            R.id.prayer_widget_label_6
+        )
+
+        val PRAYER_ACTIVE_LABEL_IDS = listOf(
+            R.id.prayer_widget_active_label_1,
+            R.id.prayer_widget_active_label_2,
+            R.id.prayer_widget_active_label_3,
+            R.id.prayer_widget_active_label_4,
+            R.id.prayer_widget_active_label_5,
+            R.id.prayer_widget_active_label_6
+        )
+
+        val PRAYER_TIME_IDS = listOf(
+            R.id.prayer_widget_time_1,
+            R.id.prayer_widget_time_2,
+            R.id.prayer_widget_time_3,
+            R.id.prayer_widget_time_4,
+            R.id.prayer_widget_time_5,
+            R.id.prayer_widget_time_6
+        )
+
+        val PRAYER_ACTIVE_TIME_IDS = listOf(
+            R.id.prayer_widget_active_time_1,
+            R.id.prayer_widget_active_time_2,
+            R.id.prayer_widget_active_time_3,
+            R.id.prayer_widget_active_time_4,
+            R.id.prayer_widget_active_time_5,
+            R.id.prayer_widget_active_time_6
+        )
+
+        val PRAYER_UNDERLINE_IDS = listOf(
+            R.id.prayer_widget_underline_1,
+            R.id.prayer_widget_underline_2,
+            R.id.prayer_widget_underline_3,
+            R.id.prayer_widget_underline_4,
+            R.id.prayer_widget_underline_5,
+            R.id.prayer_widget_underline_6
+        )
+
+        val SMALL_NEXT_LABELS = mapOf(
+            PrayerTimeName.IMSAK to R.string.widget_small_next_imsak,
+            PrayerTimeName.SUNRISE to R.string.widget_small_next_sunrise,
+            PrayerTimeName.DHUHR to R.string.widget_small_next_dhuhr,
+            PrayerTimeName.ASR to R.string.widget_small_next_asr,
+            PrayerTimeName.MAGHRIB to R.string.widget_small_next_maghrib,
+            PrayerTimeName.ISHA to R.string.widget_small_next_isha
         )
     }
 }

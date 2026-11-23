@@ -1,7 +1,9 @@
 <resources>
     <color name="launcher_background">#12372A</color>
-    <color name="widget_text">#FFFFFFFF</color>
-    <color name="widget_active_text">#FFB8F397</color>
-    <color name="widget_background">#F012372A</color>
-    <color name="widget_outline">#40FFFFFF</color>
+    <color name="widget_background">#FF0F3B33</color>
+    <color name="widget_pattern">#17E9D39A</color>
+    <color name="widget_text">#FFEEF6F2</color>
+    <color name="widget_secondary_text">#FFA9C7BD</color>
+    <color name="widget_hijri_text">#FFCFE3DC</color>
+    <color name="widget_active_text">#FFE2C27A</color>
 </resources>

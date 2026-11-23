@@ -63,7 +63,14 @@
     <string name="school_hanafi">Hanefi</string>
     <string name="prayer_times_unavailable">Vakitler alınamadı</string>
     <string name="widget_times_unavailable_short">Vakit yok</string>
-    <string name="widget_stale_label">Eski veri</string>
+    <string name="widget_stale_short">• Eski</string>
+    <string name="widget_small_city_time">%1$s · %2$s</string>
+    <string name="widget_small_next_imsak">İmsak\'a kalan</string>
+    <string name="widget_small_next_sunrise">Güneş\'e kalan</string>
+    <string name="widget_small_next_dhuhr">Öğle\'ye kalan</string>
+    <string name="widget_small_next_asr">İkindi\'ye kalan</string>
+    <string name="widget_small_next_maghrib">Akşam\'a kalan</string>
+    <string name="widget_small_next_isha">Yatsı\'ya kalan</string>
     <string name="widget_chronometer_format" formatted="false">%s kaldı</string>
     <string name="widget_content_description">%1$s için namaz vakitleri. %2$s</string>
     <string name="widget_next_prayer_accessibility">Sıradaki vakit %1$s.</string>

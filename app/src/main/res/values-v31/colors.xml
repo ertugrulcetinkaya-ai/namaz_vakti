@@ -1,6 +1,8 @@
 <resources>
-    <color name="widget_background">@android:color/system_neutral1_50</color>
-    <color name="widget_text">@android:color/system_neutral1_900</color>
-    <color name="widget_active_text">@android:color/system_accent1_700</color>
-    <color name="widget_outline">@android:color/system_neutral1_200</color>
+    <color name="widget_background">#FF0F3B33</color>
+    <color name="widget_pattern">#17E9D39A</color>
+    <color name="widget_text">#FFEEF6F2</color>
+    <color name="widget_secondary_text">#FFA9C7BD</color>
+    <color name="widget_hijri_text">#FFCFE3DC</color>
+    <color name="widget_active_text">#FFE2C27A</color>
 </resources>
