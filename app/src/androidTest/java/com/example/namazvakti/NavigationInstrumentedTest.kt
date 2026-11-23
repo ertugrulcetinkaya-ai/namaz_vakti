@@ -63,11 +63,28 @@ class NavigationInstrumentedTest {
         return awaitNode("notification switch") { it.isCheckable && it.isEnabled }
     }
 
+    @Suppress("DEPRECATION")
     private fun AccessibilityNodeInfo.click() {
-        val actionNode = generateSequence(this) { it.parent }.firstOrNull { it.isClickable && it.isEnabled }
+        val nodeText = text?.toString()
+        val nodeDescription = contentDescription?.toString()
+        val nodeClass = className?.toString()
+        val nodeIsCheckable = isCheckable
+        val nodeIsChecked = isChecked
+        val label = nodeText ?: nodeDescription ?: nodeClass ?: "unknown node"
         assertTrue(
-            "Could not click ${text ?: contentDescription}",
-            actionNode?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
+            "Could not click $label",
+            instrumentation.clickStableAccessibilityNode(
+                matches = {
+                    it.text?.toString() == nodeText &&
+                        it.contentDescription?.toString() == nodeDescription &&
+                        it.className?.toString() == nodeClass &&
+                        it.isCheckable == nodeIsCheckable &&
+                        (!nodeIsCheckable || it.isChecked == nodeIsChecked)
+                },
+                timeoutMillis = AWAIT_TIMEOUT_MS,
+                pollMillis = 100L,
+                beforePoll = dismissSystemDialogsRule::dismissSystemDialogs
+            )
         )
     }
 
