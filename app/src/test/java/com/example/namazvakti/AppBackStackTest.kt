@@ -22,6 +22,13 @@ class AppBackStackTest {
     }
 
     @Test
+    fun backFromAboutReturnsToHome() {
+        val stack = AppBackStack().push(Screen.About)
+
+        assertEquals(Screen.Home, stack.pop().current)
+    }
+
+    @Test
     fun backFromDistrictsReturnsToProvinces() {
         val cities = Screen.Cities(step = 1, provinceCity = null)
         val stack = AppBackStack().push(cities).push(Screen.Cities(step = 2, provinceCity = "Istanbul"))
