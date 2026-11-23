@@ -1,7 +1,11 @@
 package com.example.namazvakti
 
+import android.graphics.Bitmap
+import android.graphics.Rect
 import android.os.Bundle
 import android.os.SystemClock
+import android.util.Base64
+import android.util.Log
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.test.core.app.ActivityScenario
@@ -28,6 +32,9 @@ import com.example.namazvakti.domain.port.PrayerWidgetUpdatePort
 import com.example.namazvakti.domain.policy.PrayerCachePolicy
 import com.example.namazvakti.ui.main.PrayerViewModel
 import com.example.namazvakti.ui.main.PrayerUiState
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
 import java.time.Instant
 import java.time.LocalDate
@@ -279,37 +286,102 @@ class ComposeSmokeInstrumentedTest {
     fun notificationSettingIsSavedAndRestoredWhenSheetReopens() {
         val initialSettings = PrayerNotificationSettings(notificationsEnabled = true)
         val harness = launchHarness(notificationSettings = initialSettings)
+        var saveButtonClickAccepted = false
         try {
             harness.scenario.use {
-                awaitCondition("initial notification setting") {
-                    harness.viewModel.notificationSettings.value.notificationsEnabled
-                }
-                val open = context.getString(R.string.notification_settings_open)
-                awaitNode(open) { it.contentDescription?.toString() == open }.click()
-                awaitNode(context.getString(R.string.notification_settings_title)) {
-                    it.text?.toString() == context.getString(R.string.notification_settings_title)
-                }
-                val notificationsSwitch = awaitCheckableForLabel(
-                    context.getString(R.string.notifications_enabled)
-                )
-                assertTrue(notificationsSwitch.isChecked)
-                notificationsSwitch.click()
-                awaitNodeAfterScrolling(context.getString(R.string.notification_save)) {
-                    it.text?.toString() == context.getString(R.string.notification_save)
-                }.click()
-                awaitCondition("notification preference write") {
-                    !harness.notificationSettings.current.notificationsEnabled
-                }
+                try {
+                    awaitCondition("initial notification setting") {
+                        harness.viewModel.notificationSettings.value.notificationsEnabled
+                    }
+                    val open = context.getString(R.string.notification_settings_open)
+                    awaitNode(open) { it.contentDescription?.toString() == open }.click()
+                    awaitNode(context.getString(R.string.notification_settings_title)) {
+                        it.text?.toString() == context.getString(R.string.notification_settings_title)
+                    }
+                    val notificationsSwitch = awaitCheckableForLabel(
+                        context.getString(R.string.notifications_enabled)
+                    )
+                    assertTrue(notificationsSwitch.isChecked)
+                    notificationsSwitch.click()
+                    awaitCondition("notification switch draft update") {
+                        findCheckableForLabel(
+                            context.getString(R.string.notifications_enabled)
+                        )?.isChecked == false
+                    }
+                    val saveLabel = context.getString(R.string.notification_save)
+                    awaitNodeAfterScrolling(saveLabel) { it.text?.toString() == saveLabel }
+                    saveButtonClickAccepted = clickStableNode(saveLabel) {
+                        it.text?.toString() == saveLabel
+                    }
+                    awaitCondition(
+                        "notification preference write",
+                        diagnostics = {
+                            "saveButtonClickAccepted=$saveButtonClickAccepted, " +
+                                "fakeSaveCalls=${harness.notificationSettings.saveCalls}, " +
+                                "saved=${harness.notificationSettings.current}"
+                        }
+                    ) {
+                        !harness.notificationSettings.current.notificationsEnabled
+                    }
 
-                awaitNode(open) { it.contentDescription?.toString() == open }.click()
-                assertEquals(
-                    false,
-                    awaitCheckableForLabel(context.getString(R.string.notifications_enabled)).isChecked
-                )
+                    awaitNode(open) { it.contentDescription?.toString() == open }.click()
+                    assertEquals(
+                        false,
+                        awaitCheckableForLabel(context.getString(R.string.notifications_enabled)).isChecked
+                    )
+                } catch (failure: Throwable) {
+                    val diagnostics = captureNotificationSettingsFailure(harness, saveButtonClickAccepted)
+                    throw AssertionError("${failure.message}\n$diagnostics", failure)
+                }
             }
         } finally {
             harness.scope.cancel()
         }
+    }
+
+    private fun captureNotificationSettingsFailure(
+        harness: Harness,
+        saveButtonClickAccepted: Boolean
+    ): String {
+        val root = instrumentation.uiAutomation.rootInActiveWindow
+        val visibleNodes = root?.visibleNodeSummary().orEmpty()
+        val rootPackage = root?.packageName?.toString()
+        val sheetTitle = context.getString(R.string.notification_settings_title)
+        val permissionDialogVisible = (rootPackage != null && rootPackage != context.packageName) ||
+            listOf("Allow", "permission", "notification").any { token ->
+                visibleNodes.contains(token, ignoreCase = true)
+            }
+        val screenshotPath = runCatching {
+            val directory = context.getExternalFilesDir("test-diagnostics") ?: context.cacheDir
+            directory.mkdirs()
+            val file = File(directory, "notification-settings-failure.png")
+            val screenshot = instrumentation.uiAutomation.takeScreenshot()
+                ?: return@runCatching "unavailable"
+            val png = try {
+                ByteArrayOutputStream().use { output ->
+                    screenshot.compress(Bitmap.CompressFormat.PNG, 100, output)
+                    output.toByteArray()
+                }
+            } finally {
+                screenshot.recycle()
+            }
+            FileOutputStream(file).use { it.write(png) }
+            // Managed-device CI retains this test's logcat artifact; emit chunks so the screenshot is recoverable there.
+            Base64.encodeToString(png, Base64.NO_WRAP).chunked(SCREENSHOT_LOG_CHUNK_SIZE)
+                .forEachIndexed { index, chunk ->
+                    Log.e("NotificationSettingsTest", "SCREENSHOT_PNG_BASE64[$index]:$chunk")
+                }
+            file.absolutePath
+        }.getOrElse { "failed: ${it.javaClass.simpleName}: ${it.message}" }
+        val summary = "notification settings failure: " +
+            "saveButtonClickAccepted=$saveButtonClickAccepted, " +
+            "fakeSaveCalls=${harness.notificationSettings.saveCalls}, " +
+            "saved=${harness.notificationSettings.current}, " +
+            "sheetVisible=${visibleNodes.contains(sheetTitle)}, " +
+            "permissionDialogVisible=$permissionDialogVisible, " +
+            "rootPackage=$rootPackage, screenshot=$screenshotPath, visibleNodes=$visibleNodes"
+        Log.e("NotificationSettingsTest", summary)
+        return summary
     }
 
     private fun launchHarness(
@@ -423,8 +495,11 @@ class ComposeSmokeInstrumentedTest {
         val node = this
         return buildString {
             if (node.isVisibleToUser) {
+                val bounds = Rect()
+                node.getBoundsInScreen(bounds)
                 append("[")
                 append(node.text ?: node.contentDescription ?: node.className)
+                append(", enabled=${node.isEnabled}, clickable=${node.isClickable}, bounds=$bounds")
                 append(if (node.isCheckable) ", checked=${node.isChecked}" else "")
                 append("] ")
             }
@@ -443,6 +518,30 @@ class ComposeSmokeInstrumentedTest {
             parent = parent.parent
         }
         throw AssertionError("No enabled switch found beside '$label'")
+    }
+
+    private fun findCheckableForLabel(label: String): AccessibilityNodeInfo? {
+        val labelNode = instrumentation.uiAutomation.rootInActiveWindow?.findNode {
+            it.text?.toString() == label
+        } ?: return null
+        var parent = labelNode.parent
+        while (parent != null) {
+            parent.findDescendant { it.isCheckable && it.isEnabled }?.let { return it }
+            parent = parent.parent
+        }
+        return null
+    }
+
+    private fun clickStableNode(
+        description: String,
+        matches: (AccessibilityNodeInfo) -> Boolean
+    ): Boolean = instrumentation.clickStableAccessibilityNode(
+        matches = matches,
+        timeoutMillis = TIMEOUT_MILLIS,
+        pollMillis = POLL_MILLIS,
+        beforePoll = dismissSystemDialogsRule::dismissSystemDialogs
+    ).also { accepted ->
+        assertTrue("Could not click stable accessibility node '$description'", accepted)
     }
 
     private fun AccessibilityNodeInfo.findDescendant(
@@ -557,9 +656,13 @@ class ComposeSmokeInstrumentedTest {
     ) : PrayerNotificationSettingsSource {
         private val state = MutableStateFlow(initial)
         val current: PrayerNotificationSettings get() = state.value
+        @Volatile
+        var saveCalls = 0
+            private set
         override val settings: Flow<PrayerNotificationSettings> = state
         override suspend fun read() = state.first()
         override suspend fun save(settings: PrayerNotificationSettings) {
+            saveCalls += 1
             state.value = settings
         }
     }
@@ -577,6 +680,7 @@ class ComposeSmokeInstrumentedTest {
     private companion object {
         const val TIMEOUT_MILLIS = 10_000L
         const val POLL_MILLIS = 50L
+        const val SCREENSHOT_LOG_CHUNK_SIZE = 3_000
         val ACCESSIBLE_DATE_FORMATTER = DateTimeFormatter.ofPattern("d MMMM EEEE", Locale.forLanguageTag("tr-TR"))
 
         fun cache(location: PrayerLocation, date: LocalDate) = CachedPrayerDay(

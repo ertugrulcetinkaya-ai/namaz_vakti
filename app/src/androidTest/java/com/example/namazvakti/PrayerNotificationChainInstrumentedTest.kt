@@ -6,6 +6,8 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.SystemClock
+import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.example.namazvakti.app.NamazVaktiApp
@@ -33,6 +35,7 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.util.TimeZone
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.delay
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -196,9 +199,31 @@ class PrayerNotificationChainInstrumentedTest {
         PrayerNotificationReceiver().handle(context, alarmIntent(event, exact = true))
 
         assertTrue(event.id in container.notificationSettingsStore.readShownEvents())
-        val notification = context.getSystemService(NotificationManager::class.java)
-            .activeNotifications.firstOrNull { it.id == notificationId }
-        assertNotNull("Receiver delivery should publish through PrayerNotificationPublisher", notification)
+        val notificationManager = context.getSystemService(NotificationManager::class.java)
+        val notificationObservations = mutableListOf<Pair<Long, Set<Int>>>()
+        repeat(NOTIFICATION_OBSERVATION_COUNT) { sample ->
+            val activeIds = notificationManager.activeNotifications.mapTo(mutableSetOf()) { it.id }
+            notificationObservations += SystemClock.uptimeMillis() to activeIds
+            if (sample < NOTIFICATION_OBSERVATION_COUNT - 1) {
+                delay(NOTIFICATION_OBSERVATION_INTERVAL_MILLIS)
+            }
+        }
+        val activeWasObserved = notificationObservations.any { notificationId in it.second }
+        val activeAtEnd = notificationManager.activeNotifications.any { it.id == notificationId }
+        Log.i(
+            "PrayerNotificationChainTest",
+            "notificationId=$notificationId activeWasObserved=$activeWasObserved activeAtEnd=$activeAtEnd " +
+                "observations=$notificationObservations"
+        )
+        assertTrue(
+            "Notification id=$notificationId was never active; observations=$notificationObservations",
+            activeWasObserved
+        )
+        assertTrue(
+            "Notification id=$notificationId appeared then disappeared during observation; " +
+                "observations=$notificationObservations",
+            activeAtEnd
+        )
         assertNotNull("Receiver should replan through PrayerNotificationScheduler", scheduledAlarmToken())
     }
 
@@ -385,6 +410,8 @@ class PrayerNotificationChainInstrumentedTest {
 
     private companion object {
         const val NOTIFICATION_ID_BASE = 6200
+        const val NOTIFICATION_OBSERVATION_COUNT = 10
+        const val NOTIFICATION_OBSERVATION_INTERVAL_MILLIS = 100L
         val DEFAULT_PRAYER_TIMES = PrayerTimes(
             LocalTime.of(4, 30), LocalTime.of(6, 0), LocalTime.of(12, 30),
             LocalTime.of(16, 0), LocalTime.of(19, 0), LocalTime.of(21, 0)
