@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 import hashlib
 import json
@@ -176,15 +176,18 @@ def validate_calendar(raw_body: bytes | str, today: date) -> CalendarInfo:
     for row in payload:
         dates.append(_parse_row(row))
 
-    ordered_dates = sorted(set(dates))
-    if len(ordered_dates) != len(payload):
+    if len(set(dates)) != len(payload):
         raise InvalidCalendarError("response contains invalid or duplicate rows")
-    if not ordered_dates or ordered_dates[0] != today:
-        raise InvalidCalendarError(f"response must start today ({today})")
-    if any(next_day != previous_day.fromordinal(previous_day.toordinal() + 1)
-           for previous_day, next_day in zip(ordered_dates, ordered_dates[1:])):
+    first_date = dates[0]
+    yesterday = today - timedelta(days=1)
+    if first_date not in (yesterday, today):
+        raise InvalidCalendarError(f"response must start today or yesterday ({today})")
+    if today not in dates:
+        raise InvalidCalendarError(f"response must contain today ({today})")
+    if any(next_day != previous_day + timedelta(days=1)
+           for previous_day, next_day in zip(dates, dates[1:])):
         raise InvalidCalendarError("response dates must be consecutive")
-    return CalendarInfo(ordered_dates[0], ordered_dates[-1], tuple(ordered_dates))
+    return CalendarInfo(first_date, dates[-1], tuple(dates))
 
 
 def _is_timeout(error: BaseException) -> bool:
@@ -446,6 +449,7 @@ def merge_chunks(
     today: date,
     *,
     generated_at: datetime,
+    allow_missing_chunks: bool = False,
 ) -> dict[str, object]:
     chunks = chunk_district_ids(expected_ids)
     if len(chunk_dirs) != len(chunks):
@@ -454,6 +458,8 @@ def merge_chunks(
     for chunk_index, (chunk_dir, expected_chunk_ids) in enumerate(zip(chunk_dirs, chunks), start=1):
         report_path = chunk_dir / f"chunk-{chunk_index}-report.json"
         if not report_path.exists():
+            if allow_missing_chunks:
+                continue
             raise ValueError(f"Missing chunk report: {report_path}")
         report = json.loads(report_path.read_text(encoding="utf-8"))
         if report.get("chunk") != chunk_index or report.get("expectedDistrictIds") != expected_chunk_ids:
@@ -573,15 +579,30 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--chunk", type=int, choices=range(1, 10), help="Fetch one fixed chunk (1-9)")
     parser.add_argument("--limit", type=int, help="Only fetch the first N districts (for a local sample)")
     parser.add_argument("--merge-chunks", nargs=9, type=Path, metavar="DIR", help="Merge nine chunk artifacts and publish")
+    parser.add_argument(
+        "--allow-missing-chunks",
+        action="store_true",
+        help="Treat chunks without reports as missing districts and apply the normal publication threshold",
+    )
     parser.add_argument("--update-chunk", type=Path, help="Publish one previously fetched chunk")
     parser.add_argument("--chunk-index", type=int, choices=range(1, 10))
     parser.add_argument("--existing-v1", type=Path, help="Existing published v1 directory for --update-chunk")
     args = parser.parse_args(argv)
 
+    if args.allow_missing_chunks and not args.merge_chunks:
+        parser.error("--allow-missing-chunks requires --merge-chunks")
+
     today = datetime.now(ZoneInfo("Europe/Istanbul")).date()
     ids = district_ids_from_locations()
     if args.merge_chunks:
-        merge_chunks(args.merge_chunks, ids, args.output, today, generated_at=_iso_now())
+        merge_chunks(
+            args.merge_chunks,
+            ids,
+            args.output,
+            today,
+            generated_at=_iso_now(),
+            allow_missing_chunks=args.allow_missing_chunks,
+        )
         print(f"Published mirror for {len(ids)} districts.")
         return 0
 
