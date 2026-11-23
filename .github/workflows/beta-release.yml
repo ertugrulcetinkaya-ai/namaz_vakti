@@ -166,7 +166,10 @@ jobs:
           "$apksigner_path" verify --verbose "$apk_path"
           bundle_verification="$(jarsigner -verify -verbose -certs "$bundle_path" 2>&1)"
           printf '%s\n' "$bundle_verification"
-          printf '%s\n' "$bundle_verification" | grep -Fq 'jar verified'
+          # A here-string, not `printf | grep -q`: with pipefail, grep -q exits on the first match and the
+          # long jarsigner output makes printf fail with SIGPIPE, failing a correctly signed bundle.
+          grep -Fq 'jar verified' <<<"$bundle_verification"
+          "$apksigner_path" verify --print-certs "$apk_path" | grep -F 'certificate SHA-256 digest'
 
       - name: Upload signed release artifacts
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
