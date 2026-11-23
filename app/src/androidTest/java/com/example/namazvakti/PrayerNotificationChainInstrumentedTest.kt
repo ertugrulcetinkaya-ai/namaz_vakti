@@ -38,6 +38,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeFalse
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -82,9 +83,12 @@ class PrayerNotificationChainInstrumentedTest {
         val today = container.timeProvider.today(location.timezone)
         val todayCache = cache(today, location)
         val tomorrowCache = cache(today.plusDays(1), location)
+        // Enable a prayer that is still ahead of "now". A fixed prayer that has just passed would fall into the
+        // missed-notification recovery window (PR #58), be delivered immediately and replanned for tomorrow.
+        val localNow = container.timeProvider.now().withZoneSameInstant(location.timezone).toLocalTime()
         val settings = PrayerNotificationSettings(
             notificationsEnabled = true,
-            enabledPrayers = setOf(PrayerNotificationPrayer.DHUHR)
+            enabledPrayers = setOf(upcomingDefaultPrayer(localNow))
         )
         container.store.saveLocation(location)
         container.store.saveCaches(listOf(todayCache, tomorrowCache))
@@ -181,6 +185,13 @@ class PrayerNotificationChainInstrumentedTest {
         val notificationId = NOTIFICATION_ID_BASE + prayer.ordinal
         context.getSystemService(NotificationManager::class.java).cancel(notificationId)
         scheduledAlarmToken()?.cancel()
+
+        // "Already shown today" is persisted per prayer/type/date; on a reused device an earlier run may have
+        // recorded this event, in which case the receiver correctly does not publish it again.
+        assumeFalse(
+            "event already shown earlier today on this device",
+            event.id in container.notificationSettingsStore.readShownEvents()
+        )
 
         PrayerNotificationReceiver().handle(context, alarmIntent(event, exact = true))
 
@@ -301,6 +312,12 @@ class PrayerNotificationChainInstrumentedTest {
             .putExtra(PrayerNotificationAlarm.EXTRA_LEAD_MINUTES, event.leadMinutes)
             .putExtra(PrayerNotificationAlarm.EXTRA_EXACT, exact)
             .putExtra(PrayerNotificationAlarm.EXTRA_REPLAN_ONLY, false)
+
+    private fun upcomingDefaultPrayer(now: LocalTime): PrayerNotificationPrayer =
+        PrayerNotificationPrayer.entries.firstOrNull { prayer ->
+            DEFAULT_PRAYER_TIMES.timeAt(prayer.timeName) >= now.plusMinutes(5) &&
+                now.plusMinutes(5) > now
+        } ?: PrayerNotificationPrayer.IMSAK
 
     private fun prayerTimesAround(now: LocalTime): Pair<PrayerTimes, PrayerNotificationPrayer> {
         val target = now.withSecond(0).withNano(0)
