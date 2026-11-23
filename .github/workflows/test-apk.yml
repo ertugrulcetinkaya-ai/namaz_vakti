@@ -1,0 +1,50 @@
+name: Test APK
+
+# Builds the R8-minified variant from main and publishes it as a GitHub prerelease, so testers can download the
+# APK on a phone without signing in to GitHub. The minified variant is signed with the runner's debug key: it is
+# for testing only, and a later build (or the signed beta) may need the previous test build to be uninstalled first.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      VERSION_NAME: 0.1.0-test.${{ github.run_number }}
+      VERSION_CODE: ${{ 1000 + github.run_number }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+      - name: Build minified test APK
+        run: ./gradlew --dependency-verification=strict assembleMinified
+      - name: Publish prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          apk=$(ls app/build/outputs/apk/minified/*.apk | head -n 1)
+          tag="test-${{ github.run_number }}"
+          out="NamazVakti-${VERSION_NAME}.apk"
+          cp "$apk" "$out"
+          gh release create "$tag" "$out" \
+            --target "${{ github.sha }}" \
+            --prerelease \
+            --title "Test sürümü ${VERSION_NAME}" \
+            --notes "Yalnızca deneme içindir (debug anahtarıyla imzalı). Telefonda bu sayfadaki APK dosyasına dokunup kurun. Önceki bir test sürümü kuruluysa önce onu kaldırmanız gerekebilir. Commit: ${{ github.sha }}"
+          echo "APK: https://github.com/${{ github.repository }}/releases/download/${tag}/${out}" >> "$GITHUB_STEP_SUMMARY"
