@@ -1,6 +1,6 @@
 import hashlib
 import json
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -34,6 +34,14 @@ def fixture(district_id="9206"):
     return (FIXTURES / f"{district_id}.json").read_bytes()
 
 
+def shift_calendar(raw, days):
+    rows = json.loads(raw)
+    for row in rows:
+        row_date = datetime.strptime(row["MiladiTarihKisa"], "%d.%m.%Y").date()
+        row["MiladiTarihKisa"] = (row_date + timedelta(days=days)).strftime("%d.%m.%Y")
+    return json.dumps(rows, ensure_ascii=False).encode("utf-8")
+
+
 def test_snapshot_fixture_matches_the_calendar_contract():
     info = validate_calendar(fixture(), TODAY)
 
@@ -47,6 +55,26 @@ def test_snapshot_fixture_matches_the_calendar_contract():
 @pytest.mark.parametrize("district_id", ["9206", "9541", "9560"])
 def test_all_checked_in_calendar_examples_validate(district_id):
     assert validate_calendar(fixture(district_id), TODAY).first_date == TODAY
+
+
+def test_calendar_may_start_yesterday_when_it_contains_today():
+    info = validate_calendar(shift_calendar(fixture(), -1), TODAY)
+
+    assert info.first_date == TODAY - timedelta(days=1)
+    assert TODAY in info.dates
+    assert info.last_date == date(2026, 12, 30)
+
+
+def test_calendar_starting_two_days_ago_is_rejected():
+    with pytest.raises(InvalidCalendarError, match="start today or yesterday"):
+        validate_calendar(shift_calendar(fixture(), -2), TODAY)
+
+
+def test_calendar_that_starts_yesterday_but_omits_today_is_rejected():
+    row = json.loads(shift_calendar(fixture(), -1))[0]
+
+    with pytest.raises(InvalidCalendarError, match="contain today"):
+        validate_calendar(json.dumps([row], ensure_ascii=False), TODAY)
 
 
 @pytest.mark.parametrize(
@@ -122,6 +150,18 @@ def test_manifest_uses_exact_response_bytes_and_relative_paths():
             }
         },
     }
+
+
+def test_manifest_records_the_actual_yesterday_start_date():
+    raw = shift_calendar(fixture(), -1)
+    info = validate_calendar(raw, TODAY)
+
+    manifest = build_manifest(
+        [DownloadedCalendar("9206", raw, info)],
+        generated_at=GENERATED_AT,
+    )
+
+    assert manifest["files"]["9206"]["firstDate"] == "2026-11-15"
 
 
 def test_publish_writes_raw_payload_and_manifest(tmp_path):
@@ -206,6 +246,8 @@ def test_chunk_artifacts_merge_into_one_manifest(tmp_path):
         calendars = []
         for district_id in chunk_ids:
             raw = fixture(district_id)
+            if district_id == "9206":
+                raw = shift_calendar(raw, -1)
             info = validate_calendar(raw, TODAY)
             calendar = DownloadedCalendar(district_id, raw, info)
             calendars.append(calendar)
@@ -228,7 +270,29 @@ def test_chunk_artifacts_merge_into_one_manifest(tmp_path):
     )
 
     assert set(manifest["files"]) == set(ids)
+    assert manifest["files"]["9206"]["firstDate"] == "2026-11-15"
     assert all((output / "v1/2026" / f"{district_id}.json").is_file() for district_id in ids)
+
+
+def test_partial_merge_without_reports_still_obeys_the_two_percent_limit(tmp_path):
+    ids = [str(value) for value in range(869)]
+    chunks = chunk_district_ids(ids)
+    chunk_dirs = [tmp_path / f"chunk-{index}" for index in range(1, 10)]
+    chunk_dirs[0].mkdir()
+    report = build_chunk_report(1, chunks[0], [], {})
+    (chunk_dirs[0] / "chunk-1-report.json").write_text(json.dumps(report), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Refusing to publish: 869/869"):
+        merge_chunks(
+            chunk_dirs,
+            ids,
+            tmp_path / "publication",
+            TODAY,
+            generated_at=GENERATED_AT,
+            allow_missing_chunks=True,
+        )
+
+    assert not (tmp_path / "publication/v1").exists()
 
 
 
