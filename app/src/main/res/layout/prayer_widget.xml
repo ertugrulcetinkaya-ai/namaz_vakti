@@ -1,83 +1,61 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    style="@style/WidgetRoot"
-    android:id="@android:id/background"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@drawable/widget_background"
-    android:gravity="center_vertical"
-    android:orientation="vertical"
-    android:paddingLeft="@dimen/widget_padding_horizontal"
-    android:paddingRight="@dimen/widget_padding_horizontal"
-    android:paddingTop="4dp"
-    android:paddingBottom="4dp">
-
-    <TextView
-        android:id="@+id/prayer_widget_city"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:includeFontPadding="false"
-        android:maxLines="1"
-        android:singleLine="true"
-        android:text="@string/app_name"
-        android:textColor="@color/widget_text"
-        android:textSize="@dimen/widget_city_text_size"
-        android:textStyle="bold" />
-
-    <LinearLayout
-        android:id="@+id/prayer_widget_prayer_grid"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:orientation="vertical">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <TextView android:id="@+id/prayer_widget_item_1" style="@style/WidgetPrayerItem" />
-            <TextView android:id="@+id/prayer_widget_item_2" style="@style/WidgetPrayerItem" />
-            <TextView android:id="@+id/prayer_widget_item_3" style="@style/WidgetPrayerItem" />
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" style="@style/WidgetRoot" android:id="@android:id/background" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/widget_background">
+    <ImageView android:id="@+id/widget_pattern_image" android:layout_width="match_parent" android:layout_height="match_parent" android:importantForAccessibility="no" android:contentDescription="@null" android:scaleType="centerCrop" android:src="@drawable/widget_pattern_medium" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center_vertical" android:orientation="vertical" android:paddingLeft="8dp" android:paddingRight="8dp">
+    <LinearLayout android:id="@+id/prayer_widget_header" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:orientation="vertical">
+        <TextView android:id="@+id/prayer_widget_city" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:includeFontPadding="false" android:maxLines="1" android:singleLine="true" android:textColor="@color/widget_active_text" android:textSize="19sp" android:fontFamily="@font/noto_serif_semibold" />
+        <TextView android:id="@+id/prayer_widget_date" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:includeFontPadding="false" android:maxLines="1" android:singleLine="true" android:textColor="@color/widget_hijri_text" android:textSize="14sp" android:fontFamily="@font/noto_serif_italic" />
+    </LinearLayout>    <LinearLayout android:id="@+id/prayer_widget_prayer_grid" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:orientation="vertical">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:baselineAligned="false" android:orientation="horizontal">
+            <LinearLayout android:id="@+id/prayer_widget_cell_1" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:orientation="vertical">
+<TextView android:id="@+id/prayer_widget_label_1" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:includeFontPadding="false" android:maxLines="1" android:singleLine="true" android:textColor="@color/widget_secondary_text" android:textSize="12sp" android:letterSpacing="0.08" android:fontFamily="@font/inter_medium" />
+                <TextView android:id="@+id/prayer_widget_active_label_1" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:includeFontPadding="false" android:maxLines="1" android:singleLine="true" android:textColor="@color/widget_active_text" android:textSize="12sp" android:letterSpacing="0.08" android:fontFamily="@font/inter_semibold" android:visibility="gone" />
+                <TextView android:id="@+id/prayer_widget_time_1" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:includeFontPadding="false" android:maxLines="1" android:singleLine="true" android:textColor="@color/widget_text" android:textSize="21sp" android:fontFamily="@font/inter_medium" android:fontFeatureSettings="tnum" />
+                <TextView android:id="@+id/prayer_widget_active_time_1" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:includeFontPadding="false" android:maxLines="1" android:singleLine="true" android:textColor="@color/widget_active_text" android:textSize="21sp" android:fontFamily="@font/inter_semibold" android:fontFeatureSettings="tnum" android:visibility="gone" />
+                    <TextView android:id="@+id/prayer_widget_underline_1" android:layout_width="24dp" android:layout_height="2dp" android:layout_gravity="center" android:background="@color/widget_active_text" android:visibility="gone" />
+            </LinearLayout>
+            <LinearLayout android:id="@+id/prayer_widget_cell_2" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:orientation="vertical">
+<TextView android:id="@+id/prayer_widget_label_2" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:includeFontPadding="false" android:maxLines="1" android:singleLine="true" android:textColor="@color/widget_secondary_text" android:textSize="12sp" android:letterSpacing="0.08" android:fontFamily="@font/inter_medium" />
+                <TextView android:id="@+id/prayer_widget_active_label_2" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:includeFontPadding="false" android:maxLines="1" android:singleLine="true" android:textColor="@color/widget_active_text" android:textSize="12sp" android:letterSpacing="0.08" android:fontFamily="@font/inter_semibold" android:visibility="gone" />
+                <TextView android:id="@+id/prayer_widget_time_2" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:includeFontPadding="false" android:maxLines="1" android:singleLine="true" android:textColor="@color/widget_text" android:textSize="21sp" android:fontFamily="@font/inter_medium" android:fontFeatureSettings="tnum" />
+                <TextView android:id="@+id/prayer_widget_active_time_2" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:includeFontPadding="false" android:maxLines="1" android:singleLine="true" android:textColor="@color/widget_active_text" android:textSize="21sp" android:fontFamily="@font/inter_semibold" android:fontFeatureSettings="tnum" android:visibility="gone" />
+                    <TextView android:id="@+id/prayer_widget_underline_2" android:layout_width="24dp" android:layout_height="2dp" android:layout_gravity="center" android:background="@color/widget_active_text" android:visibility="gone" />
+            </LinearLayout>
+            <LinearLayout android:id="@+id/prayer_widget_cell_3" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:orientation="vertical">
+<TextView android:id="@+id/prayer_widget_label_3" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:includeFontPadding="false" android:maxLines="1" android:singleLine="true" android:textColor="@color/widget_secondary_text" android:textSize="12sp" android:letterSpacing="0.08" android:fontFamily="@font/inter_medium" />
+                <TextView android:id="@+id/prayer_widget_active_label_3" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:includeFontPadding="false" android:maxLines="1" android:singleLine="true" android:textColor="@color/widget_active_text" android:textSize="12sp" android:letterSpacing="0.08" android:fontFamily="@font/inter_semibold" android:visibility="gone" />
+                <TextView android:id="@+id/prayer_widget_time_3" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:includeFontPadding="false" android:maxLines="1" android:singleLine="true" android:textColor="@color/widget_text" android:textSize="21sp" android:fontFamily="@font/inter_medium" android:fontFeatureSettings="tnum" />
+                <TextView android:id="@+id/prayer_widget_active_time_3" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:includeFontPadding="false" android:maxLines="1" android:singleLine="true" android:textColor="@color/widget_active_text" android:textSize="21sp" android:fontFamily="@font/inter_semibold" android:fontFeatureSettings="tnum" android:visibility="gone" />
+                    <TextView android:id="@+id/prayer_widget_underline_3" android:layout_width="24dp" android:layout_height="2dp" android:layout_gravity="center" android:background="@color/widget_active_text" android:visibility="gone" />
+            </LinearLayout>
         </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:orientation="horizontal">
-
-            <TextView android:id="@+id/prayer_widget_item_4" style="@style/WidgetPrayerItem" />
-            <TextView android:id="@+id/prayer_widget_item_5" style="@style/WidgetPrayerItem" />
-            <TextView android:id="@+id/prayer_widget_item_6" style="@style/WidgetPrayerItem" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="1dp" android:baselineAligned="false" android:orientation="horizontal">
+            <LinearLayout android:id="@+id/prayer_widget_cell_4" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:orientation="vertical">
+<TextView android:id="@+id/prayer_widget_label_4" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:includeFontPadding="false" android:maxLines="1" android:singleLine="true" android:textColor="@color/widget_secondary_text" android:textSize="12sp" android:letterSpacing="0.08" android:fontFamily="@font/inter_medium" />
+                <TextView android:id="@+id/prayer_widget_active_label_4" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:includeFontPadding="false" android:maxLines="1" android:singleLine="true" android:textColor="@color/widget_active_text" android:textSize="12sp" android:letterSpacing="0.08" android:fontFamily="@font/inter_semibold" android:visibility="gone" />
+                <TextView android:id="@+id/prayer_widget_time_4" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:includeFontPadding="false" android:maxLines="1" android:singleLine="true" android:textColor="@color/widget_text" android:textSize="21sp" android:fontFamily="@font/inter_medium" android:fontFeatureSettings="tnum" />
+                <TextView android:id="@+id/prayer_widget_active_time_4" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:includeFontPadding="false" android:maxLines="1" android:singleLine="true" android:textColor="@color/widget_active_text" android:textSize="21sp" android:fontFamily="@font/inter_semibold" android:fontFeatureSettings="tnum" android:visibility="gone" />
+                    <TextView android:id="@+id/prayer_widget_underline_4" android:layout_width="24dp" android:layout_height="2dp" android:layout_gravity="center" android:background="@color/widget_active_text" android:visibility="gone" />
+            </LinearLayout>
+            <LinearLayout android:id="@+id/prayer_widget_cell_5" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:orientation="vertical">
+<TextView android:id="@+id/prayer_widget_label_5" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:includeFontPadding="false" android:maxLines="1" android:singleLine="true" android:textColor="@color/widget_secondary_text" android:textSize="12sp" android:letterSpacing="0.08" android:fontFamily="@font/inter_medium" />
+                <TextView android:id="@+id/prayer_widget_active_label_5" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:includeFontPadding="false" android:maxLines="1" android:singleLine="true" android:textColor="@color/widget_active_text" android:textSize="12sp" android:letterSpacing="0.08" android:fontFamily="@font/inter_semibold" android:visibility="gone" />
+                <TextView android:id="@+id/prayer_widget_time_5" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:includeFontPadding="false" android:maxLines="1" android:singleLine="true" android:textColor="@color/widget_text" android:textSize="21sp" android:fontFamily="@font/inter_medium" android:fontFeatureSettings="tnum" />
+                <TextView android:id="@+id/prayer_widget_active_time_5" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:includeFontPadding="false" android:maxLines="1" android:singleLine="true" android:textColor="@color/widget_active_text" android:textSize="21sp" android:fontFamily="@font/inter_semibold" android:fontFeatureSettings="tnum" android:visibility="gone" />
+                    <TextView android:id="@+id/prayer_widget_underline_5" android:layout_width="24dp" android:layout_height="2dp" android:layout_gravity="center" android:background="@color/widget_active_text" android:visibility="gone" />
+            </LinearLayout>
+            <LinearLayout android:id="@+id/prayer_widget_cell_6" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:orientation="vertical">
+<TextView android:id="@+id/prayer_widget_label_6" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:includeFontPadding="false" android:maxLines="1" android:singleLine="true" android:textColor="@color/widget_secondary_text" android:textSize="12sp" android:letterSpacing="0.08" android:fontFamily="@font/inter_medium" />
+                <TextView android:id="@+id/prayer_widget_active_label_6" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:includeFontPadding="false" android:maxLines="1" android:singleLine="true" android:textColor="@color/widget_active_text" android:textSize="12sp" android:letterSpacing="0.08" android:fontFamily="@font/inter_semibold" android:visibility="gone" />
+                <TextView android:id="@+id/prayer_widget_time_6" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:includeFontPadding="false" android:maxLines="1" android:singleLine="true" android:textColor="@color/widget_text" android:textSize="21sp" android:fontFamily="@font/inter_medium" android:fontFeatureSettings="tnum" />
+                <TextView android:id="@+id/prayer_widget_active_time_6" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:includeFontPadding="false" android:maxLines="1" android:singleLine="true" android:textColor="@color/widget_active_text" android:textSize="21sp" android:fontFamily="@font/inter_semibold" android:fontFeatureSettings="tnum" android:visibility="gone" />
+                    <TextView android:id="@+id/prayer_widget_underline_6" android:layout_width="24dp" android:layout_height="2dp" android:layout_gravity="center" android:background="@color/widget_active_text" android:visibility="gone" />
+            </LinearLayout>
         </LinearLayout>
     </LinearLayout>
-
-    <TextView
-        android:id="@+id/prayer_widget_next_prayer"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:textSize="24sp"
-        android:visibility="gone" />
-
-    <Chronometer
-        android:id="@+id/prayer_widget_chronometer"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:textSize="24sp"
-        android:visibility="gone" />
-
-    <TextView
-        android:id="@+id/prayer_widget_date"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:textSize="16sp"
-        android:visibility="gone" />
-
-    <TextView
-        android:id="@+id/prayer_widget_ramadan"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:textSize="16sp"
-        android:visibility="gone" />
-</LinearLayout>
+    <TextView android:id="@+id/prayer_widget_next_prayer" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
+    <Chronometer android:id="@+id/prayer_widget_chronometer" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
+    <TextView android:id="@+id/prayer_widget_ramadan" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
+    <TextView android:id="@+id/prayer_widget_province_center" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
+    </LinearLayout>
+</FrameLayout>
