@@ -123,7 +123,8 @@ fun PrayerHomeScreen(
     onOpenNotificationSettings: () -> Unit,
     exactAlarmNeeded: Boolean,
     onRequestExactAlarm: () -> Unit,
-    onOpenAbout: () -> Unit = {}
+    onOpenAbout: () -> Unit = {},
+    onOpenQibla: () -> Unit = {}
 ) {
     val ready = state as? PrayerUiState.Ready
     val location = ready?.location ?: (state as? PrayerUiState.Error)?.location
@@ -191,6 +192,9 @@ fun PrayerHomeScreen(
                     )
                 },
                 actions = {
+                    TextButton(onClick = onOpenQibla) {
+                        Text(stringResource(R.string.qibla_open))
+                    }
                     TextButton(onClick = onOpenAbout) {
                         Text(stringResource(R.string.about_open))
                     }

@@ -22,6 +22,9 @@ sealed interface Screen : Parcelable {
 
     @Parcelize
     data object About : Screen
+
+    @Parcelize
+    data object Qibla : Screen
 }
 
 internal class AppBackStack(private val screens: List<Screen> = listOf(Screen.Home)) {

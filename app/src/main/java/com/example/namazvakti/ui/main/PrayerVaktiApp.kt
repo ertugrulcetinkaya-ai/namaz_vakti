@@ -180,6 +180,7 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
     }
     val openReligiousDays = { backStack = backStack.push(Screen.ReligiousDays) }
     val openAbout = { backStack = backStack.push(Screen.About) }
+    val openQibla = { backStack = backStack.push(Screen.Qibla) }
 
     when (screen) {
         is Screen.Cities -> CitySelectionScreen(
@@ -202,6 +203,10 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
             onBack = goBack
         )
         Screen.About -> AboutScreen(
+            location = location,
+            onBack = goBack
+        )
+        Screen.Qibla -> QiblaScreen(
             location = location,
             onBack = goBack
         )
@@ -237,7 +242,8 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
             onOpenNotificationSettings = { showNotificationSettings = true },
             exactAlarmNeeded = exactAlarmNeeded,
             onRequestExactAlarm = requestExactAlarm,
-            onOpenAbout = openAbout
+            onOpenAbout = openAbout,
+            onOpenQibla = openQibla
         )
         null -> Unit
     }
