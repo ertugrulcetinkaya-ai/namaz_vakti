@@ -126,13 +126,13 @@ data class PrayerTimes(
     }
 }
 
-enum class PrayerTimeName(val displayName: String) {
-    IMSAK("İmsak"),
-    SUNRISE("Güneş"),
-    DHUHR("Öğle"),
-    ASR("İkindi"),
-    MAGHRIB("Akşam"),
-    ISHA("Yatsı")
+enum class PrayerTimeName(val displayName: String, val storageKey: String) {
+    IMSAK("İmsak", "imsak"),
+    SUNRISE("Güneş", "sunrise"),
+    DHUHR("Öğle", "dhuhr"),
+    ASR("İkindi", "asr"),
+    MAGHRIB("Akşam", "maghrib"),
+    ISHA("Yatsı", "isha")
 }
 
 data class PrayerDisplayItem(

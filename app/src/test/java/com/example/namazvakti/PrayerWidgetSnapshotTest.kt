@@ -1,10 +1,12 @@
 package com.example.namazvakti
 
 import com.example.namazvakti.data.local.PrayerPreferences
+import com.example.namazvakti.data.local.PrayerTimeOffsetsSource
 import com.example.namazvakti.domain.model.CachedPrayerDay
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.PrayerTimeProvider
+import com.example.namazvakti.domain.model.PrayerTimeOffsets
 import com.example.namazvakti.domain.model.PrayerTimes
 import com.example.namazvakti.domain.policy.PrayerCachePolicy
 import com.example.namazvakti.widget.PrayerWidgetSnapshotSource
@@ -41,7 +43,8 @@ class PrayerWidgetSnapshotTest {
                 timeProvider = PrayerTimeProvider(
                     Clock.fixed(Instant.parse("2026-08-06T10:00:00Z"), ZoneId.of("UTC"))
                 ),
-                cachePolicy = PrayerCachePolicy()
+                cachePolicy = PrayerCachePolicy(),
+                offsetsStore = FixedOffsetsStore(PrayerTimeOffsets(imsakMinutes = 4))
             )
 
             val snapshot = source.load()
@@ -49,7 +52,7 @@ class PrayerWidgetSnapshotTest {
             assertEquals(1, store.readLocationCalls)
             assertEquals(0, store.readCacheCalls)
             assertEquals(2, store.readCacheForDateCalls)
-            assertEquals(cache, snapshot.cache)
+            assertEquals(LocalTime.of(4, 16), snapshot.cache?.prayerTimes?.fajr)
             assertEquals(null, snapshot.tomorrowCache)
             assertEquals(PrayerWidgetDataState.Fresh, snapshot.dataState)
         }
@@ -85,5 +88,10 @@ class PrayerWidgetSnapshotTest {
 
         override suspend fun saveLocation(location: PrayerLocation) = Unit
         override suspend fun clearCache() = Unit
+    }
+
+    private class FixedOffsetsStore(private val offsets: PrayerTimeOffsets) : PrayerTimeOffsetsSource {
+        override suspend fun read() = offsets
+        override suspend fun save(offsets: PrayerTimeOffsets) = Unit
     }
 }

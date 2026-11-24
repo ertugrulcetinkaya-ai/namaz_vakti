@@ -22,6 +22,7 @@
 -keep interface com.example.namazvakti.domain.port.PrayerWidgetUpdatePort { *; }
 -keep interface com.example.namazvakti.data.local.PrayerPreferences { *; }
 -keep interface com.example.namazvakti.data.local.PrayerNotificationSettingsSource { *; }
+-keep interface com.example.namazvakti.data.local.PrayerTimeOffsetsSource { *; }
 -keep class com.example.namazvakti.domain.policy.PrayerNotificationEvent { *; }
 -keep class com.example.namazvakti.domain.policy.PrayerNotificationEventId { *; }
 -keep class com.example.namazvakti.domain.policy.PrayerNotificationPlanner { *; }

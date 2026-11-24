@@ -32,6 +32,7 @@ import com.example.namazvakti.R
 import com.example.namazvakti.app.appContainer
 import com.example.namazvakti.domain.model.PrayerTimeProvider
 import com.example.namazvakti.domain.model.PrayerNotificationSettings
+import com.example.namazvakti.domain.model.PrayerTimeOffsets
 import com.example.namazvakti.notification.PrayerNotificationPublisher
 import com.example.namazvakti.widget.alarm.PrayerExactAlarmAccess
 import kotlinx.coroutines.delay
@@ -49,6 +50,8 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val notificationSettings by viewModel.notificationSettings.collectAsStateWithLifecycle()
     val notificationSettingsError by viewModel.notificationSettingsError.collectAsStateWithLifecycle()
+    val prayerTimeOffsets by viewModel.prayerTimeOffsets.collectAsStateWithLifecycle()
+    val prayerTimeOffsetsError by viewModel.prayerTimeOffsetsError.collectAsStateWithLifecycle()
     val monthlyState by viewModel.monthlyState.collectAsStateWithLifecycle()
     val imsakiyeState by viewModel.imsakiyeState.collectAsStateWithLifecycle()
     val ramadanRange by viewModel.ramadanRange.collectAsStateWithLifecycle()
@@ -67,6 +70,10 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
     var lastObservedDate by remember { mutableStateOf(today) }
     var backStack by rememberSaveable(stateSaver = AppBackStack.Saver) { mutableStateOf(AppBackStack()) }
     var showNotificationSettings by rememberSaveable { mutableStateOf(false) }
+    var showPrayerTimeOffsets by rememberSaveable { mutableStateOf(false) }
+    var prayerTimeOffsetsDraft by rememberSaveable(stateSaver = PrayerTimeOffsetsSaver) {
+        mutableStateOf<PrayerTimeOffsets?>(null)
+    }
     var notificationDraft by rememberSaveable(stateSaver = NotificationSettingsSaver) {
         mutableStateOf<PrayerNotificationSettings?>(null)
     }
@@ -76,6 +83,10 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
     val dismissNotificationSettings = {
         showNotificationSettings = false
         notificationDraft = null
+    }
+    val dismissPrayerTimeOffsets = {
+        showPrayerTimeOffsets = false
+        prayerTimeOffsetsDraft = null
     }
     var resumeVersion by remember { mutableIntStateOf(0) }
     val autoRefreshPolicy = remember { AutoRefreshPolicy() }
@@ -161,6 +172,12 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
         }
     }
 
+    LaunchedEffect(prayerTimeOffsetsError) {
+        if (prayerTimeOffsetsError) {
+            Toast.makeText(context, R.string.offsets_settings_save_failed, Toast.LENGTH_SHORT).show()
+        }
+    }
+
     val exactAlarmNeeded = remember(resumeVersion) {
         PrayerExactAlarmAccess.requiresUserAccess() &&
             !PrayerExactAlarmAccess.canScheduleExactAlarms(context)
@@ -225,7 +242,8 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
             state = imsakiyeState,
             today = today,
             onBack = goBack,
-            onRetry = viewModel::loadImsakiye
+            onRetry = viewModel::loadImsakiye,
+            offsetsActive = prayerTimeOffsets.isActive
         )
         Screen.Home -> PrayerHomeScreen(
             state = state,
@@ -240,6 +258,11 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
             onOpenImsakiye = openImsakiye,
             ramadanRange = ramadanRange,
             onOpenNotificationSettings = { showNotificationSettings = true },
+            onOpenPrayerTimeOffsets = {
+                prayerTimeOffsetsDraft = prayerTimeOffsets
+                showPrayerTimeOffsets = true
+            },
+            offsetsActive = prayerTimeOffsets.isActive,
             exactAlarmNeeded = exactAlarmNeeded,
             onRequestExactAlarm = requestExactAlarm,
             onOpenAbout = openAbout,
@@ -288,6 +311,19 @@ fun PrayerVaktiApp(viewModel: PrayerViewModel = viewModel()) {
                     viewModel.updateNotificationSettings(settings)
                     dismissNotificationSettings()
                 }
+            }
+        )
+    }
+
+    if (showPrayerTimeOffsets) {
+        PrayerTimeOffsetsSheet(
+            offsets = prayerTimeOffsetsDraft ?: prayerTimeOffsets,
+            saveFailed = prayerTimeOffsetsError,
+            onDismiss = dismissPrayerTimeOffsets,
+            onOffsetsChange = { prayerTimeOffsetsDraft = it },
+            onSave = { offsets ->
+                viewModel.updatePrayerTimeOffsets(offsets)
+                dismissPrayerTimeOffsets()
             }
         )
     }

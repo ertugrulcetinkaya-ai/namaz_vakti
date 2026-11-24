@@ -2,6 +2,7 @@ package com.example.namazvakti
 
 import com.example.namazvakti.data.local.PrayerPreferences
 import com.example.namazvakti.data.local.PrayerNotificationSettingsSource
+import com.example.namazvakti.data.local.PrayerTimeOffsetsSource
 import com.example.namazvakti.domain.model.CachedPrayerDay
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.DiyanetDistricts
@@ -9,6 +10,7 @@ import com.example.namazvakti.domain.model.PrayerError
 import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.PrayerLocationConfig
 import com.example.namazvakti.domain.model.PrayerNotificationSettings
+import com.example.namazvakti.domain.model.PrayerTimeOffsets
 import com.example.namazvakti.domain.model.PrayerTimeProvider
 import com.example.namazvakti.domain.model.MonthDataSource
 import com.example.namazvakti.domain.model.MonthResult
@@ -53,6 +55,36 @@ import kotlin.coroutines.ContinuationInterceptor
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PrayerViewModelTest {
+    @Test
+    fun appliesOffsetsToViewModelOutputAndReschedulesPrayerNotificationsAndWidgets() = runTest {
+        val store = FakeStore()
+        val original = sampleCache(store.location)
+        store.cache = original
+        val scheduler = FakeScheduler()
+        val widgetUpdater = FakeWidgetUpdater()
+        val offsetsStore = FakePrayerTimeOffsetsStore()
+        val viewModel = viewModel(
+            store = store,
+            repository = FakeRepository(RefreshResult.Success(original)),
+            scope = CoroutineScope(StandardTestDispatcher(testScheduler)),
+            scheduler = scheduler,
+            widgetUpdater = widgetUpdater,
+            offsetsStore = offsetsStore
+        )
+        advanceUntilIdle()
+
+        viewModel.updatePrayerTimeOffsets(PrayerTimeOffsets(imsakMinutes = 3))
+        advanceUntilIdle()
+
+        val ready = viewModel.state.value as PrayerUiState.Ready
+        assertEquals(LocalTime.of(4, 15), ready.cache?.prayerTimes?.fajr)
+        assertEquals(LocalTime.of(4, 12), store.cache?.prayerTimes?.fajr)
+        assertEquals(PrayerTimeOffsets(imsakMinutes = 3), offsetsStore.read())
+        assertEquals(1, scheduler.prayerNotificationSchedules)
+        assertEquals(1, scheduler.boundarySchedules)
+        assertEquals(1, widgetUpdater.updateCalls)
+    }
+
 
     @Test
     fun religiousDaysViewModelReturnsOfficialRowsForSelectedYear() = runTest {
@@ -551,12 +583,13 @@ class PrayerViewModelTest {
         scope: CoroutineScope,
         notificationSettingsStore: FakeNotificationSettingsStore = FakeNotificationSettingsStore(),
         scheduler: FakeScheduler = FakeScheduler(),
-        widgetUpdater: FakeWidgetUpdater = FakeWidgetUpdater()
+        widgetUpdater: FakeWidgetUpdater = FakeWidgetUpdater(),
+        offsetsStore: FakePrayerTimeOffsetsStore = FakePrayerTimeOffsetsStore()
     ) = PrayerViewModel(
         Application(), store, repository, scheduler, widgetUpdater,
         PrayerTimeProvider(), PrayerCalculationSettings(), scope,
         scope.coroutineContext[ContinuationInterceptor] as CoroutineDispatcher,
-        PrayerCachePolicy(), notificationSettingsStore
+        PrayerCachePolicy(), notificationSettingsStore, offsetsStore
     )
 
     private fun sampleCache(
@@ -704,10 +737,18 @@ class PrayerViewModelTest {
         private val throwOnNotifications: Boolean = false
     ) : PrayerRefreshScheduler {
         var notificationSchedules = 0
+        var prayerNotificationSchedules = 0
+        var boundarySchedules = 0
         override suspend fun enqueueRefresh(force: Boolean) = Unit
-        override suspend fun scheduleBoundary() = Unit
+        override suspend fun scheduleBoundary() {
+            boundarySchedules += 1
+        }
         override suspend fun scheduleNotifications() {
             notificationSchedules += 1
+            if (throwOnNotifications) throw IllegalStateException("Notification scheduling failed")
+        }
+        override suspend fun schedulePrayerNotifications() {
+            prayerNotificationSchedules += 1
             if (throwOnNotifications) throw IllegalStateException("Notification scheduling failed")
         }
     }
@@ -743,6 +784,15 @@ class PrayerViewModelTest {
         override suspend fun updateAll() {
             updateCalls += 1
             if (throwOnUpdate) throw IllegalStateException("Widget update failed")
+        }
+    }
+
+    private class FakePrayerTimeOffsetsStore(
+        private var offsets: PrayerTimeOffsets = PrayerTimeOffsets.ZERO
+    ) : PrayerTimeOffsetsSource {
+        override suspend fun read() = offsets
+        override suspend fun save(offsets: PrayerTimeOffsets) {
+            this.offsets = offsets
         }
     }
 }

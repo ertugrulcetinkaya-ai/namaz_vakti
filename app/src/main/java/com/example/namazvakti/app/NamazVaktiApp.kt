@@ -3,6 +3,7 @@ package com.example.namazvakti.app
 import android.app.Application
 import com.example.namazvakti.data.local.PrayerTimesDatabase
 import com.example.namazvakti.data.local.PrayerNotificationSettingsStore
+import com.example.namazvakti.data.local.PrayerTimeOffsetsStore
 import com.example.namazvakti.data.local.PrayerTimesStore
 import com.example.namazvakti.data.local.DataStoreDiyanetSourceStateStore
 import com.example.namazvakti.data.remote.DiyanetMirrorDataSource
@@ -39,6 +40,7 @@ class AppContainer(application: Application) {
         cacheRetentionPolicy
     )
     val notificationSettingsStore = PrayerNotificationSettingsStore(application)
+    val prayerTimeOffsetsStore = PrayerTimeOffsetsStore(application)
     val httpClient: OkHttpClient = createPrayerHttpClient()
     val api = PrayerTimesApi(client = httpClient)
     val diyanetSourceStateStore = DataStoreDiyanetSourceStateStore(application)

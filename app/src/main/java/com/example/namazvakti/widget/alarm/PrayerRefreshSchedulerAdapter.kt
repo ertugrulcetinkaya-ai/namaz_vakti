@@ -23,4 +23,8 @@ class PrayerRefreshSchedulerAdapter(
         PrayerNotificationScheduler.scheduleNext(appContext)
         ReligiousDayNotificationScheduler.scheduleNext(appContext)
     }
+
+    override suspend fun schedulePrayerNotifications() {
+        PrayerNotificationScheduler.scheduleNext(appContext)
+    }
 }

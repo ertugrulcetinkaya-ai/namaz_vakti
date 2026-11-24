@@ -9,6 +9,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkManager
 import com.example.namazvakti.app.appContainer
 import com.example.namazvakti.domain.model.CachedPrayerDay
+import com.example.namazvakti.domain.model.withOffsets
 import com.example.namazvakti.domain.policy.PrayerBoundaryCalculator
 import com.example.namazvakti.domain.policy.needsBackgroundRefresh
 import com.example.namazvakti.notification.PrayerNotificationAlarm
@@ -77,13 +78,18 @@ object PrayerWidgetScheduler {
             .withZoneSameInstant(location.timezone)
         val today = now.toLocalDate()
         val snapshotCache = snapshot?.cache
-        val currentCache = (cache ?: snapshotCache)
+        val cached = (cache ?: snapshotCache)
             ?.takeIf { it.matches(today, location, container.settings) }
             ?: if (snapshot == null && cache == null) {
                 container.store.readCache(today, location, container.settings)
             } else {
                 null
             }
+        val currentCache = when {
+            cached == null -> null
+            snapshot != null && cache == null -> cached
+            else -> cached.withOffsets(container.prayerTimeOffsetsStore.read())
+        }
         if (currentCache == null) {
             PrayerBoundaryAlarm.cancel(appContext)
             return

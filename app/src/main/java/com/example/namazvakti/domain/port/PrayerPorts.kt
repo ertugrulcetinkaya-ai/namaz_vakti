@@ -16,6 +16,7 @@ interface PrayerRefreshScheduler {
     suspend fun enqueueRefresh(force: Boolean)
     suspend fun scheduleBoundary()
     suspend fun scheduleNotifications()
+    suspend fun schedulePrayerNotifications() = scheduleNotifications()
 }
 
 interface PrayerWidgetUpdatePort {

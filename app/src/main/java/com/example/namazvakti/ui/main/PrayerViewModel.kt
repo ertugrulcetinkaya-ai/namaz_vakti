@@ -5,11 +5,14 @@ import android.util.Log
 import com.example.namazvakti.app.NamazVaktiApp
 import com.example.namazvakti.data.local.PrayerPreferences
 import com.example.namazvakti.data.local.PrayerNotificationSettingsSource
+import com.example.namazvakti.data.local.PrayerTimeOffsetsSource
 import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.DiyanetDistricts
 import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.PrayerLocationConfig
 import com.example.namazvakti.domain.model.PrayerNotificationSettings
+import com.example.namazvakti.domain.model.PrayerTimeOffsets
+import com.example.namazvakti.domain.model.withOffsets
 import com.example.namazvakti.domain.model.RamadanRange
 import com.example.namazvakti.domain.model.DiyanetReligiousDay
 import com.example.namazvakti.domain.model.DiyanetReligiousDays
@@ -31,8 +34,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.YearMonth
@@ -49,22 +55,35 @@ class PrayerViewModel @JvmOverloads constructor(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val cachePolicy: PrayerCachePolicy = PrayerCachePolicy(),
     private val notificationSettingsStore: PrayerNotificationSettingsSource =
-        (application as NamazVaktiApp).container.notificationSettingsStore
+        (application as NamazVaktiApp).container.notificationSettingsStore,
+    private val prayerTimeOffsetsStore: PrayerTimeOffsetsSource =
+        (application as NamazVaktiApp).container.prayerTimeOffsetsStore
 ) : AndroidViewModel(application) {
     private val _state = MutableStateFlow<PrayerUiState>(PrayerUiState.Loading)
-    val state: StateFlow<PrayerUiState> = _state.asStateFlow()
+    private val _prayerTimeOffsets = MutableStateFlow(PrayerTimeOffsets.ZERO)
+    val prayerTimeOffsets: StateFlow<PrayerTimeOffsets> = _prayerTimeOffsets.asStateFlow()
+    val state: StateFlow<PrayerUiState> = combine(_state, _prayerTimeOffsets) { state, offsets ->
+        state.withOffsets(offsets)
+    }.stateIn(scope(), SharingStarted.Eagerly, _state.value)
     private val _notificationSettings = MutableStateFlow(PrayerNotificationSettings())
     val notificationSettings: StateFlow<PrayerNotificationSettings> = _notificationSettings.asStateFlow()
     private val _notificationSettingsError = MutableStateFlow(false)
     val notificationSettingsError: StateFlow<Boolean> = _notificationSettingsError.asStateFlow()
+    private val _prayerTimeOffsetsError = MutableStateFlow(false)
+    val prayerTimeOffsetsError: StateFlow<Boolean> = _prayerTimeOffsetsError.asStateFlow()
     private val _monthlyState = MutableStateFlow(MonthlyUiState(YearMonth.now()))
-    val monthlyState: StateFlow<MonthlyUiState> = _monthlyState.asStateFlow()
+    val monthlyState: StateFlow<MonthlyUiState> = combine(_monthlyState, _prayerTimeOffsets) { state, offsets ->
+        state.copy(days = state.days.map { it.withOffsets(offsets) })
+    }.stateIn(scope(), SharingStarted.Eagerly, _monthlyState.value)
     private val _imsakiyeState = MutableStateFlow(ImsakiyeUiState())
-    val imsakiyeState: StateFlow<ImsakiyeUiState> = _imsakiyeState.asStateFlow()
+    val imsakiyeState: StateFlow<ImsakiyeUiState> = combine(_imsakiyeState, _prayerTimeOffsets) { state, offsets ->
+        state.copy(days = state.days.map { it.withOffsets(offsets) })
+    }.stateIn(scope(), SharingStarted.Eagerly, _imsakiyeState.value)
     private val _ramadanRange = MutableStateFlow<RamadanRange?>(null)
     val ramadanRange: StateFlow<RamadanRange?> = _ramadanRange.asStateFlow()
     private var refreshJob: Job? = null
     private var settingsJob: Job? = null
+    private var prayerTimeOffsetsJob: Job? = null
     private var locationJob: Job? = null
     private var monthJob: Job? = null
     private var imsakiyeJob: Job? = null
@@ -82,6 +101,9 @@ class PrayerViewModel @JvmOverloads constructor(
             try {
                 _notificationSettings.value = withContext(ioDispatcher) {
                     notificationSettingsStore.read()
+                }
+                _prayerTimeOffsets.value = withContext(ioDispatcher) {
+                    prayerTimeOffsetsStore.read()
                 }
                 val snapshot = withContext(ioDispatcher) {
                     val location = store.readLocation()
@@ -108,6 +130,11 @@ class PrayerViewModel @JvmOverloads constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                try {
+                    Log.w("PrayerViewModel", "Unable to load prayer data and settings", e)
+                } catch (_: RuntimeException) {
+                    // Keep Android's unavailable local JVM logging stub from changing UI state.
+                }
                 _state.value = PrayerUiState.Error(null, classifyPrayerStorageError(e))
             }
         }
@@ -137,6 +164,30 @@ class PrayerViewModel @JvmOverloads constructor(
                 _notificationSettingsError.value = true
             }
         }.also { settingsJob = it }
+    }
+
+    fun updatePrayerTimeOffsets(offsets: PrayerTimeOffsets): Job {
+        prayerTimeOffsetsJob?.cancel()
+        return scope().launch {
+            try {
+                withContext(ioDispatcher) { prayerTimeOffsetsStore.save(offsets) }
+                _prayerTimeOffsets.value = offsets
+                _prayerTimeOffsetsError.value = false
+                runSideEffect("Unable to reschedule prayer notifications after changing offsets") {
+                    scheduler.schedulePrayerNotifications()
+                }
+                runSideEffect("Unable to reschedule widget boundary after changing offsets") {
+                    scheduler.scheduleBoundary()
+                }
+                runSideEffect("Unable to redraw widgets after changing offsets") {
+                    widgetUpdater.updateAll()
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                _prayerTimeOffsetsError.value = true
+            }
+        }.also { prayerTimeOffsetsJob = it }
     }
 
     fun selectCity(option: PrayerLocationConfig.CityOption): Job = selectDistrict(option, null)
@@ -375,5 +426,14 @@ class PrayerViewModel @JvmOverloads constructor(
         throw e
     } catch (_: Exception) {
         null
+    }
+
+    private fun PrayerUiState.withOffsets(offsets: PrayerTimeOffsets): PrayerUiState = when (this) {
+        is PrayerUiState.Ready -> copy(
+            cache = cache?.withOffsets(offsets),
+            tomorrowCache = tomorrowCache?.withOffsets(offsets)
+        )
+        PrayerUiState.Loading -> this
+        is PrayerUiState.Error -> this
     }
 }
