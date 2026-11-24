@@ -2,6 +2,8 @@
 
 Namaz Vakti hesap oluşturmaz ve analitik kullanmaz.
 
+Konum yalnızca cihazda en yakın ilçeyi bulmak için tek seferlik kullanılır, saklanmaz ve gönderilmez.
+
 ## Ağ istekleri
 
 - Diyanet verisine erişen üçüncü taraf ara servise yalnızca seçili ilçe kimliği gönderilir.
