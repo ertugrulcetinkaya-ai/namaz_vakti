@@ -99,7 +99,7 @@ fun QiblaScreen(
     }
     val qiblaDegrees = qibla.bearingDegrees.roundToInt().mod(360)
     val distanceLabel = remember(qibla.distanceKm) {
-        NumberFormat.getIntegerInstance(Locale.getDefault()).format(qibla.distanceKm)
+        NumberFormat.getIntegerInstance(Locale.forLanguageTag("tr-TR")).format(qibla.distanceKm)
     }
     val selectedLocationName = location?.displayName ?: PrayerLocationConfig.defaultCity.displayCity
     val sensorManager = remember(context) {
