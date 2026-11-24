@@ -250,12 +250,20 @@ fun CitySelectionScreen(
                                         verticalArrangement = Arrangement.spacedBy(12.dp)
                                     ) {
                                         Text(
-                                            stringResource(
-                                                R.string.location_suggestion_found,
-                                                district.name,
-                                                district.provinceName,
-                                                suggestion.match.distanceKm.roundToInt()
-                                            ),
+                                            if (district.name == district.provinceName) {
+                                                stringResource(
+                                                    R.string.location_suggestion_found_central,
+                                                    district.name,
+                                                    suggestion.match.distanceKm.roundToInt()
+                                                )
+                                            } else {
+                                                stringResource(
+                                                    R.string.location_suggestion_found,
+                                                    district.name,
+                                                    district.provinceName,
+                                                    suggestion.match.distanceKm.roundToInt()
+                                                )
+                                            },
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.SemiBold
                                         )

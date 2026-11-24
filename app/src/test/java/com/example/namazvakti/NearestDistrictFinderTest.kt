@@ -9,13 +9,23 @@ import org.junit.Test
 
 class NearestDistrictFinderTest {
     @Test
-    fun kizilayFindsNearestCoordinateBackedAnkaraDistrictInDiyanetTable() {
+    fun kizilayFindsAnkaraCentralDistrictViaProvinceCenter() {
         val result = NearestDistrictFinder.find(39.9208, 32.8541)
 
         assertNotNull(result)
         assertEquals("ANKARA", result!!.district.provinceName)
-        assertEquals("ELMADAĞ", result.district.name)
-        assertEquals(31.3, result.distanceKm, 0.1)
+        assertEquals("ANKARA", result.district.name)
+        assertTrue(result.distanceKm < 1.0)
+    }
+
+    @Test
+    fun everyProvinceCentralDistrictIsReachable() {
+        com.example.namazvakti.domain.model.DiyanetDistricts.provinces.forEach { province ->
+            val option = com.example.namazvakti.domain.model.PrayerLocationConfig.cityOptions
+                .first { it.displayCity == province.name }
+            val result = NearestDistrictFinder.find(option.latitude!!, option.longitude!!)
+            assertEquals(province.name, province.centralDistrictId, result?.district?.id)
+        }
     }
 
     @Test

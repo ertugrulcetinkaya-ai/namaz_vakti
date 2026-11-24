@@ -1,6 +1,7 @@
 package com.example.namazvakti.domain.policy
 
 import com.example.namazvakti.domain.model.DiyanetDistricts
+import com.example.namazvakti.domain.model.PrayerLocationConfig
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sqrt
@@ -23,8 +24,7 @@ object NearestDistrictFinder {
 
         val nearest = DiyanetDistricts.districts.asSequence()
             .mapNotNull { district ->
-                val districtLatitude = district.latitude ?: return@mapNotNull null
-                val districtLongitude = district.longitude ?: return@mapNotNull null
+                val (districtLatitude, districtLongitude) = coordinatesOf(district) ?: return@mapNotNull null
                 if (!districtLatitude.isFinite() || districtLatitude !in -90.0..90.0 ||
                     !districtLongitude.isFinite() || districtLongitude !in -180.0..180.0
                 ) {
@@ -39,6 +39,27 @@ object NearestDistrictFinder {
             ?: return null
 
         return nearest.takeIf { it.distanceKm <= MAX_DISTANCE_KM }
+    }
+
+    /**
+     * Diyanet lists each province's central district (e.g. "ANKARA", which covers Çankaya,
+     * Keçiören …) without a centroid. Use the province's administrative-center coordinate
+     * for those rows; otherwise a Kızılay location would be matched to Elmadağ.
+     */
+    private val provinceCenterByCentralDistrictId: Map<String, Pair<Double, Double>> by lazy {
+        DiyanetDistricts.provinces.mapNotNull { province ->
+            val option = PrayerLocationConfig.cityOptions.firstOrNull { it.displayCity == province.name }
+            val latitude = option?.latitude ?: return@mapNotNull null
+            val longitude = option.longitude ?: return@mapNotNull null
+            province.centralDistrictId to (latitude to longitude)
+        }.toMap()
+    }
+
+    private fun coordinatesOf(district: DiyanetDistricts.District): Pair<Double, Double>? {
+        val latitude = district.latitude
+        val longitude = district.longitude
+        if (latitude != null && longitude != null) return latitude to longitude
+        return provinceCenterByCentralDistrictId[district.id]
     }
 
     private fun distanceKm(

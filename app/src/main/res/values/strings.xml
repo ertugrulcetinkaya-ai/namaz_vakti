@@ -145,6 +145,7 @@
     <string name="location_suggestion_timed_out">Konum belirlenemedi. Biraz sonra yeniden deneyin.</string>
     <string name="location_suggestion_no_district">Yakınınızda uygun ilçe bulunamadı. Listeden seçebilirsiniz.</string>
     <string name="location_suggestion_found">Yakınınızdaki ilçe: %1$s, %2$s (%3$d km)</string>
+    <string name="location_suggestion_found_central">Yakınınızdaki konum: %1$s merkez (%2$d km)</string>
     <string name="location_suggestion_select">Bu ilçeyi seç</string>
     <string name="location_suggestion_choose_from_list">Listeden seç</string>
     <string name="city_selected">Seçili şehir</string>
