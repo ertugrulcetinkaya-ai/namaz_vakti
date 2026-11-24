@@ -24,8 +24,8 @@ class WidgetTextFitTest {
 
     @Test
     fun largeWidget_isHeightLimited() {
-        val scale = WidgetTextFit.bestScale(400f, 200f, large, measurer)
-        val budget = 200f * WidgetTextFit.HEIGHT_SAFETY - 20f
+        val scale = WidgetTextFit.bestScale(400f, 150f, large, measurer)
+        val budget = 150f * WidgetTextFit.HEIGHT_SAFETY - 20f
         assertTrue(80f * scale <= budget)
         assertTrue(budget - 80f * scale < 0.5f)
         assertTrue(scale > 1f)
