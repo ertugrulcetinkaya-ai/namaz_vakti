@@ -94,7 +94,8 @@ class PrayerWidgetProvider : AppWidgetProvider() {
                             appContext,
                             snapshot,
                             PrayerWidgetSizeClass.from(size.width.toInt(), size.height.toInt()),
-                            widthDp = size.width.toInt()
+                            widthDp = size.width.toInt(),
+                            heightDp = size.height.toInt()
                         )
                     }
                     manager.updateAppWidget(appWidgetId, RemoteViews(responsiveViews))
@@ -111,7 +112,7 @@ class PrayerWidgetProvider : AppWidgetProvider() {
                     val sizeClass = PrayerWidgetSizeClass.from(widthDp, heightDp)
                     manager.updateAppWidget(
                         appWidgetId,
-                        renderer.render(appContext, snapshot, sizeClass, widthDp = widthDp)
+                        renderer.render(appContext, snapshot, sizeClass, widthDp = widthDp, heightDp = heightDp)
                     )
                 }
             }
