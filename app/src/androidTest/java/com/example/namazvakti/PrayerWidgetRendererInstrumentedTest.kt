@@ -28,6 +28,8 @@ import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.PrayerDataSource
 import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.PrayerTimes
+import com.example.namazvakti.domain.model.PrayerTimeOffsets
+import com.example.namazvakti.domain.model.withOffsets
 import com.example.namazvakti.widget.PrayerWidgetSizeClass
 import com.example.namazvakti.widget.PrayerWidgetSnapshot
 import com.example.namazvakti.widget.renderer.PrayerWidgetDataState
@@ -53,6 +55,22 @@ class PrayerWidgetRendererInstrumentedTest {
     private val renderer = PrayerWidgetRenderer()
     private val location = PrayerLocation("Istanbul", "Turkey", "İSTANBUL", ZONE)
     private val now = ZonedDateTime.of(2026, 8, 6, 14, 0, 0, 0, ZONE)
+
+    @Test
+    fun rendersPrayerTimesAfterApplyingMinuteOffsets() {
+        val adjustedCache = cache().withOffsets(
+            PrayerTimeOffsets(imsakMinutes = 5, dhuhrMinutes = -3)
+        )
+        val rendered = render(
+            cache = adjustedCache,
+            state = PrayerWidgetDataState.Fresh,
+            size = PrayerWidgetSizeClass.MEDIUM,
+            dimensionsDp = 515 to 126
+        )
+
+        assertEquals("04:17", rendered.root.text(timeId(1)))
+        assertEquals("13:05", rendered.root.text(activeTimeId(3)))
+    }
 
     @Test
     fun responsiveLayoutsFitAllPrayerRowsAndHighlightOnlyTheCurrentPrayer() {

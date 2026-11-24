@@ -9,6 +9,7 @@ import com.example.namazvakti.domain.model.PrayerNotificationPrayer
 import com.example.namazvakti.domain.model.PrayerNotificationSettings
 import com.example.namazvakti.domain.model.PrayerNotificationType
 import com.example.namazvakti.domain.model.PrayerTimes
+import com.example.namazvakti.domain.model.PrayerTimeOffsets
 import com.example.namazvakti.domain.policy.PrayerNotificationDeliveryPolicy
 import com.example.namazvakti.domain.policy.PrayerNotificationEventId
 import com.example.namazvakti.domain.policy.PrayerNotificationPlanner
@@ -24,6 +25,21 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PrayerNotificationPlannerTest {
+    @Test
+    fun schedulesAtTheAdjustedPrayerTime() {
+        val event = planner().nextEvent(
+            today(),
+            tomorrow(),
+            settings(enabledPrayers = setOf(PrayerNotificationPrayer.DHUHR)),
+            ZonedDateTime.parse("2026-08-06T09:55:00Z"),
+            offsets = PrayerTimeOffsets(dhuhrMinutes = 10)
+        )
+
+        assertEquals(PrayerNotificationPrayer.DHUHR, event?.prayer)
+        assertEquals(LocalTime.of(10, 10), event?.prayerTime?.toLocalTime())
+        assertEquals(Instant.parse("2026-08-06T10:10:00Z"), event?.triggerAt?.toInstant())
+    }
+
     @Test
     fun selectsTheNextEnabledPrayerInChronologicalOrder() {
         val event = planner().nextEvent(today(), tomorrow(), settings(), now())

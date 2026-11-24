@@ -219,7 +219,8 @@ fun ImsakiyeScreen(
     state: ImsakiyeUiState,
     today: LocalDate,
     onBack: () -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    offsetsActive: Boolean = false
 ) {
     val range = state.range
     val listState = rememberLazyListState()
@@ -266,6 +267,14 @@ fun ImsakiyeScreen(
                         }
                         state.headerLocationName?.let { locationName ->
                             Text(locationName, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                        }
+                        if (offsetsActive) {
+                            Text(
+                                stringResource(R.string.prayer_offsets_applied),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.tertiary,
+                                maxLines = 1
+                            )
                         }
                         if (range?.estimated == true) {
                             Text(

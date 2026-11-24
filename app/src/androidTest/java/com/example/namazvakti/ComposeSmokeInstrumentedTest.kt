@@ -15,6 +15,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.example.namazvakti.app.NamazVaktiApp
 import com.example.namazvakti.data.local.PrayerNotificationSettingsSource
 import com.example.namazvakti.data.local.PrayerPreferences
+import com.example.namazvakti.data.local.PrayerTimeOffsetsSource
 import com.example.namazvakti.domain.model.CachedPrayerDay
 import com.example.namazvakti.domain.model.MonthDataSource
 import com.example.namazvakti.domain.model.MonthResult
@@ -22,6 +23,7 @@ import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.PrayerDataSource
 import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.PrayerNotificationSettings
+import com.example.namazvakti.domain.model.PrayerTimeOffsets
 import com.example.namazvakti.domain.model.PrayerTimeProvider
 import com.example.namazvakti.domain.model.PrayerTimes
 import com.example.namazvakti.domain.model.RamadanRange
@@ -101,6 +103,40 @@ class ComposeSmokeInstrumentedTest {
 
                 awaitNode("home app title") {
                     it.text?.toString() == context.getString(R.string.app_name)
+                }
+            }
+        } finally {
+            harness.scope.cancel()
+        }
+    }
+
+    @Test
+    fun prayerTimeOffsetsSheetCanBeAdjusted() {
+        val harness = launchHarness()
+        try {
+            harness.scenario.use {
+                awaitCondition("home ready", {
+                    "state=${harness.viewModel.state.value}, offsets=${harness.viewModel.prayerTimeOffsets.value}"
+                }) { harness.viewModel.state.value is PrayerUiState.Ready }
+                awaitNode("prayer time offsets action") {
+                    it.contentDescription?.toString() == context.getString(R.string.offsets_settings_open)
+                }.click()
+
+                awaitNode("prayer time offsets title") {
+                    it.text?.toString() == context.getString(R.string.offsets_settings_title)
+                }
+                val imsakIncrease = awaitNode("increase imsak offset") {
+                    it.contentDescription?.toString() == context.getString(
+                        R.string.offset_increase_accessibility,
+                        context.getString(R.string.prayer_imsak)
+                    )
+                }
+                imsakIncrease.click()
+                awaitNode("updated imsak offset") {
+                    it.text?.toString() == context.getString(R.string.offset_minutes_value, 1)
+                }
+                awaitNode("official prayer times explanation") {
+                    it.text?.toString() == context.getString(R.string.offsets_description)
                 }
             }
         } finally {
@@ -407,7 +443,8 @@ class ComposeSmokeInstrumentedTest {
             testScope = scope,
             ioDispatcher = Dispatchers.IO,
             cachePolicy = PrayerCachePolicy(),
-            notificationSettingsStore = notificationStore
+            notificationSettingsStore = notificationStore,
+            prayerTimeOffsetsStore = FakePrayerTimeOffsets()
         )
         val scenario = ActivityScenario.launch(ComposeSmokeTestActivity::class.java)
         scenario.onActivity { activity ->
@@ -665,6 +702,11 @@ class ComposeSmokeInstrumentedTest {
             saveCalls += 1
             state.value = settings
         }
+    }
+
+    private class FakePrayerTimeOffsets : PrayerTimeOffsetsSource {
+        override suspend fun read() = PrayerTimeOffsets.ZERO
+        override suspend fun save(offsets: PrayerTimeOffsets) = Unit
     }
 
     private class FakeScheduler : PrayerRefreshScheduler {

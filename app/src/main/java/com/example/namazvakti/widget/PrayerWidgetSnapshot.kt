@@ -3,6 +3,7 @@ package com.example.namazvakti.widget
 import android.content.Context
 import com.example.namazvakti.app.appContainer
 import com.example.namazvakti.data.local.PrayerPreferences
+import com.example.namazvakti.data.local.PrayerTimeOffsetsSource
 import com.example.namazvakti.domain.model.CachedPrayerDay
 import com.example.namazvakti.domain.model.DiyanetHijriCalendar
 import com.example.namazvakti.domain.model.DiyanetRamadanCalendar
@@ -12,7 +13,9 @@ import com.example.namazvakti.domain.model.PrayerCalculationSettings
 import com.example.namazvakti.domain.model.PrayerLocation
 import com.example.namazvakti.domain.model.RamadanRange
 import com.example.namazvakti.domain.model.PrayerTimeProvider
+import com.example.namazvakti.domain.model.PrayerTimeOffsets
 import com.example.namazvakti.domain.model.alAdhanHijriDate
+import com.example.namazvakti.domain.model.withOffsets
 import com.example.namazvakti.domain.policy.PrayerCachePolicy
 import com.example.namazvakti.widget.renderer.PrayerWidgetDataState
 import java.time.ZonedDateTime
@@ -24,7 +27,8 @@ data class PrayerWidgetSnapshot(
     val dataState: PrayerWidgetDataState,
     val tomorrowCache: CachedPrayerDay? = null,
     val ramadanRange: RamadanRange? = null,
-    val religiousDays: List<DiyanetReligiousDay> = emptyList()
+    val religiousDays: List<DiyanetReligiousDay> = emptyList(),
+    val offsets: PrayerTimeOffsets = PrayerTimeOffsets.ZERO
 )
 
 fun PrayerWidgetSnapshot.withCache(
@@ -40,7 +44,7 @@ fun PrayerWidgetSnapshot.withCache(
         else -> PrayerWidgetDataState.Stale
     }
     return copy(
-        cache = cache,
+        cache = cache?.withOffsets(offsets),
         location = nextLocation,
         now = now,
         dataState = nextState
@@ -51,7 +55,8 @@ class PrayerWidgetSnapshotSource(
     private val store: PrayerPreferences,
     private val settings: PrayerCalculationSettings,
     private val timeProvider: PrayerTimeProvider,
-    private val cachePolicy: PrayerCachePolicy
+    private val cachePolicy: PrayerCachePolicy,
+    private val offsetsStore: PrayerTimeOffsetsSource? = null
 ) {
     suspend fun load(): PrayerWidgetSnapshot {
         val location = store.readLocation()
@@ -73,14 +78,16 @@ class PrayerWidgetSnapshotSource(
             ?.takeIf { it.month == 9 }
             ?.let { DiyanetRamadanCalendar.find(it.year)?.toRange() }
         val religiousDays = DiyanetReligiousDays.on(today)
+        val offsets = offsetsStore?.read() ?: PrayerTimeOffsets.ZERO
         return PrayerWidgetSnapshot(
-            cache = cache,
+            cache = cache?.withOffsets(offsets),
             location = location,
             now = now,
             dataState = dataState,
-            tomorrowCache = tomorrowCache,
+            tomorrowCache = tomorrowCache?.withOffsets(offsets),
             ramadanRange = ramadanRange,
-            religiousDays = religiousDays
+            religiousDays = religiousDays,
+            offsets = offsets
         )
     }
 }
@@ -93,7 +100,8 @@ object PrayerWidgetSnapshotLoader {
             store = container.store,
             settings = container.settings,
             timeProvider = container.timeProvider,
-            cachePolicy = container.cachePolicy
+            cachePolicy = container.cachePolicy,
+            offsetsStore = container.prayerTimeOffsetsStore
         ).load()
     }
 }

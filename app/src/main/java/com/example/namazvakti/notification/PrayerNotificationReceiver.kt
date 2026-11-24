@@ -9,6 +9,7 @@ import com.example.namazvakti.domain.model.PrayerNotificationPrayer
 import com.example.namazvakti.domain.model.PrayerNotificationType
 import com.example.namazvakti.domain.policy.PrayerNotificationDeliveryPolicy
 import com.example.namazvakti.domain.policy.PrayerNotificationEventId
+import com.example.namazvakti.domain.model.withOffsets
 import com.example.namazvakti.domain.policy.timeIn
 import com.example.namazvakti.widget.alarm.PrayerWidgetScheduler
 import com.example.namazvakti.widget.launchAsync
@@ -85,7 +86,9 @@ class PrayerNotificationReceiver : BroadcastReceiver() {
 
             val location = container.store.readLocation()
             val cache = container.store.readCache(event.date, location, container.settings) ?: return
-            val currentPrayerTime = event.date.atTime(event.prayer.timeIn(cache)).atZone(cache.timezone)
+            val effectiveCache = cache.withOffsets(container.prayerTimeOffsetsStore.read())
+            val currentPrayerTime = event.date.atTime(event.prayer.timeIn(effectiveCache))
+                .atZone(effectiveCache.timezone)
             val allowed = PrayerNotificationDeliveryPolicy.shouldShow(
                 type = event.type,
                 now = container.timeProvider.now().toInstant(),
@@ -94,7 +97,8 @@ class PrayerNotificationReceiver : BroadcastReceiver() {
                 currentPrayerTime = currentPrayerTime.toInstant(),
                 currentLeadMinutes = settings.leadMinutes,
                 prayerEnabled = event.prayer in settings.enabledPrayers,
-                locationMatches = cache.location.cacheKey == locationCity && cache.location.country == locationCountry,
+                locationMatches = effectiveCache.location.cacheKey == locationCity &&
+                    effectiveCache.location.country == locationCountry,
                 exact = exact,
                 alreadyShown = event in settingsStore.readShownEvents()
             )
@@ -106,7 +110,7 @@ class PrayerNotificationReceiver : BroadcastReceiver() {
                 type = event.type,
                 leadMinutes = settings.leadMinutes,
                 prayerTime = currentPrayerTime,
-                displayCity = cache.location.displayName
+                displayCity = effectiveCache.location.displayName
             )
             settingsStore.recordShownEvent(event)
         }

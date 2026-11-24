@@ -121,6 +121,8 @@ fun PrayerHomeScreen(
     onOpenReligiousDays: () -> Unit,
     ramadanRange: RamadanRange?,
     onOpenNotificationSettings: () -> Unit,
+    onOpenPrayerTimeOffsets: () -> Unit = {},
+    offsetsActive: Boolean = false,
     exactAlarmNeeded: Boolean,
     onRequestExactAlarm: () -> Unit,
     onOpenAbout: () -> Unit = {},
@@ -198,6 +200,12 @@ fun PrayerHomeScreen(
                     TextButton(onClick = onOpenAbout) {
                         Text(stringResource(R.string.about_open))
                     }
+                    IconButton(onClick = onOpenPrayerTimeOffsets) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_tune_24),
+                            contentDescription = stringResource(R.string.offsets_settings_open)
+                        )
+                    }
                     IconButton(
                         onClick = onOpenNotificationSettings,
                         enabled = state != PrayerUiState.Loading
@@ -254,6 +262,13 @@ fun PrayerHomeScreen(
                                 text = hijri,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (offsetsActive) {
+                            Text(
+                                text = stringResource(R.string.prayer_offsets_applied),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.tertiary
                             )
                         }
                     }

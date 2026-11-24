@@ -40,6 +40,7 @@ object PrayerNotificationScheduler {
         }
 
         val location = container.store.readLocation()
+        val offsets = container.prayerTimeOffsetsStore.read()
         val now = container.timeProvider.now().withZoneSameInstant(location.timezone)
         val today = now.toLocalDate()
         val todayCache = container.store.readCache(today, location, container.settings)
@@ -60,7 +61,8 @@ object PrayerNotificationScheduler {
             exact = exact,
             shownEvents = shownEvents,
             yesterday = yesterdayCache,
-            attemptedEvent = attemptedEvent
+            attemptedEvent = attemptedEvent,
+            offsets = offsets
         )?.let { planned ->
             if (planned.prayerTime.toInstant().isAfter(now.toInstant())) return@let planned
 
@@ -76,7 +78,8 @@ object PrayerNotificationScheduler {
             PrayerNotificationPlanner.nextEvent(
                 todayCache, tomorrowCache, settings, now,
                 shownEvents = shownEvents,
-                recoverMissed = false
+                recoverMissed = false,
+                offsets = offsets
             )
         }
         if (event != null) {

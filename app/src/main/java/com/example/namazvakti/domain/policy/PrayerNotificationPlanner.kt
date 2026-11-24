@@ -4,6 +4,8 @@ import com.example.namazvakti.domain.model.CachedPrayerDay
 import com.example.namazvakti.domain.model.PrayerNotificationPrayer
 import com.example.namazvakti.domain.model.PrayerNotificationSettings
 import com.example.namazvakti.domain.model.PrayerNotificationType
+import com.example.namazvakti.domain.model.PrayerTimeOffsets
+import com.example.namazvakti.domain.model.withOffsets
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -39,7 +41,8 @@ object PrayerNotificationPlanner {
         shownEvents: Set<PrayerNotificationEventId> = emptySet(),
         yesterday: CachedPrayerDay? = null,
         recoverMissed: Boolean = true,
-        attemptedEvent: PrayerNotificationEventId? = null
+        attemptedEvent: PrayerNotificationEventId? = null,
+        offsets: PrayerTimeOffsets = PrayerTimeOffsets.ZERO
     ): PrayerNotificationEvent? {
         if (!settings.notificationsEnabled || settings.enabledPrayers.isEmpty()) return null
 
@@ -48,15 +51,17 @@ object PrayerNotificationPlanner {
         val candidates = listOfNotNull(yesterday, today, tomorrow)
             .distinctBy(CachedPrayerDay::date)
             .flatMap { cache ->
-                val localToday = now.withZoneSameInstant(cache.timezone).toLocalDate()
-                if (cache.date < windowStart.atZone(cache.timezone).toLocalDate() ||
+                val effectiveCache = cache.withOffsets(offsets)
+                val localToday = now.withZoneSameInstant(effectiveCache.timezone).toLocalDate()
+                if (effectiveCache.date < windowStart.atZone(effectiveCache.timezone).toLocalDate() ||
                     cache.date > localToday.plusDays(1)
                 ) {
                     return@flatMap emptyList()
                 }
 
                 settings.enabledPrayers.mapNotNull { prayer ->
-                    val prayerTime = cache.date.atTime(prayer.timeIn(cache)).atZone(cache.timezone)
+                    val prayerTime = effectiveCache.date.atTime(prayer.timeIn(effectiveCache))
+                        .atZone(effectiveCache.timezone)
                     val prayerInstant = prayerTime.toInstant()
                     val isDue = !prayerInstant.isAfter(nowInstant)
                     if (isDue && (!recoverMissed || !prayerInstant.isAfter(windowStart))) {
@@ -79,9 +84,9 @@ object PrayerNotificationPlanner {
                         type = type,
                         triggerAt = triggerAt,
                         prayerTime = prayerTime,
-                        displayCity = cache.location.displayName,
-                        locationCity = cache.location.cacheKey,
-                        locationCountry = cache.location.country,
+                        displayCity = effectiveCache.location.displayName,
+                        locationCity = effectiveCache.location.cacheKey,
+                        locationCountry = effectiveCache.location.country,
                         leadMinutes = settings.leadMinutes
                     ).takeUnless { it.id in shownEvents || (isDue && it.id == attemptedEvent) }
                 }
