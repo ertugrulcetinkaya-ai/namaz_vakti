@@ -3,6 +3,8 @@ package com.example.namazvakti.widget.renderer
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.graphics.Paint
+import android.graphics.Typeface
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
@@ -10,6 +12,7 @@ import android.text.TextPaint
 import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
+import androidx.core.content.res.ResourcesCompat
 import com.example.namazvakti.R
 import com.example.namazvakti.domain.model.CachedPrayerDay
 import com.example.namazvakti.domain.model.DiyanetReligiousDay
@@ -25,6 +28,7 @@ import com.example.namazvakti.widget.PrayerWidgetCountdown
 import com.example.namazvakti.widget.PrayerWidgetCountdownCalculator
 import com.example.namazvakti.widget.PrayerWidgetSizeClass
 import com.example.namazvakti.widget.PrayerWidgetSnapshot
+import com.example.namazvakti.widget.WideWidgetTextFit
 import java.time.ZonedDateTime
 import java.util.Locale
 
@@ -36,7 +40,8 @@ class PrayerWidgetRenderer {
         snapshot: PrayerWidgetSnapshot,
         sizeClass: PrayerWidgetSizeClass,
         elapsedRealtime: Long = android.os.SystemClock.elapsedRealtime(),
-        widthDp: Int? = null
+        widthDp: Int? = null,
+        heightDp: Int? = null
     ): RemoteViews = render(
         context = context,
         cache = snapshot.cache,
@@ -48,7 +53,8 @@ class PrayerWidgetRenderer {
         ramadanRange = snapshot.ramadanRange,
         elapsedRealtime = elapsedRealtime,
         religiousDays = snapshot.religiousDays,
-        widthDp = widthDp
+        widthDp = widthDp,
+        heightDp = heightDp
     )
 
     fun render(
@@ -62,11 +68,13 @@ class PrayerWidgetRenderer {
         ramadanRange: RamadanRange? = null,
         elapsedRealtime: Long = android.os.SystemClock.elapsedRealtime(),
         religiousDays: List<DiyanetReligiousDay> = emptyList(),
-        widthDp: Int? = null
+        widthDp: Int? = null,
+        heightDp: Int? = null
     ): RemoteViews {
         val compactDetails = sizeClass == PrayerWidgetSizeClass.MEDIUM &&
             widthDp != null && widthDp < COMPACT_DETAILS_MIN_WIDTH_DP
-        val views = RemoteViews(context.packageName, layoutFor(sizeClass, widthDp))
+        val layoutId = layoutFor(sizeClass, widthDp)
+        val views = RemoteViews(context.packageName, layoutId)
         val localNow = now.withZoneSameInstant(cache?.timezone ?: location.timezone)
         views.setOnClickPendingIntent(
             android.R.id.background,
@@ -277,6 +285,18 @@ class PrayerWidgetRenderer {
             android.R.id.background,
             context.getString(R.string.widget_content_description, location.widgetTitleCaseName(), spoken.trim())
         )
+        if (layoutId == R.layout.prayer_widget_wide && widthDp != null && heightDp != null && activeItems != null) {
+            applyWideTextFit(
+                context = context,
+                views = views,
+                widthDp = widthDp,
+                heightDp = heightDp,
+                cityText = renderedCity.toString(),
+                dateText = hijriText,
+                labels = activeItems.map { it.label.uppercase(TURKISH_LOCALE) },
+                times = activeItems.map { it.time.format(PrayerTimes.TIME_FORMATTER) }
+            )
+        }
         return views
     }
 
@@ -453,6 +473,67 @@ class PrayerWidgetRenderer {
         return selected.takeIf { it.isNotEmpty() }?.joinToString(" · ")
     }
 
+    private fun applyWideTextFit(
+        context: Context,
+        views: RemoteViews,
+        widthDp: Int,
+        heightDp: Int,
+        cityText: String,
+        dateText: String,
+        labels: List<String>,
+        times: List<String>
+    ) {
+        val metrics = context.resources.displayMetrics
+        fun font(id: Int): Typeface =
+            runCatching { ResourcesCompat.getFont(context, id) }.getOrNull() ?: Typeface.DEFAULT
+        val serifBold = font(R.font.noto_serif_semibold)
+        val serifItalic = font(R.font.noto_serif_italic)
+        val interMedium = font(R.font.inter_medium)
+        val interSemibold = font(R.font.inter_semibold)
+        fun paint(typeface: Typeface, sp: Float, letterSpacing: Float = 0f) = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.typeface = typeface
+            this.letterSpacing = letterSpacing
+            textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, sp, metrics)
+        }
+        fun Float.toDp() = this / metrics.density
+        fun widthDpOf(typeface: Typeface, sp: Float, texts: List<String>, letterSpacing: Float = 0f): Float {
+            val p = paint(typeface, sp, letterSpacing)
+            return texts.maxOfOrNull { p.measureText(it) }?.toDp() ?: 0f
+        }
+        fun lineHeightDp(typeface: Typeface, sp: Float): Float {
+            val fm = paint(typeface, sp).fontMetrics
+            return (fm.descent - fm.ascent).toDp()
+        }
+        val measurer = object : WideWidgetTextFit.Measurer {
+            override fun cityWidth(sp: Float) = widthDpOf(serifBold, sp, listOf(cityText))
+            override fun cityHeight(sp: Float) = lineHeightDp(serifBold, sp)
+            override fun dateWidth(sp: Float) = widthDpOf(serifItalic, sp, listOf(dateText))
+            override fun dateHeight(sp: Float) =
+                if (dateText.isBlank()) 0f else lineHeightDp(serifItalic, sp)
+            override fun maxLabelWidth(sp: Float) = maxOf(
+                widthDpOf(interMedium, sp, labels, LABEL_LETTER_SPACING),
+                widthDpOf(interSemibold, sp, labels, LABEL_LETTER_SPACING)
+            )
+            override fun labelHeight(sp: Float) = lineHeightDp(interSemibold, sp)
+            override fun maxTimeWidth(sp: Float) = maxOf(
+                widthDpOf(interMedium, sp, times),
+                widthDpOf(interSemibold, sp, times)
+            )
+            override fun timeHeight(sp: Float) = lineHeightDp(interSemibold, sp)
+        }
+        val scale = WideWidgetTextFit.bestScale(widthDp.toFloat(), heightDp.toFloat(), measurer)
+        if (scale <= WideWidgetTextFit.MIN_SCALE) return
+        val sizes = WideWidgetTextFit.sizesFor(scale)
+        views.setTextViewTextSize(R.id.prayer_widget_city, TypedValue.COMPLEX_UNIT_SP, sizes.citySp)
+        views.setTextViewTextSize(R.id.prayer_widget_date, TypedValue.COMPLEX_UNIT_SP, sizes.dateSp)
+        (PRAYER_LABEL_IDS + PRAYER_ACTIVE_LABEL_IDS).forEach {
+            views.setTextViewTextSize(it, TypedValue.COMPLEX_UNIT_SP, sizes.labelSp)
+        }
+        (PRAYER_TIME_IDS + PRAYER_ACTIVE_TIME_IDS).forEach {
+            views.setTextViewTextSize(it, TypedValue.COMPLEX_UNIT_SP, sizes.timeSp)
+        }
+    }
+
     private fun layoutFor(sizeClass: PrayerWidgetSizeClass, widthDp: Int?): Int = when (sizeClass) {
         PrayerWidgetSizeClass.SMALL -> R.layout.prayer_widget_small
         PrayerWidgetSizeClass.MEDIUM -> when {
@@ -481,6 +562,7 @@ class PrayerWidgetRenderer {
         const val COMPACT_DETAILS_MIN_WIDTH_DP = 320
         const val WIDE_LAYOUT_MIN_WIDTH_DP = 400
         const val COMPACT_TEXT_SIZE_SP = 16f
+        const val LABEL_LETTER_SPACING = 0.08f
         const val LARGE_CITY_TEXT_SIZE_SP = 24f
         const val SMALL_CITY_TEXT_SIZE_SP = 18f
         const val REDUCED_TEXT_SIZE_MIN_WIDTH_DP = 400
