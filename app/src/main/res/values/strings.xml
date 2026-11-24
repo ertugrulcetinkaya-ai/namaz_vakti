@@ -137,6 +137,17 @@
     <string name="city_selection_title">Şehir seçin</string>
     <string name="back">Geri</string>
     <string name="city_search_no_results">Bu aramayla eşleşen sonuç yok.</string>
+    <string name="location_suggestion_use">Konumumu kullan</string>
+    <string name="location_suggestion_loading">Konum aranıyor…</string>
+    <string name="location_suggestion_permission_denied">İlçe önermek için yaklaşık konum izni gerekir.</string>
+    <string name="location_suggestion_open_settings">Uygulama ayarlarını aç</string>
+    <string name="location_suggestion_services_disabled">Konum servisleri kapalı. Açıp yeniden deneyin.</string>
+    <string name="location_suggestion_timed_out">Konum belirlenemedi. Biraz sonra yeniden deneyin.</string>
+    <string name="location_suggestion_no_district">Yakınınızda uygun ilçe bulunamadı. Listeden seçebilirsiniz.</string>
+    <string name="location_suggestion_found">Yakınınızdaki ilçe: %1$s, %2$s (%3$d km)</string>
+    <string name="location_suggestion_found_central">Yakınınızdaki konum: %1$s merkez (%2$d km)</string>
+    <string name="location_suggestion_select">Bu ilçeyi seç</string>
+    <string name="location_suggestion_choose_from_list">Listeden seç</string>
     <string name="city_selected">Seçili şehir</string>
     <string name="district_central">Merkez</string>
     <string name="district_selection_hint">İlçe seçin</string>

@@ -5,6 +5,7 @@ Namaz Vakti, Türkiye'deki şehirler ve ilçeler için namaz vakitlerini göster
 ## Özellikler
 
 - Türkiye'deki 81 il ve 869 ilçe arasından konum seçimi; Türkçe karakterlerden bağımsız arama
+- Yaklaşık konum izniyle cihazda tek seferlik en yakın ilçe önerisi
 - Jetpack Compose ve Material 3 ile günlük vakitler, Türkçe ve hicri tarih, canlı geri sayım
 - Geçmiş, aktif ve gelecek vakitleri ayırt eden ana ekran; Android 12+ dinamik renkler ve sistem açık/koyu teması
 - Ana ekrandan şehir/ilçe arama ve bildirim ayarlarına erişim
