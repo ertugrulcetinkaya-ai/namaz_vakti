@@ -29,11 +29,12 @@ class WideWidgetTextFitTest {
 
     @Test
     fun shortWidget_isHeightLimited() {
-        val scale = WideWidgetTextFit.bestScale(widthDp = 600f, heightDp = 100f, measurer = measurer)
+        val scale = WideWidgetTextFit.bestScale(widthDp = 600f, heightDp = 130f, measurer = measurer)
         val sizes = WideWidgetTextFit.sizesFor(scale)
         val height = 1.2f * (sizes.citySp + sizes.dateSp + sizes.labelSp + sizes.timeSp) +
             WideWidgetTextFit.FIXED_VERTICAL_DP
-        assertTrue(height <= 100f * WideWidgetTextFit.HEIGHT_SAFETY)
+        assertTrue(height <= 130f * WideWidgetTextFit.HEIGHT_SAFETY)
+        assertTrue(130f * WideWidgetTextFit.HEIGHT_SAFETY - height < 1f)
         assertTrue(scale > 1f)
     }
 
