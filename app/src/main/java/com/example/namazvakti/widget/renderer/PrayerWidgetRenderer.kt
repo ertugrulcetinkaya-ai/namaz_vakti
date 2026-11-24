@@ -28,7 +28,7 @@ import com.example.namazvakti.widget.PrayerWidgetCountdown
 import com.example.namazvakti.widget.PrayerWidgetCountdownCalculator
 import com.example.namazvakti.widget.PrayerWidgetSizeClass
 import com.example.namazvakti.widget.PrayerWidgetSnapshot
-import com.example.namazvakti.widget.WideWidgetTextFit
+import com.example.namazvakti.widget.WidgetTextFit
 import java.time.ZonedDateTime
 import java.util.Locale
 
@@ -285,16 +285,35 @@ class PrayerWidgetRenderer {
             android.R.id.background,
             context.getString(R.string.widget_content_description, location.widgetTitleCaseName(), spoken.trim())
         )
-        if (layoutId == R.layout.prayer_widget_wide && widthDp != null && heightDp != null && activeItems != null) {
-            applyWideTextFit(
+        val fitGeometry = when (layoutId) {
+            R.layout.prayer_widget_wide -> WIDE_FIT_GEOMETRY
+            R.layout.prayer_widget_large -> LARGE_FIT_GEOMETRY
+            else -> null
+        }
+        if (fitGeometry != null && widthDp != null && heightDp != null && activeItems != null) {
+            val isLarge = layoutId == R.layout.prayer_widget_large
+            applyTextFit(
                 context = context,
                 views = views,
                 widthDp = widthDp,
                 heightDp = heightDp,
+                geometry = fitGeometry,
+                gridRows = if (isLarge) 2 else 1,
                 cityText = renderedCity.toString(),
                 dateText = hijriText,
                 labels = activeItems.map { it.label.uppercase(TURKISH_LOCALE) },
-                times = activeItems.map { it.time.format(PrayerTimes.TIME_FORMATTER) }
+                times = activeItems.map { it.time.format(PrayerTimes.TIME_FORMATTER) },
+                countdownRow = if (isLarge) {
+                    displayNextText.orEmpty() to if (showCountdown) {
+                        context.getString(R.string.widget_chronometer_format).replace("%s", CHRONOMETER_WORST_CASE)
+                    } else {
+                        ""
+                    }
+                } else {
+                    null
+                },
+                provinceNote = if (isLarge) provinceCenterNote else null,
+                bottomInfo = if (isLarge) bottomInfo else null
             )
         }
         return views
@@ -473,15 +492,28 @@ class PrayerWidgetRenderer {
         return selected.takeIf { it.isNotEmpty() }?.joinToString(" · ")
     }
 
-    private fun applyWideTextFit(
+    private class FitText(
+        val ids: List<Int>,
+        val typeface: Typeface,
+        val baseSp: Float,
+        val texts: List<String>,
+        val letterSpacing: Float = 0f
+    )
+
+    private fun applyTextFit(
         context: Context,
         views: RemoteViews,
         widthDp: Int,
         heightDp: Int,
+        geometry: WidgetTextFit.Geometry,
+        gridRows: Int,
         cityText: String,
         dateText: String,
         labels: List<String>,
-        times: List<String>
+        times: List<String>,
+        countdownRow: Pair<String, String>?,
+        provinceNote: String?,
+        bottomInfo: String?
     ) {
         val metrics = context.resources.displayMetrics
         fun font(id: Int): Typeface =
@@ -490,47 +522,57 @@ class PrayerWidgetRenderer {
         val serifItalic = font(R.font.noto_serif_italic)
         val interMedium = font(R.font.inter_medium)
         val interSemibold = font(R.font.inter_semibold)
-        fun paint(typeface: Typeface, sp: Float, letterSpacing: Float = 0f) = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            this.typeface = typeface
-            this.letterSpacing = letterSpacing
-            textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, sp, metrics)
+
+        val city = FitText(listOf(R.id.prayer_widget_city), serifBold, 19f, listOf(cityText))
+        val date = FitText(listOf(R.id.prayer_widget_date), serifItalic, 14f, listOf(dateText))
+        val label = FitText(PRAYER_LABEL_IDS, interMedium, 12f, labels, LABEL_LETTER_SPACING)
+        val activeLabel = FitText(PRAYER_ACTIVE_LABEL_IDS, interSemibold, 12f, labels, LABEL_LETTER_SPACING)
+        val time = FitText(PRAYER_TIME_IDS, interMedium, 21f, times)
+        val activeTime = FitText(PRAYER_ACTIVE_TIME_IDS, interSemibold, 21f, times)
+        val next = countdownRow?.let { FitText(listOf(R.id.prayer_widget_next_prayer), interSemibold, 18f, listOf(it.first)) }
+        val chrono = countdownRow?.let { FitText(listOf(R.id.prayer_widget_chronometer), interMedium, 22f, listOf(it.second)) }
+        val province = provinceNote?.let { FitText(listOf(R.id.prayer_widget_province_center), interMedium, 12f, listOf(it)) }
+        val bottom = bottomInfo?.let { FitText(listOf(R.id.prayer_widget_ramadan), interMedium, 14f, listOf(it)) }
+
+        fun paint(item: FitText, scale: Float) = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = item.typeface
+            letterSpacing = item.letterSpacing
+            textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, item.baseSp * scale, metrics)
         }
-        fun Float.toDp() = this / metrics.density
-        fun widthDpOf(typeface: Typeface, sp: Float, texts: List<String>, letterSpacing: Float = 0f): Float {
-            val p = paint(typeface, sp, letterSpacing)
-            return texts.maxOfOrNull { p.measureText(it) }?.toDp() ?: 0f
+        fun width(item: FitText?, scale: Float): Float {
+            if (item == null) return 0f
+            val p = paint(item, scale)
+            return (item.texts.maxOfOrNull { p.measureText(it) } ?: 0f) / metrics.density
         }
-        fun lineHeightDp(typeface: Typeface, sp: Float): Float {
-            val fm = paint(typeface, sp).fontMetrics
-            return (fm.descent - fm.ascent).toDp()
+        fun height(item: FitText?, scale: Float): Float {
+            if (item == null || item.texts.all(String::isBlank)) return 0f
+            val fm = paint(item, scale).fontMetrics
+            return (fm.descent - fm.ascent) / metrics.density
         }
-        val measurer = object : WideWidgetTextFit.Measurer {
-            override fun cityWidth(sp: Float) = widthDpOf(serifBold, sp, listOf(cityText))
-            override fun cityHeight(sp: Float) = lineHeightDp(serifBold, sp)
-            override fun dateWidth(sp: Float) = widthDpOf(serifItalic, sp, listOf(dateText))
-            override fun dateHeight(sp: Float) =
-                if (dateText.isBlank()) 0f else lineHeightDp(serifItalic, sp)
-            override fun maxLabelWidth(sp: Float) = maxOf(
-                widthDpOf(interMedium, sp, labels, LABEL_LETTER_SPACING),
-                widthDpOf(interSemibold, sp, labels, LABEL_LETTER_SPACING)
+
+        val measurer = object : WidgetTextFit.Measurer {
+            override fun maxCellTextWidth(scale: Float) = maxOf(
+                width(label, scale), width(activeLabel, scale), width(time, scale), width(activeTime, scale)
             )
-            override fun labelHeight(sp: Float) = lineHeightDp(interSemibold, sp)
-            override fun maxTimeWidth(sp: Float) = maxOf(
-                widthDpOf(interMedium, sp, times),
-                widthDpOf(interSemibold, sp, times)
+
+            override fun maxRowWidth(scale: Float) = maxOf(
+                width(city, scale),
+                width(date, scale),
+                width(province, scale),
+                width(bottom, scale),
+                if (next != null) width(next, scale) + COUNTDOWN_GAP_DP + width(chrono, scale) else 0f
             )
-            override fun timeHeight(sp: Float) = lineHeightDp(interSemibold, sp)
+
+            override fun contentHeight(scale: Float) =
+                height(city, scale) + height(date, scale) + height(province, scale) +
+                    maxOf(height(next, scale), height(chrono, scale)) +
+                    gridRows * (height(activeLabel, scale) + height(activeTime, scale)) +
+                    height(bottom, scale)
         }
-        val scale = WideWidgetTextFit.bestScale(widthDp.toFloat(), heightDp.toFloat(), measurer)
-        if (scale <= WideWidgetTextFit.MIN_SCALE) return
-        val sizes = WideWidgetTextFit.sizesFor(scale)
-        views.setTextViewTextSize(R.id.prayer_widget_city, TypedValue.COMPLEX_UNIT_SP, sizes.citySp)
-        views.setTextViewTextSize(R.id.prayer_widget_date, TypedValue.COMPLEX_UNIT_SP, sizes.dateSp)
-        (PRAYER_LABEL_IDS + PRAYER_ACTIVE_LABEL_IDS).forEach {
-            views.setTextViewTextSize(it, TypedValue.COMPLEX_UNIT_SP, sizes.labelSp)
-        }
-        (PRAYER_TIME_IDS + PRAYER_ACTIVE_TIME_IDS).forEach {
-            views.setTextViewTextSize(it, TypedValue.COMPLEX_UNIT_SP, sizes.timeSp)
+        val scale = WidgetTextFit.bestScale(widthDp.toFloat(), heightDp.toFloat(), geometry, measurer)
+        if (scale <= WidgetTextFit.MIN_SCALE) return
+        listOfNotNull(city, date, label, activeLabel, time, activeTime, next, chrono, province, bottom).forEach { item ->
+            item.ids.forEach { views.setTextViewTextSize(it, TypedValue.COMPLEX_UNIT_SP, item.baseSp * scale) }
         }
     }
 
@@ -563,6 +605,20 @@ class PrayerWidgetRenderer {
         const val WIDE_LAYOUT_MIN_WIDTH_DP = 400
         const val COMPACT_TEXT_SIZE_SP = 16f
         const val LABEL_LETTER_SPACING = 0.08f
+        const val COUNTDOWN_GAP_DP = 6f
+        const val CHRONOMETER_WORST_CASE = "00:00:00"
+
+        // Fixed (non-scaling) vertical space: margins, underlines and breathing room.
+        val WIDE_FIT_GEOMETRY = WidgetTextFit.Geometry(
+            columns = 6,
+            horizontalPaddingDp = 16f,
+            fixedVerticalDp = 2f + 2f + 8f
+        )
+        val LARGE_FIT_GEOMETRY = WidgetTextFit.Geometry(
+            columns = 3,
+            horizontalPaddingDp = 36f,
+            fixedVerticalDp = 8f + 4f + 2f + 1f + 3f + 2f * 2 + 12f
+        )
         const val LARGE_CITY_TEXT_SIZE_SP = 24f
         const val SMALL_CITY_TEXT_SIZE_SP = 18f
         const val REDUCED_TEXT_SIZE_MIN_WIDTH_DP = 400
