@@ -2,6 +2,8 @@
 
 Namaz Vakti, Türkiye'deki şehirler ve ilçeler için namaz vakitlerini gösteren açık kaynak bir Android uygulaması ve ana ekran widget'ıdır.
 
+**İndir:** [En son sürüm (APK)](https://github.com/ertugrulcetinkaya-ai/namaz_vakti/releases/latest/download/NamazVakti.apk) · [Tüm sürümler](https://github.com/ertugrulcetinkaya-ai/namaz_vakti/releases)
+
 ## Özellikler
 
 - Türkiye'deki 81 il ve 869 ilçe arasından konum seçimi; Türkçe karakterlerden bağımsız arama
@@ -107,7 +109,7 @@ Beta sürüm değerleri varsayılan olarak şöyledir:
 - `versionName`: `0.1.0-beta.1`
 - `versionCode`: `100`
 
-GitHub Beta Release workflow'u manuel version code kabul etmez; mevcut `100` baseline'ının üzerine workflow run numarasını ekleyerek monoton bir version code üretir. Daha yüksek bir version code yayınlanırsa `VERSION_CODE_BASE` değeri bir sonraki release'ten önce yükseltilmelidir.
+GitHub Beta Release workflow'u manuel version code kabul etmez; `VERSION_CODE_BASE` (`200`) değerinin üzerine workflow run numarasını ekleyerek monoton bir version code üretir. Elle derlenen betalar 101–199 aralığında kalmalıdır; CI sürümleri böylece her zaman güncelleme olarak kurulur.
 
 Yerelde farklı değerlerle build almak için:
 
@@ -115,7 +117,7 @@ Yerelde farklı değerlerle build almak için:
 VERSION_NAME=0.1.0-beta.2 VERSION_CODE=101 ./gradlew assembleRelease bundleRelease
 ```
 
-GitHub'daki `Beta Release` workflow'u manuel çalıştırılabilir veya `v*` etiketi push edildiğinde tetiklenir. Doğrulama job'ı debug APK ve Android test APK üretir; release job'ı yalnızca imzalama secret'ları mevcutsa release APK ve AAB yükler. Secret'lar tanımlı değilse release job'ı başarısız olur ve unsigned release artifact üretmez.
+GitHub'daki `Beta Release` workflow'u manuel çalıştırılabilir veya `v*` etiketi push edildiğinde tetiklenir. Doğrulama job'ı debug APK ve Android test APK üretir; release job'ı yalnızca imzalama secret'ları mevcutsa release APK ve AAB yükler. Secret'lar tanımlı değilse release job'ı başarısız olur ve unsigned release artifact üretmez. Release job'ı APK'nın kalıcı anahtarla (`EXPECTED_CERT_SHA256`) imzalandığını doğrular, ardından `v<versionName>` etiketiyle bir GitHub Release oluşturur ve APK'yı hem `NamazVakti-<versionName>.apk` hem de sabit `NamazVakti.apk` adıyla ekler; `releases/latest/download/NamazVakti.apk` bağlantısı her zaman son sürümü indirir.
 
 İmzalı beta için repository `release` environment'ında şu secret'lar tanımlanmalıdır:
 

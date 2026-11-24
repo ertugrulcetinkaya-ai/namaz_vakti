@@ -19,9 +19,12 @@ permissions:
   contents: read
 
 env:
-  # The local beta baseline is 100; every Beta Release run gets a unique,
-  # monotonically increasing code above that baseline.
-  VERSION_CODE_BASE: "100"
+  # Every Beta Release run gets a unique, monotonically increasing code above
+  # this baseline. 200 keeps CI builds above the hand-built betas (101-199),
+  # so a published APK always installs as an update.
+  VERSION_CODE_BASE: "200"
+  # SHA-256 of the permanent release certificate (lowercase, no colons).
+  EXPECTED_CERT_SHA256: "3fc5bb3f098de85e54777b5d07aaed2fc4414f0c5b26f773914e3059305b5e88"
 
 jobs:
   verify:
@@ -100,6 +103,8 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     environment: release
+    permissions:
+      contents: write
     env:
       VERSION_NAME: ${{ inputs.version_name || github.ref_name }}
     steps:
@@ -169,7 +174,13 @@ jobs:
           # A here-string, not `printf | grep -q`: with pipefail, grep -q exits on the first match and the
           # long jarsigner output makes printf fail with SIGPIPE, failing a correctly signed bundle.
           grep -Fq 'jar verified' <<<"$bundle_verification"
-          "$apksigner_path" verify --print-certs "$apk_path" | grep -F 'certificate SHA-256 digest'
+          cert_digest="$("$apksigner_path" verify --print-certs "$apk_path" | sed -n 's/.*certificate SHA-256 digest: //p' | head -n 1)"
+          echo "Release certificate SHA-256: $cert_digest"
+          if [ "$cert_digest" != "$EXPECTED_CERT_SHA256" ]; then
+            echo "::error::APK is not signed with the permanent release key"
+            exit 1
+          fi
+          echo "APK_PATH=$apk_path" >> "$GITHUB_ENV"
 
       - name: Upload signed release artifacts
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -180,3 +191,35 @@ jobs:
             app/build/outputs/apk/release/*.apk
             app/build/outputs/bundle/release/*.aab
             app/build/outputs/mapping/release/mapping.txt
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="v${VERSION_NAME}"
+          versioned="NamazVakti-${VERSION_NAME}.apk"
+          mkdir -p "$RUNNER_TEMP/release-assets"
+          cp "$APK_PATH" "$RUNNER_TEMP/release-assets/$versioned"
+          # Stable name for https://github.com/<repo>/releases/latest/download/NamazVakti.apk
+          cp "$APK_PATH" "$RUNNER_TEMP/release-assets/NamazVakti.apk"
+          cat > "$RUNNER_TEMP/release-notes.md" <<NOTES
+          Namaz Vakti ${VERSION_NAME} (sürüm kodu ${VERSION_CODE}).
+
+          **Kurulum:** Telefonda \`${versioned}\` dosyasını indirip açın; istenirse "bilinmeyen kaynaklardan yükleme" izni verin. Önceki sürümlerin üzerine güncelleme olarak kurulur.
+
+          İmza sertifikası SHA-256: \`${EXPECTED_CERT_SHA256}\`
+
+          Değişiklikler için [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/CHANGELOG.md).
+          NOTES
+          sed -i 's/^          //' "$RUNNER_TEMP/release-notes.md"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "$RUNNER_TEMP"/release-assets/*.apk --clobber
+          else
+            gh release create "$tag" "$RUNNER_TEMP"/release-assets/*.apk \
+              --target "$GITHUB_SHA" \
+              --title "Namaz Vakti ${VERSION_NAME}" \
+              --notes-file "$RUNNER_TEMP/release-notes.md" \
+              --latest
+          fi
+          echo "Download: https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/NamazVakti.apk"
