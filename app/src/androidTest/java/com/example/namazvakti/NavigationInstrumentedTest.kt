@@ -41,6 +41,24 @@ class NavigationInstrumentedTest {
     }
 
     @Test
+    fun systemBackFromQiblaReturnsToHome() {
+        ActivityScenario.launch(MainActivity::class.java).use {
+            val qibla = context.getString(R.string.qibla_open)
+            val about = context.getString(R.string.about_open)
+            val locationPrefix = context.getString(R.string.qibla_location, "").trim()
+
+            awaitNode(qibla) { it.text?.toString() == qibla }.click()
+            awaitNode("selected qibla location") {
+                it.text?.toString()?.startsWith(locationPrefix) == true
+            }
+
+            instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+
+            awaitNode(about) { it.text?.toString() == about }
+        }
+    }
+
+    @Test
     @Suppress("DEPRECATION") // isChecked also works on the API 35 test device.
     fun unsavedNotificationSettingSurvivesActivityRecreation() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
