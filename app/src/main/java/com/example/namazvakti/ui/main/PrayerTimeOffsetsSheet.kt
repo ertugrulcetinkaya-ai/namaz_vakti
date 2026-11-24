@@ -90,7 +90,11 @@ fun PrayerTimeOffsetsSheet(
                         Text(stringResource(R.string.offset_decrease))
                     }
                     Text(
-                        stringResource(R.string.offset_minutes_value, minutes),
+                        if (minutes == 0) {
+                            stringResource(R.string.offset_minutes_zero)
+                        } else {
+                            stringResource(R.string.offset_minutes_value, minutes)
+                        },
                         modifier = Modifier.padding(horizontal = 4.dp),
                         style = MaterialTheme.typography.titleMedium
                     )
